@@ -10,12 +10,14 @@ interface Props {
   readonly?: boolean;
   size?: string | number;
   density?: "comfortable" | "compact" | "default";
+  compact?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonly: false,
   size: "small",
   density: "compact",
+  compact: false,
 });
 
 const { t } = useI18n();
@@ -44,7 +46,12 @@ const onChange = async (newValue: string | number) => {
 
 <template>
   <div class="rating-button">
+    <span v-if="compact && item.rating != null" class="rating-compact">
+      <v-icon class="rating-compact-icon" color="amber" icon="mdi-star" />
+      <span class="rating-compact-value">{{ item.rating }}</span>
+    </span>
     <v-rating
+      v-else
       :model-value="item.rating ?? 0"
       :length="5"
       :density="density"
@@ -66,5 +73,40 @@ const onChange = async (newValue: string | number) => {
 .rating-button {
   display: inline-flex;
   align-items: center;
+  vertical-align: middle;
+  min-width: 0;
+}
+
+.rating-button :deep(.v-rating__item) {
+  padding: 0;
+}
+
+.rating-button :deep(.v-rating__item .v-btn) {
+  padding: 0;
+  width: auto;
+  min-width: 0;
+  --v-btn-height: auto;
+}
+
+.rating-compact {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: 4px;
+  height: 48px;
+  padding: 0 12px;
+  line-height: 1;
+}
+
+.rating-compact-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.rating-compact-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  opacity: 0.85;
+  line-height: 1;
 }
 </style>

@@ -999,18 +999,18 @@ const menuItems = computed(() => {
       closeOnContentClick: false,
       overflowAllowed: true,
       subItems: [
-        {
-          label: "rating_unrated",
-          selected: activeRatings.includes(null),
-          action: () => changeRatingFilter(null),
-        },
-        ...[1, 2, 3, 4, 5].map((n) => ({
-          // reuse i18n "rating_stars" with the star count interpolated
-          label: "rating_stars",
-          labelArgs: [String(n)],
+        ...[5, 4, 3, 2, 1].map((n) => ({
+          // visual 5-star representation (filled + unfilled)
+          label: "★".repeat(n) + "☆".repeat(5 - n),
           selected: activeRatings.includes(n),
           action: () => changeRatingFilter(n),
         })),
+        {
+          label: "rating_unrated",
+          icon: "mdi-star-off-outline",
+          selected: activeRatings.includes(null),
+          action: () => changeRatingFilter(null),
+        },
       ],
     });
   }

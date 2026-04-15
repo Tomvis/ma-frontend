@@ -778,8 +778,8 @@
         "play_count_desc": "Play count (descending)",
         "artist_name": "Album artist",
         "artist_name_desc": "Album artist (descending)",
-        "rating": "Rating (low → high)",
-        "rating_desc": "Rating (high → low)"
+        "rating": "Rating",
+        "rating_desc": "Rating (descending)"
     },
     "state": {
         "idle": "idle",

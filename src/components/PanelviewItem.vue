@@ -153,22 +153,23 @@
           <v-item v-if="getBreakpointValue('bp3')">
             <FavouriteButton :item="item" />
           </v-item>
-          <v-item
-            v-if="
-              'rating' in item &&
-              (item as MediaItem).rating != null &&
-              ((item as MediaItem).media_type === MediaType.ARTIST ||
-                (item as MediaItem).media_type === MediaType.ALBUM ||
-                (item as MediaItem).media_type === MediaType.TRACK)
-            "
-          >
-            <RatingButton :item="item as MediaItem" readonly size="x-small" />
-          </v-item>
         </v-item-group>
 
         <!-- Now Playing Badge -->
         <NowPlayingBadge v-if="isPlaying" :show-badge="false" />
         <v-spacer />
+        <RatingButton
+          v-if="
+            'rating' in item &&
+            (item as MediaItem).rating != null &&
+            ((item as MediaItem).media_type === MediaType.ARTIST ||
+              (item as MediaItem).media_type === MediaType.ALBUM ||
+              (item as MediaItem).media_type === MediaType.TRACK)
+          "
+          :item="item as MediaItem"
+          readonly
+          compact
+        />
         <MAButton
           v-if="isHovering || $vuetify.display.mobile"
           variant="list"
