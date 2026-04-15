@@ -642,13 +642,9 @@
         "players_total": "{0} total player{1}",
         "api_docs": "API Documentation",
         "no_group_providers": "You currently do not have any providers that support creating groups",
-        "sendspin_sync_delay": {
-            "label": "Sendspin sync delay (ms)",
-            "description": "Static delay in milliseconds to adjust audio synchronization. Positive values delay playback, negative values advance it. Use this to compensate for device-specific audio latency."
-        },
-        "sendspin_output_latency_compensation": {
-            "label": "Use browser latency detection",
-            "description": "Automatically compensate for hardware audio latency (e.g., Bluetooth headphones) using the browser's output latency API. This API is fairly new and may not work reliably on all browsers and operating systems."
+        "sendspin_static_delay": {
+            "label": "Static playback delay (ms)",
+            "description": "Offset in milliseconds to keep this player in sync with other players. Increase if audio plays too late, for example to compensate for latency from an amp, active speakers, or the OS."
         },
         "provider_codeowners": "This provider is contributed\/maintained by",
         "provider_credits": "Made possible by",
@@ -762,7 +758,8 @@
         "track_number": "Track number",
         "year": "Release year",
         "position_desc": "Position (descending)",
-        "album": "Album",
+        "album": "Album (alphabetical)",
+        "album_sort_name": "Album (sort name)",
         "artist": "Artist",
         "name": "Alphabetically",
         "name_desc": "Alphabetically (descending)",
@@ -1424,7 +1421,7 @@
         "subwoofer_volume": "Subwoofer Volume",
         "surround_3d": "Surround 3D",
         "surround_decoder_type": "Surround decoder type",
-        "tone_control_mode": "Tone controle mode",
+        "tone_control_mode": "Tone control mode",
         "treble": "Treble"
     },
     "select_sound_mode": "Select sound mode",
