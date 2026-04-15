@@ -11,6 +11,7 @@ export interface ItemsListingPreferences {
   hideEmptyFilter?: boolean | null;
   albumType?: string[];
   providerFilter?: string[];
+  ratings?: Array<number | null>;
   expand?: boolean;
   search?: string;
 }

@@ -16,6 +16,7 @@
     :total="total"
     :show-album-type-filter="true"
     :show-provider-filter="true"
+    :show-rating-filter="true"
   />
 </template>
 
@@ -49,6 +50,8 @@ const sortKeys = [
   "play_count_desc",
   "artist_name",
   "artist_name_desc",
+  "rating",
+  "rating_desc",
 ];
 
 onMounted(() => {
@@ -77,6 +80,7 @@ const loadItems = async function (params: LoadDataParams) {
     params.albumType,
     params.provider && params.provider.length > 0 ? params.provider : undefined,
     params.genreIds,
+    params.ratings,
   );
 };
 

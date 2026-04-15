@@ -153,6 +153,17 @@
           <v-item v-if="getBreakpointValue('bp3')">
             <FavouriteButton :item="item" />
           </v-item>
+          <v-item
+            v-if="
+              'rating' in item &&
+              (item as MediaItem).rating != null &&
+              ((item as MediaItem).media_type === MediaType.ARTIST ||
+                (item as MediaItem).media_type === MediaType.ALBUM ||
+                (item as MediaItem).media_type === MediaType.TRACK)
+            "
+          >
+            <RatingButton :item="item as MediaItem" readonly size="x-small" />
+          </v-item>
         </v-item-group>
 
         <!-- Now Playing Badge -->
@@ -174,6 +185,7 @@
 import MAButton from "@/components/Button.vue";
 import FavouriteButton from "@/components/FavoriteButton.vue";
 import NowPlayingBadge from "@/components/NowPlayingBadge.vue";
+import RatingButton from "@/components/RatingButton.vue";
 import {
   getArtistsString,
   getBrowseFolderName,
@@ -186,6 +198,7 @@ import {
 import {
   BrowseFolder,
   ContentType,
+  type MediaItem,
   type MediaItemType,
   MediaType,
 } from "@/plugins/api/interfaces";

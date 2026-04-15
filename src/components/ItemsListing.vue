@@ -271,6 +271,9 @@ export interface LoadDataParams {
   refresh?: boolean;
   albumType?: string[];
   provider?: string[];
+  // rating filter: list of 1-5 star values, `null` in the list means "unrated".
+  // `undefined` or empty list means "no rating filter applied".
+  ratings?: Array<number | null>;
 }
 // properties
 export interface Props {
@@ -288,6 +291,7 @@ export interface Props {
   showSelectButton?: boolean;
   showAlbumTypeFilter?: boolean;
   showProviderFilter?: boolean;
+  showRatingFilter?: boolean;
   updateAvailable?: boolean;
   title?: string;
   hideOnEmpty?: boolean;
@@ -325,6 +329,7 @@ const props = withDefaults(defineProps<Props>(), {
   showSelectButton: undefined,
   showAlbumTypeFilter: undefined,
   showProviderFilter: undefined,
+  showRatingFilter: false,
   allowCollapse: false,
   allowKeyHooks: false,
   limit: 50,
@@ -681,6 +686,27 @@ const changeProviderFilter = function (providerId: string) {
   loadData(true, undefined, true);
 };
 
+// toggle a single rating bucket (1-5 stars, or null for "unrated") in the filter
+const changeRatingFilter = function (value: number | null) {
+  const current = params.value.ratings ?? [];
+  const idx = current.indexOf(value);
+  if (idx >= 0) {
+    params.value.ratings = current.filter((v) => v !== value);
+  } else {
+    params.value.ratings = [...current, value];
+  }
+  if (params.value.ratings.length === 0) {
+    params.value.ratings = undefined;
+  }
+  setItemsListingPreference(
+    props.path || props.itemtype,
+    props.itemtype,
+    "ratings",
+    params.value.ratings,
+  );
+  loadData(true, undefined, true);
+};
+
 const redirectSearch = function () {
   store.globalSearchTerm = params.value.search;
   if (props.itemtype == "artists") {
@@ -962,6 +988,33 @@ const menuItems = computed(() => {
     });
   }
 
+  // rating filter (only for artist/album/track listings — subsonic scope)
+  if (props.showRatingFilter) {
+    const activeRatings = params.value.ratings ?? [];
+    items.push({
+      label: "tooltip.filter_ratings",
+      icon: activeRatings.length > 0 ? "mdi-star" : "mdi-star-outline",
+      disabled: loading.value,
+      active: activeRatings.length > 0,
+      closeOnContentClick: false,
+      overflowAllowed: true,
+      subItems: [
+        {
+          label: "rating_unrated",
+          selected: activeRatings.includes(null),
+          action: () => changeRatingFilter(null),
+        },
+        ...[1, 2, 3, 4, 5].map((n) => ({
+          // reuse i18n "rating_stars" with the star count interpolated
+          label: "rating_stars",
+          labelArgs: [String(n)],
+          selected: activeRatings.includes(n),
+          action: () => changeRatingFilter(n),
+        })),
+      ],
+    });
+  }
+
   // provider filter
   if (props.showProviderFilter && musicProviders.value.length > 1) {
     items.push({
@@ -1219,6 +1272,15 @@ const restoreSettings = async function () {
   // get stored/default provider filter for this itemtype
   if (props.showProviderFilter === true && prefs.providerFilter) {
     params.value.provider = prefs.providerFilter;
+  }
+
+  // get stored/default rating filter for this itemtype
+  if (
+    props.showRatingFilter === true &&
+    prefs.ratings &&
+    prefs.ratings.length
+  ) {
+    params.value.ratings = prefs.ratings;
   }
 
   // get stored searchquery (but only if we're allowed to store the state)

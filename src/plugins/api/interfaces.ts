@@ -663,6 +663,7 @@ export interface MediaItem extends _MediaItemBase {
   provider_mappings: ProviderMapping[];
   metadata: MediaItemMetadata;
   favorite: boolean;
+  rating?: number | null; // 1-5 star user rating, null/undefined means unrated
   position?: number; //required for playlist tracks, optional for all other
   timestamp_added: number;
   timestamp_modified: number;

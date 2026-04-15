@@ -452,6 +452,7 @@ export class MusicAssistantApi {
     order_by?: string,
     provider?: string | string[],
     genre?: number | number[],
+    ratings?: Array<number | null>,
   ): Promise<Track[]> {
     return this.sendCommand("music/tracks/library_items", {
       favorite,
@@ -461,6 +462,7 @@ export class MusicAssistantApi {
       order_by,
       provider,
       genre,
+      ratings,
     });
   }
 
@@ -584,6 +586,7 @@ export class MusicAssistantApi {
     album_artists_only?: boolean,
     provider?: string | string[],
     genre?: number | number[],
+    ratings?: Array<number | null>,
   ): Promise<Artist[]> {
     return this.sendCommand("music/artists/library_items", {
       favorite,
@@ -594,6 +597,7 @@ export class MusicAssistantApi {
       album_artists_only,
       provider,
       genre,
+      ratings,
     });
   }
 
@@ -653,6 +657,7 @@ export class MusicAssistantApi {
     album_types?: Array<AlbumType | string>,
     provider?: string | string[],
     genre?: number | number[],
+    ratings?: Array<number | null>,
   ): Promise<Album[]> {
     return this.sendCommand("music/albums/library_items", {
       favorite,
@@ -663,6 +668,7 @@ export class MusicAssistantApi {
       album_types,
       provider,
       genre,
+      ratings,
     });
   }
 
@@ -1285,6 +1291,27 @@ export class MusicAssistantApi {
       this.addItemToFavorites(item);
       // optimistically set the value
       item.favorite = true;
+    }
+  }
+
+  public async setRating(
+    item: MediaItemType,
+    rating: number | null,
+  ): Promise<void> {
+    // Set the user rating (1-5 stars, or null to clear) for a library item.
+    // The server awaits provider sync, so this promise rejects if the
+    // provider (e.g. Navidrome) rejects the rating change — we revert the
+    // optimistic update in that case so the UI stays in sync with the server.
+    const previous = item.rating ?? null;
+    item.rating = rating;
+    try {
+      await this.sendCommand("music/library/set_rating", {
+        item,
+        rating,
+      });
+    } catch (err) {
+      item.rating = previous;
+      throw err;
     }
   }
 

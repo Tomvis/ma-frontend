@@ -316,6 +316,18 @@
                 :title="$t('tooltip.favorite')"
                 @click="api.toggleFavorite(item)"
               />
+              <!-- rating (stars) — only for artist/album/track since providers like
+                   Navidrome only support rating those types -->
+              <RatingButton
+                v-if="
+                  item.media_type === MediaType.ARTIST ||
+                  item.media_type === MediaType.ALBUM ||
+                  item.media_type === MediaType.TRACK
+                "
+                :item="item"
+                size="24"
+                density="compact"
+              />
               <!-- provider icon -->
               <provider-icon :domain="item.provider" :size="25" />
               <!-- merge genre button (admin only) -->
@@ -449,6 +461,7 @@ import MarqueeText from "./MarqueeText.vue";
 import MediaItemThumb from "./MediaItemThumb.vue";
 import MenuButton from "./MenuButton.vue";
 import ProviderIcon from "./ProviderIcon.vue";
+import RatingButton from "./RatingButton.vue";
 
 // properties
 export interface Props {
