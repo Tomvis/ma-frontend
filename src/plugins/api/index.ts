@@ -1781,6 +1781,7 @@ export class MusicAssistantApi {
     radio_mode?: boolean,
     start_item?: PlayableMediaItemType | string,
     queue_id?: string,
+    sort_by?: string,
   ): Promise<void> {
     if (
       !queue_id &&
@@ -1797,6 +1798,7 @@ export class MusicAssistantApi {
       option,
       radio_mode,
       start_item,
+      sort_by,
     });
   }
 

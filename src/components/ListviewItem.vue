@@ -279,6 +279,7 @@ export interface Props {
   showPlayButton?: boolean;
   disablePlayButton?: boolean;
   parentItem?: MediaItemType;
+  sortBy?: string;
 }
 
 // global refs
@@ -352,6 +353,8 @@ const onMenu = function (evt: Event) {
     mouseEvt.clientX,
     mouseEvt.clientY,
     compProps.parentItem,
+    true,
+    compProps.sortBy,
   );
 };
 
@@ -373,6 +376,8 @@ const onPlayClick = function (evt: PointerEvent) {
     evt.clientX,
     evt.clientY,
     compProps.parentItem,
+    undefined,
+    compProps.sortBy,
   );
 };
 </script>
