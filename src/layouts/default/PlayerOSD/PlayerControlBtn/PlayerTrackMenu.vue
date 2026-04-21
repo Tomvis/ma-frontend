@@ -1,8 +1,8 @@
 <template>
-  <v-menu v-if="currentTrack">
+  <v-menu v-if="currentItem">
     <template #activator="{ props: menuProps }">
       <Icon
-        v-if="currentTrack"
+        v-if="currentItem"
         v-bind="menuProps"
         variant="button"
         icon="mdi-dots-horizontal"
@@ -13,12 +13,12 @@
     <v-list>
       <v-list-item
         :prepend-icon="
-          currentTrack?.favorite ? 'mdi-heart' : 'mdi-heart-outline'
+          currentItem?.favorite ? 'mdi-heart' : 'mdi-heart-outline'
         "
         :title="
-          currentTrack?.favorite
+          currentItem?.favorite
             ? $t('favorites_remove')
-            : $t('tooltip.favorite')
+            : $t('favorites_add')
         "
         @click="onToggleFavorite"
       />
@@ -49,6 +49,7 @@ import {
   MediaType,
   ProviderFeature,
   QueueOption,
+  type Radio,
   type Track,
 } from "@/plugins/api/interfaces";
 import { isQueueDynamicPlaylist } from "@/plugins/api/helpers";
@@ -62,6 +63,14 @@ const currentTrack = computed(() => {
   if (item?.media_type === MediaType.TRACK) return item as Track;
   return undefined;
 });
+
+const currentRadio = computed(() => {
+  const item = store.curQueueItem?.media_item;
+  if (item?.media_type === MediaType.RADIO) return item as Radio;
+  return undefined;
+});
+
+const currentItem = computed(() => currentTrack.value ?? currentRadio.value);
 
 const radioModeSupported = computed(() => {
   const item = currentTrack.value;
@@ -88,23 +97,26 @@ const radioModeSupported = computed(() => {
 });
 
 const onAddToPlaylist = () => {
-  if (!currentTrack.value) return;
-  eventbus.emit("playlistdialog", { items: [currentTrack.value] });
+  if (!currentItem.value) return;
+  eventbus.emit("playlistdialog", { items: [currentItem.value] });
 };
 
 const onShowInfo = () => {
-  const item = currentTrack.value;
+  const item = currentItem.value;
   if (!item) return;
+  const query = currentTrack.value?.album?.uri
+    ? { album: currentTrack.value.album.uri }
+    : {};
   router.push({
     name: item.media_type,
     params: { itemId: item.item_id, provider: item.provider },
-    query: { album: item.album?.uri ?? "" },
+    query,
   });
 };
 
 const onToggleFavorite = () => {
-  if (!currentTrack.value) return;
-  api.toggleFavorite(currentTrack.value);
+  if (!currentItem.value) return;
+  api.toggleFavorite(currentItem.value);
 };
 
 const onStartRadio = () => {
