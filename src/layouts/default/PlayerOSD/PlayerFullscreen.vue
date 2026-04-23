@@ -620,8 +620,7 @@ const boostBadgeColor = ref("#ff5722");
 const lyricsEnabled = computed(
   () => store.showFullscreenPlayer && activeQueuePanel.value === 2,
 );
-const { elapsedTime: lyricsElapsedTime } =
-  useLyricsElapsedTime(lyricsEnabled);
+const { elapsedTime: lyricsElapsedTime } = useLyricsElapsedTime(lyricsEnabled);
 
 // Computed properties
 

@@ -16,9 +16,7 @@
           currentItem?.favorite ? 'mdi-heart' : 'mdi-heart-outline'
         "
         :title="
-          currentItem?.favorite
-            ? $t('favorites_remove')
-            : $t('favorites_add')
+          currentItem?.favorite ? $t('favorites_remove') : $t('favorites_add')
         "
         @click="onToggleFavorite"
       />
@@ -76,7 +74,9 @@ const radioModeSupported = computed(() => {
   const item = currentTrack.value;
   if (!item) return false;
   // hide radio mode for dynamic playlists
-  const queue = store.activePlayer ? api.queues[store.activePlayer.player_id] : undefined;
+  const queue = store.activePlayer
+    ? api.queues[store.activePlayer.player_id]
+    : undefined;
   if (isQueueDynamicPlaylist(queue)) return false;
   for (const provId of item.provider_mappings) {
     if (
