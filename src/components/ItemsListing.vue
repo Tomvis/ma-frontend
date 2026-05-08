@@ -188,6 +188,15 @@
         <span>{{ $t("items_selected", [selectedItems.length]) }}</span>
         <template #actions>
           <v-btn
+            v-if="primaryBulkAction"
+            :color="primaryBulkAction.color || 'primary'"
+            :prepend-icon="primaryBulkAction.icon"
+            variant="text"
+            @click="runPrimaryBulkAction"
+          >
+            {{ $t(primaryBulkAction.label, [selectedItems.length]) }}
+          </v-btn>
+          <v-btn
             color="primary"
             variant="text"
             @click="
@@ -328,6 +337,17 @@ export interface Props {
   onTitleClick?: () => void;
   refreshOnParentUpdate?: boolean;
   forcedViewMode?: "list" | "panel" | "panel_compact";
+  // Optional page-specific bulk action that surfaces alongside the generic
+  // "Actions" button in the multi-select snackbar — lets a host page expose
+  // its primary destructive/affirmative verb (e.g. "Remove from Listen Later")
+  // one click away rather than buried in the context menu.
+  primaryBulkAction?: {
+    label: string;
+    icon: string;
+    color?: string;
+    confirmLabel?: string;
+    handler: (items: MediaItemTypeOrItemMapping[]) => Promise<void> | void;
+  };
 }
 const props = withDefaults(defineProps<Props>(), {
   sortKeys: () => ["name", "sort_name"],
@@ -364,6 +384,7 @@ const props = withDefaults(defineProps<Props>(), {
   onTitleClick: undefined,
   refreshOnParentUpdate: false,
   forcedViewMode: undefined,
+  primaryBulkAction: undefined,
 });
 
 // global refs
@@ -637,6 +658,24 @@ const toggleCheckboxes = function () {
     selectedItems.value = [];
   }
   showCheckboxes.value = !showCheckboxes.value;
+};
+
+// Snackbar handler for the host page's primary bulk verb. Confirms first
+// when `confirmLabel` is set (destructive actions), dispatches, and exits
+// select mode so the user lands back in browse state.
+const runPrimaryBulkAction = async function () {
+  const action = props.primaryBulkAction;
+  if (!action) return;
+  const items = [...selectedItems.value];
+  if (items.length === 0) return;
+  if (action.confirmLabel && !confirm(t(action.confirmLabel, [items.length])))
+    return;
+  try {
+    await action.handler(items);
+  } finally {
+    selectedItems.value = [];
+    showCheckboxes.value = false;
+  }
 };
 
 const onRefreshClicked = function () {

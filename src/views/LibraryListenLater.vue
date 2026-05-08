@@ -19,6 +19,7 @@
     :show-amg-filter="true"
     :show-tps-filter="true"
     :extra-menu-items="extraMenuItems"
+    :primary-bulk-action="primaryBulkAction"
   />
 </template>
 
@@ -32,6 +33,7 @@ import {
   type Album,
   type CriticalReceptionFilter,
   type EventMessage,
+  type MediaItemTypeOrItemMapping,
 } from "@/plugins/api/interfaces";
 import { useListenLater } from "@/composables/useListenLater";
 import { store } from "@/plugins/store";
@@ -43,7 +45,7 @@ import { useI18n } from "vue-i18n";
 defineOptions({ name: "ListenLater" });
 
 const { t } = useI18n();
-const { prime } = useListenLater();
+const { prime, remove } = useListenLater();
 const total = ref<number | undefined>(0);
 
 // Same sort surface as LibraryAlbums, plus listen-later–specific keys.
@@ -143,8 +145,77 @@ const extraMenuItems = computed<ToolBarMenuItem[]>(() => {
       overflowAllowed: true,
       action: () => playAll(true),
     },
+    {
+      label: "listen_later.empty_all",
+      icon: "mdi-bookmark-off-outline",
+      disabled: !total.value,
+      overflowAllowed: true,
+      action: () => emptyAll(),
+    },
   ];
 });
+
+// Primary bulk verb wired into ItemsListing's selection snackbar — appears
+// next to the generic "Actions" button when 2+ items are checked, so a
+// user mass-clearing the inbox can do it in one click instead of via the
+// context menu.
+const primaryBulkAction = {
+  label: "listen_later.remove_selected",
+  icon: "mdi-bookmark-off-outline",
+  color: "warning",
+  handler: async (items: MediaItemTypeOrItemMapping[]) => {
+    let removed = 0;
+    let failed = 0;
+    for (const album of items) {
+      try {
+        await remove(album as Album);
+        removed++;
+      } catch (err) {
+        console.error(err);
+        failed++;
+      }
+    }
+    if (removed) toast.success(t("listen_later.toast_bulk_removed", [removed]));
+    if (failed) toast.error(t("listen_later.toast_bulk_failed", [failed]));
+  },
+};
+
+async function emptyAll() {
+  if (!total.value) return;
+  if (!confirm(t("listen_later.confirm_empty_all", [total.value]))) return;
+  try {
+    // Pull every saved album in one page, then drop them through the same
+    // remove() helper so the optimistic cache stays in sync.
+    const all = await api.getLibraryAlbums(
+      undefined,
+      undefined,
+      Math.max(total.value, 1),
+      0,
+      "listen_later_added_at_desc",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    let removed = 0;
+    let failed = 0;
+    for (const album of all) {
+      try {
+        await remove(album as Album);
+        removed++;
+      } catch (err) {
+        console.error(err);
+        failed++;
+      }
+    }
+    if (removed) toast.success(t("listen_later.toast_bulk_removed", [removed]));
+    if (failed) toast.error(t("listen_later.toast_bulk_failed", [failed]));
+  } catch (err) {
+    console.error(err);
+    toast.error(t("listen_later.toast_bulk_failed", [total.value]));
+  }
+}
 
 async function playAll(shuffle: boolean) {
   if (!store.activePlayer) return;

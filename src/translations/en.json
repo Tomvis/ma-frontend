@@ -125,7 +125,12 @@
         "toast_playing": "Playing your Listen Later list",
         "toast_shuffled": "Shuffling your Listen Later list",
         "toast_cleared": "Listen Later cleared",
-        "toast_play_failed": "Couldn't start playback"
+        "toast_play_failed": "Couldn't start playback",
+        "remove_selected": "Remove ({0})",
+        "empty_all": "Empty Listen Later",
+        "confirm_empty_all": "Remove all {0} albums from Listen Later? Library and favorites are not affected.",
+        "toast_bulk_removed": "Removed {0} albums from Listen Later",
+        "toast_bulk_failed": "Couldn't remove {0} albums"
     },
     "loading": "Data is being retrieved from the server.",
     "mass": "Music Assistant",
