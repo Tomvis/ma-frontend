@@ -726,6 +726,15 @@ export interface Album extends MediaItem {
   album_type: AlbumType;
 }
 
+export interface LidarrAddAlbumResult {
+  artist_name: string;
+  album_name: string;
+  artist_added: boolean;
+  album_monitored: boolean;
+  already_monitored: boolean;
+  lidarr_instance: string;
+}
+
 export interface Track extends MediaItem {
   duration: number;
   artists: Array<ItemMapping | Artist>;

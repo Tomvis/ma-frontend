@@ -1,6 +1,7 @@
 {
     "actions": "Actions",
     "add_library": "Add to library",
+    "add_to_lidarr": "Add to Lidarr",
     "add_playlist": "Add to playlist...",
     "add_queue": "Add to Queue",
     "add_url_item": "Add item from URL",
@@ -95,6 +96,13 @@
     "import_playlist_invalid_file": "Invalid playlist file",
     "import_playlist_search_providers": "Search for tracks on",
     "library": "Library",
+    "lidarr": {
+        "adding": "Sending \"{0}\" to Lidarr…",
+        "added": "\"{0}\" is now monitored in Lidarr",
+        "already_monitored": "\"{0}\" is already monitored in Lidarr",
+        "failed": "Couldn't add \"{0}\" to Lidarr: {1}",
+        "no_match": "Lidarr couldn't find a match for \"{0}\""
+    },
     "listen_later": {
         "nav": "Listen Later",
         "title": "Listen Later",

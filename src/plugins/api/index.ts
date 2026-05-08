@@ -16,6 +16,7 @@ import {
   type ErrorResultMessage,
   type EventMessage,
   type Genre,
+  type LidarrAddAlbumResult,
   type MassEvent,
   type MediaItemType,
   type Player,
@@ -687,6 +688,12 @@ export class MusicAssistantApi {
     return this.sendCommand("music/albums/listen_later_remove", {
       library_item_id,
     });
+  }
+
+  public lidarrAddAlbum(
+    item: string | Album | ItemMapping,
+  ): Promise<LidarrAddAlbumResult> {
+    return this.sendCommand("lidarr/add_album", { item });
   }
 
   public getAlbum(

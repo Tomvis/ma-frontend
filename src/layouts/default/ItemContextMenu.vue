@@ -236,6 +236,7 @@ import {
 } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
 import { $t } from "@/plugins/i18n";
+import { toast } from "vue-sonner";
 import { useListenLater } from "@/composables/useListenLater";
 
 import type { Component } from "vue";
@@ -548,6 +549,54 @@ export const getContextMenuItems = async function (
       },
       icon: "mdi-bookshelf",
     });
+  }
+
+  // add to Lidarr — albums sourced from a streaming provider, when a Lidarr
+  // plugin instance is loaded. The plugin handles artist creation and album
+  // monitoring server-side; the toast surfaces what changed.
+  const lidarrLoaded = Object.values(api.providers).some(
+    (p) => p.domain === "lidarr" && p.available,
+  );
+  if (lidarrLoaded) {
+    const streamingDomains = new Set(
+      Object.values(api.providers)
+        .filter((p) => p.is_streaming_provider)
+        .map((p) => p.domain),
+    );
+    const lidarrAlbums = items.filter(
+      (item): item is Album =>
+        item.media_type === MediaType.ALBUM &&
+        itemIsAvailable(item) &&
+        "provider_mappings" in item &&
+        (item as Album).provider_mappings?.some((m) =>
+          streamingDomains.has(m.provider_domain),
+        ),
+    );
+    if (lidarrAlbums.length > 0 && lidarrAlbums.length === items.length) {
+      contextMenuItems.push({
+        label: "add_to_lidarr",
+        labelArgs: [],
+        action: async () => {
+          for (const album of lidarrAlbums) {
+            const id = toast.loading($t("lidarr.adding", [album.name]));
+            try {
+              const r = await api.lidarrAddAlbum(album.uri);
+              toast.success(
+                r.already_monitored
+                  ? $t("lidarr.already_monitored", [album.name])
+                  : $t("lidarr.added", [album.name]),
+                { id },
+              );
+            } catch {
+              // Global handler in api/index.ts shows the error toast.
+              toast.dismiss(id);
+            }
+          }
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-music-note-plus",
+      });
+    }
   }
   // remove from library
   if (
