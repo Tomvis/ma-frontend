@@ -46,6 +46,10 @@
             :size="20"
           />
         </div>
+        <AlbumPanelBadges
+          v-if="item.media_type === MediaType.ALBUM"
+          :album="item as Album"
+        />
       </div>
 
       <v-list-item
@@ -158,18 +162,6 @@
         <!-- Now Playing Badge -->
         <NowPlayingBadge v-if="isPlaying" :show-badge="false" />
         <v-spacer />
-        <RatingButton
-          v-if="
-            'rating' in item &&
-            (item as MediaItem).rating != null &&
-            ((item as MediaItem).media_type === MediaType.ARTIST ||
-              (item as MediaItem).media_type === MediaType.ALBUM ||
-              (item as MediaItem).media_type === MediaType.TRACK)
-          "
-          :item="item as MediaItem"
-          readonly
-          compact
-        />
         <MAButton
           v-if="isHovering || $vuetify.display.mobile"
           variant="list"
@@ -183,10 +175,10 @@
 </template>
 
 <script setup lang="ts">
+import AlbumPanelBadges from "@/components/album/AlbumPanelBadges.vue";
 import MAButton from "@/components/Button.vue";
 import FavouriteButton from "@/components/FavoriteButton.vue";
 import NowPlayingBadge from "@/components/NowPlayingBadge.vue";
-import RatingButton from "@/components/RatingButton.vue";
 import {
   getArtistsString,
   getBrowseFolderName,
@@ -199,7 +191,7 @@ import {
 import {
   BrowseFolder,
   ContentType,
-  type MediaItem,
+  type Album,
   type MediaItemType,
   MediaType,
 } from "@/plugins/api/interfaces";

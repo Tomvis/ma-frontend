@@ -16,14 +16,20 @@
     :total="total"
     :show-album-type-filter="true"
     :show-provider-filter="true"
-    :show-rating-filter="true"
+    :show-dr-filter="true"
+    :show-amg-filter="true"
+    :show-tps-filter="true"
   />
 </template>
 
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import api from "@/plugins/api";
-import { EventMessage, EventType } from "@/plugins/api/interfaces";
+import {
+  EventMessage,
+  EventType,
+  type CriticalReceptionFilter,
+} from "@/plugins/api/interfaces";
 import { store } from "@/plugins/store";
 import { Disc3 } from "lucide-vue-next";
 import { onBeforeUnmount, onMounted, ref } from "vue";
@@ -50,8 +56,12 @@ const sortKeys = [
   "play_count_desc",
   "artist_name",
   "artist_name_desc",
-  "rating",
-  "rating_desc",
+  "dr",
+  "dr_desc",
+  "amg_rating",
+  "amg_rating_desc",
+  "tps_rating",
+  "tps_rating_desc",
 ];
 
 onMounted(() => {
@@ -68,6 +78,22 @@ onMounted(() => {
   onBeforeUnmount(unsub);
 });
 
+const buildCriticalReceptionFilter = function (
+  params: LoadDataParams,
+): CriticalReceptionFilter | undefined {
+  const f: CriticalReceptionFilter = {};
+  if (params.drBuckets?.length) f.dr_buckets = params.drBuckets;
+  if (params.amgRatings?.length) f.amg_ratings = params.amgRatings;
+  if (params.amgFavorite) f.amg_favorite = true;
+  if (params.amgLabels?.length) f.amg_labels = params.amgLabels;
+  if (params.amgUntagged) f.amg_untagged = true;
+  if (params.tpsRatings?.length) f.tps_ratings = params.tpsRatings;
+  if (params.tpsFavorite) f.tps_favorite = true;
+  if (params.tpsLabels?.length) f.tps_labels = params.tpsLabels;
+  if (params.tpsUntagged) f.tps_untagged = true;
+  return Object.keys(f).length ? f : undefined;
+};
+
 const loadItems = async function (params: LoadDataParams) {
   updateAvailable.value = false;
   setTotals(params);
@@ -80,12 +106,18 @@ const loadItems = async function (params: LoadDataParams) {
     params.albumType,
     params.provider && params.provider.length > 0 ? params.provider : undefined,
     params.genreIds,
-    params.ratings,
+    buildCriticalReceptionFilter(params),
   );
 };
 
 const setTotals = async function (params: LoadDataParams) {
-  if (!params.favoritesOnly && !params.albumType && !params.provider) {
+  const crFilter = buildCriticalReceptionFilter(params);
+  if (
+    !params.favoritesOnly &&
+    !params.albumType &&
+    !params.provider &&
+    !crFilter
+  ) {
     total.value = store.libraryAlbumsCount;
     return;
   }
@@ -98,6 +130,7 @@ const setTotals = async function (params: LoadDataParams) {
   total.value = await api.getLibraryAlbumsCount(
     params.favoritesOnly || undefined,
     params.albumType || undefined,
+    crFilter,
   );
 };
 </script>

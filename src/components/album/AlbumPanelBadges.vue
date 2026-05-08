@@ -1,0 +1,214 @@
+<script setup lang="ts">
+import { computed, toRef } from "vue";
+import { BookmarkCheck, Star } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
+import type { Album } from "@/plugins/api/interfaces";
+import { useAlbumTags } from "@/composables/useAlbumTags";
+import { useListenLater } from "@/composables/useListenLater";
+
+interface Props {
+  album: Album;
+}
+const props = defineProps<Props>();
+const albumRef = toRef(props, "album");
+const tags = useAlbumTags(albumRef);
+const { t } = useI18n();
+// Reads listen_later straight from the album payload returned by the server.
+// Falls back to the local cache for cards rendered before the server-side
+// field is available (e.g. legacy responses, optimistic toggles).
+const { isListenLater } = useListenLater();
+const savedForLater = computed(
+  () => props.album?.listen_later === true || isListenLater(props.album?.uri),
+);
+
+function formatScore(n: number): string {
+  return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
+}
+
+const drTitle = computed(() =>
+  tags.value.dr
+    ? `DR ${tags.value.dr.value} — ${t(`critical_reception.dr_quality.${tags.value.dr.quality}`)}`
+    : "",
+);
+const amgTitle = computed(() => {
+  const a = tags.value.amg;
+  if (!a) return "";
+  if (a.rating !== undefined) {
+    return t("critical_reception.score_with_max", {
+      score: formatScore(a.rating),
+      max: 5,
+    });
+  }
+  return t("critical_reception.favorite_pick");
+});
+const tpsTitle = computed(() => {
+  const tp = tags.value.tps;
+  if (!tp) return "";
+  if (tp.rating !== undefined) {
+    return t("critical_reception.score_with_max", {
+      score: formatScore(tp.rating),
+      max: 10,
+    });
+  }
+  return t("critical_reception.favorite_pick");
+});
+</script>
+
+<template>
+  <div
+    v-if="tags.hasAny || savedForLater"
+    class="album-badges"
+    aria-hidden="true"
+  >
+    <div
+      v-if="tags.dr"
+      class="badge dr-badge"
+      :data-quality="tags.dr.quality"
+      :title="drTitle"
+    >
+      <span class="badge-label">DR</span>
+      <span class="badge-value">{{ tags.dr.value }}</span>
+    </div>
+    <!-- spacer keeps the source-badge stack aligned to the right
+         even when there's no DR badge but we still want a corner marker -->
+    <div v-else></div>
+    <div class="badge-stack">
+      <div
+        v-if="savedForLater"
+        class="badge listen-later-badge"
+        :title="$t('listen_later.saved_short')"
+      >
+        <BookmarkCheck :size="10" class="fill-current" />
+      </div>
+      <div v-if="tags.amg" class="badge source-badge amg" :title="amgTitle">
+        <Star
+          v-if="tags.amg.rating === undefined"
+          :size="9"
+          class="fill-current"
+        />
+        <template v-else>
+          <Star :size="9" class="fill-current" />
+          <span class="badge-value">{{ formatScore(tags.amg.rating) }}</span>
+        </template>
+      </div>
+      <div v-if="tags.tps" class="badge source-badge tps" :title="tpsTitle">
+        <Star
+          v-if="tags.tps.rating === undefined"
+          :size="9"
+          class="fill-current"
+        />
+        <span v-else class="badge-value">{{
+          formatScore(tags.tps.rating)
+        }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* Badges sit on top of album art, so we use a single translucent-dark
+ * background that reads cleanly over both light and dark covers — no
+ * theme-conditional CSS needed (and avoids the Vue scoped-CSS compiler
+ * mishandling :global(:not(...)) ancestor selectors). */
+.album-badges {
+  position: absolute;
+  inset: 6px 6px auto 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.badge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}
+
+.badge-label {
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  opacity: 0.65;
+  text-transform: uppercase;
+}
+
+.badge-value {
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+}
+
+.dr-badge {
+  padding-left: 5px;
+}
+.dr-badge[data-quality="excellent"] .badge-value {
+  color: rgb(74 222 128);
+}
+.dr-badge[data-quality="good"] .badge-value {
+  color: rgb(96 165 250);
+}
+.dr-badge[data-quality="fair"] .badge-value {
+  color: rgb(250 204 21);
+}
+.dr-badge[data-quality="poor"] .badge-value {
+  color: rgb(248 113 113);
+}
+
+.source-badge {
+  padding: 2px 6px 2px 5px;
+}
+.source-badge.amg {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(244, 63, 94, 0.55);
+}
+.source-badge.amg :deep(svg),
+.source-badge.amg .badge-value {
+  color: rgb(251 113 133);
+}
+
+.source-badge.tps {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(56, 189, 248, 0.55);
+}
+.source-badge.tps :deep(svg),
+.source-badge.tps .badge-value {
+  color: rgb(125 211 252);
+}
+
+/* Listen-Later corner marker — same warm amber as the toggle button so
+ * the on-cover affordance and the off-cover button read as one concept. */
+.listen-later-badge {
+  padding: 3px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(250, 204, 21, 0.55);
+}
+.listen-later-badge :deep(svg) {
+  color: rgb(250 204 21);
+}
+</style>

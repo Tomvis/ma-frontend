@@ -172,21 +172,6 @@
         >mdi-clock-fast</v-icon
       >
 
-      <!-- rating (stars) — read-only in the listing, only shown when the item has a rating -->
-      <div
-        v-if="
-          getBreakpointValue('bp4') &&
-          'rating' in item &&
-          (item as MediaItem).rating != null &&
-          ((item as MediaItem).media_type === MediaType.ARTIST ||
-            (item as MediaItem).media_type === MediaType.ALBUM ||
-            (item as MediaItem).media_type === MediaType.TRACK) &&
-          !$vuetify.display.mobile
-        "
-      >
-        <RatingButton :item="item as MediaItem" readonly size="x-small" />
-      </div>
-
       <!-- favorite (heart) icon -->
       <div
         v-if="
@@ -218,7 +203,6 @@
 import FavouriteButton from "@/components/FavoriteButton.vue";
 import ListItem from "@/components/ListItem.vue";
 import NowPlayingBadge from "@/components/NowPlayingBadge.vue";
-import RatingButton from "@/components/RatingButton.vue";
 import {
   formatDuration,
   getArtistsString,
@@ -232,7 +216,6 @@ import {
   AlbumType,
   ContentType,
   MediaType,
-  type MediaItem,
   type MediaItemType,
 } from "@/plugins/api/interfaces";
 import { getBreakpointValue } from "@/plugins/breakpoint";

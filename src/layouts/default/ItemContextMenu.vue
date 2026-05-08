@@ -236,6 +236,7 @@ import {
 } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
 import { $t } from "@/plugins/i18n";
+import { useListenLater } from "@/composables/useListenLater";
 
 import type { Component } from "vue";
 import GenreIcon from "@/components/icons/GenreIcon.vue";
@@ -657,6 +658,62 @@ export const getContextMenuItems = async function (
           icon: "mdi-heart",
         });
       }
+    }
+  }
+
+  // Listen Later — albums only, mirrors the favorites pattern (mixed-state aware).
+  const albumItems = items.filter(
+    (item): item is Album =>
+      item.media_type === MediaType.ALBUM && itemIsAvailable(item),
+  );
+  if (albumItems.length > 0) {
+    const ll = useListenLater();
+    // Source of truth is the album object from the server, not the local
+    // cache — the cache may not yet have been primed for these URIs.
+    const allSaved = albumItems.every((a) => a.listen_later === true);
+    const noneSaved = albumItems.every((a) => !a.listen_later);
+
+    if (allSaved) {
+      contextMenuItems.push({
+        label: "listen_later.remove",
+        labelArgs: [],
+        action: async () => {
+          for (const a of albumItems) await ll.remove(a);
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-bookmark-check",
+      });
+    } else if (noneSaved) {
+      contextMenuItems.push({
+        label: "listen_later.add",
+        labelArgs: [],
+        action: async () => {
+          for (const a of albumItems) await ll.add(a);
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-bookmark-plus-outline",
+      });
+    } else {
+      contextMenuItems.push({
+        label: "listen_later.add",
+        labelArgs: [],
+        action: async () => {
+          for (const a of albumItems.filter((a) => !a.listen_later))
+            await ll.add(a);
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-bookmark-plus-outline",
+      });
+      contextMenuItems.push({
+        label: "listen_later.remove",
+        labelArgs: [],
+        action: async () => {
+          for (const a of albumItems.filter((a) => a.listen_later))
+            await ll.remove(a);
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-bookmark-check",
+      });
     }
   }
 

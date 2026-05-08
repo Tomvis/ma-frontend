@@ -644,6 +644,46 @@ export interface MediaItemMetadata {
   release_date?: string;
   cache_checksum?: string;
   chapters?: MediaItemChapter[];
+  critical_reception?: CriticalReception;
+}
+
+export type ReviewSource = "AMG" | "TPS";
+
+export interface CriticalReception {
+  dr?: number;
+  sources?: ReviewSourceEntry[];
+}
+
+// Author-array convention (backend contract):
+//   position 0  -> canonical reviewer (or sole list-picker if no scored review)
+//   position 1  -> dual-review secondary, when present
+//   remaining   -> list-pickers
+export interface ReviewSourceEntry {
+  source: ReviewSource;
+  rating?: number;
+  favorite?: boolean;
+  types?: string[];
+  labels?: string[];
+  authors?: string[];
+}
+
+// Library-query filter for critical_reception fields. All values are optional;
+// within a single field multiple values combine as OR, across fields they combine as AND.
+// Sent flat (spread) into the music/albums/library_items + music/albums/count commands.
+// `*_ratings` are integer bucket selectors:
+//   AMG (/5):  1..5 — selector N matches an AMG entry whose floor(rating) == N
+//   TPS (/10): 1,3,5,7,9 — selector N matches a TPS entry whose rating ∈ [N, N+2)
+// `*_labels` are normalized label kinds: "aoty" | "aotm" | "record_of_the_month" | "honorable_mention"
+export interface CriticalReceptionFilter {
+  dr_buckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
+  amg_ratings?: number[];
+  amg_favorite?: boolean;
+  amg_labels?: string[];
+  amg_untagged?: boolean;
+  tps_ratings?: number[];
+  tps_favorite?: boolean;
+  tps_labels?: string[];
+  tps_untagged?: boolean;
 }
 
 interface _MediaItemBase {
@@ -663,7 +703,10 @@ export interface MediaItem extends _MediaItemBase {
   provider_mappings: ProviderMapping[];
   metadata: MediaItemMetadata;
   favorite: boolean;
-  rating?: number | null; // 1-5 star user rating, null/undefined means unrated
+  // Roon-style "save for later" flag, currently exposed only on Album.
+  // Optional on the wire because non-album responses omit the field entirely.
+  listen_later?: boolean;
+  listen_later_added_at?: number | null;
   position?: number; //required for playlist tracks, optional for all other
   timestamp_added: number;
   timestamp_modified: number;

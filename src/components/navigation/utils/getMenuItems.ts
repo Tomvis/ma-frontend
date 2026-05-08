@@ -4,6 +4,7 @@ import { DEFAULT_MENU_ITEMS } from "@/constants";
 import { store } from "@/plugins/store";
 import {
   BookAudio,
+  BookmarkCheck,
   Compass,
   Disc3,
   Folder,
@@ -75,6 +76,14 @@ export const getMenuItems = function () {
         label: "albums",
         icon: Disc3,
         path: "/albums",
+        isLibraryNode: true,
+      });
+    }
+    if (enabledMenuItemStr === "listen_later") {
+      items.push({
+        label: "listen_later.nav",
+        icon: BookmarkCheck,
+        path: "/listen-later",
         isLibraryNode: true,
       });
     }

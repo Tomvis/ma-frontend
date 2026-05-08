@@ -2,6 +2,12 @@ import { computed, ComputedRef } from "vue";
 import { api } from "@/plugins/api";
 import { store } from "@/plugins/store";
 
+// Critical-reception filter shapes shared with ItemsListing.vue.
+// `dr_buckets` values match DRQuality from `@/helpers/album_tags` plus "untagged".
+// `*_ratings` are integer bucket selectors (AMG: 1..5; TPS: 1,3,5,7,9 covering bands of 2).
+// `*_labels` are normalized label kinds: "aoty" | "aotm" | "record_of_the_month" | "honorable_mention".
+export type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
+
 export interface ItemsListingPreferences {
   viewMode?: string;
   sortBy?: string;
@@ -11,7 +17,15 @@ export interface ItemsListingPreferences {
   hideEmptyFilter?: boolean | null;
   albumType?: string[];
   providerFilter?: string[];
-  ratings?: Array<number | null>;
+  drBuckets?: DrBucket[];
+  amgRatings?: number[];
+  amgFavorite?: boolean;
+  amgLabels?: string[];
+  amgUntagged?: boolean;
+  tpsRatings?: number[];
+  tpsFavorite?: boolean;
+  tpsLabels?: string[];
+  tpsUntagged?: boolean;
   expand?: boolean;
   search?: string;
 }

@@ -27,7 +27,6 @@
     :restore-state="true"
     :total="total"
     :show-provider-filter="true"
-    :show-rating-filter="true"
   />
   <AddManualLink v-model="showAddEditDialog" :type="MediaType.TRACK" />
 </template>
@@ -62,8 +61,6 @@ const sortKeys = [
   "last_played_desc",
   "play_count",
   "play_count_desc",
-  "rating",
-  "rating_desc",
 ];
 
 onMounted(() => {
@@ -92,7 +89,6 @@ const loadItems = async function (params: LoadDataParams) {
     params.sortBy,
     params.provider && params.provider.length > 0 ? params.provider : undefined,
     params.genreIds,
-    params.ratings,
   );
 };
 

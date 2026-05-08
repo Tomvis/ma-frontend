@@ -276,9 +276,16 @@ export interface LoadDataParams {
   refresh?: boolean;
   albumType?: string[];
   provider?: string[];
-  // rating filter: list of 1-5 star values, `null` in the list means "unrated".
-  // `undefined` or empty list means "no rating filter applied".
-  ratings?: Array<number | null>;
+  // critical_reception filters — see CriticalReceptionFilter in interfaces.ts.
+  drBuckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
+  amgRatings?: number[];
+  amgFavorite?: boolean;
+  amgLabels?: string[];
+  amgUntagged?: boolean;
+  tpsRatings?: number[];
+  tpsFavorite?: boolean;
+  tpsLabels?: string[];
+  tpsUntagged?: boolean;
 }
 // properties
 export interface Props {
@@ -296,7 +303,9 @@ export interface Props {
   showSelectButton?: boolean;
   showAlbumTypeFilter?: boolean;
   showProviderFilter?: boolean;
-  showRatingFilter?: boolean;
+  showDrFilter?: boolean;
+  showAmgFilter?: boolean;
+  showTpsFilter?: boolean;
   updateAvailable?: boolean;
   title?: string;
   hideOnEmpty?: boolean;
@@ -334,7 +343,9 @@ const props = withDefaults(defineProps<Props>(), {
   showSelectButton: undefined,
   showAlbumTypeFilter: undefined,
   showProviderFilter: undefined,
-  showRatingFilter: false,
+  showDrFilter: false,
+  showAmgFilter: false,
+  showTpsFilter: false,
   allowCollapse: false,
   allowKeyHooks: false,
   limit: 50,
@@ -691,23 +702,47 @@ const changeProviderFilter = function (providerId: string) {
   loadData(true, undefined, true);
 };
 
-// toggle a single rating bucket (1-5 stars, or null for "unrated") in the filter
-const changeRatingFilter = function (value: number | null) {
-  const current = params.value.ratings ?? [];
-  const idx = current.indexOf(value);
-  if (idx >= 0) {
-    params.value.ratings = current.filter((v) => v !== value);
-  } else {
-    params.value.ratings = [...current, value];
-  }
-  if (params.value.ratings.length === 0) {
-    params.value.ratings = undefined;
-  }
+// critical_reception filters — one helper per filter shape, all reload + persist.
+type ListFilterKey =
+  | "drBuckets"
+  | "amgRatings"
+  | "amgLabels"
+  | "tpsRatings"
+  | "tpsLabels";
+type BoolFilterKey =
+  | "amgFavorite"
+  | "amgUntagged"
+  | "tpsFavorite"
+  | "tpsUntagged";
+
+const toggleListFilter = function <V extends string | number>(
+  key: ListFilterKey,
+  value: V,
+) {
+  const current = (params.value[key] ?? []) as V[];
+  const exists = current.includes(value);
+  const next = exists
+    ? current.filter((v) => v !== value)
+    : [...current, value];
+  const stored = next.length === 0 ? undefined : next;
+  (params.value as Record<string, unknown>)[key] = stored;
   setItemsListingPreference(
     props.path || props.itemtype,
     props.itemtype,
-    "ratings",
-    params.value.ratings,
+    key,
+    stored as never,
+  );
+  loadData(true, undefined, true);
+};
+
+const toggleBoolFilter = function (key: BoolFilterKey) {
+  const next = params.value[key] ? undefined : true;
+  (params.value as Record<string, unknown>)[key] = next;
+  setItemsListingPreference(
+    props.path || props.itemtype,
+    props.itemtype,
+    key,
+    next as never,
   );
   loadData(true, undefined, true);
 };
@@ -993,30 +1028,131 @@ const menuItems = computed(() => {
     });
   }
 
-  // rating filter (only for artist/album/track listings — subsonic scope)
-  if (props.showRatingFilter) {
-    const activeRatings = params.value.ratings ?? [];
+  // dynamic-range filter — quality buckets + untagged
+  if (props.showDrFilter) {
+    const active = params.value.drBuckets ?? [];
+    const buckets: Array<"excellent" | "good" | "fair" | "poor" | "untagged"> =
+      ["excellent", "good", "fair", "poor", "untagged"];
     items.push({
-      label: "tooltip.filter_ratings",
-      icon: activeRatings.length > 0 ? "mdi-star" : "mdi-star-outline",
+      label: "tooltip.filter_dr",
+      icon: "mdi-sine-wave",
       disabled: loading.value,
-      active: activeRatings.length > 0,
+      active: active.length > 0,
       closeOnContentClick: false,
       overflowAllowed: true,
-      subItems: [
-        ...[5, 4, 3, 2, 1].map((n) => ({
-          // visual 5-star representation (filled + unfilled)
-          label: "★".repeat(n) + "☆".repeat(5 - n),
-          selected: activeRatings.includes(n),
-          action: () => changeRatingFilter(n),
-        })),
-        {
-          label: "rating_unrated",
-          icon: "mdi-star-off-outline",
-          selected: activeRatings.includes(null),
-          action: () => changeRatingFilter(null),
-        },
-      ],
+      subItems: buckets.map((b) => ({
+        label:
+          b === "untagged"
+            ? "critical_reception.untagged"
+            : `critical_reception.dr_quality.${b}`,
+        selected: active.includes(b),
+        action: () => toggleListFilter("drBuckets", b),
+      })),
+    });
+  }
+
+  // AMG filter — rating buckets (1..5) + favorite + accolade labels + untagged
+  const ACCOLADE_LABELS: Array<
+    "aoty" | "record_of_the_month" | "aotm" | "honorable_mention"
+  > = ["aoty", "record_of_the_month", "aotm", "honorable_mention"];
+  if (props.showAmgFilter) {
+    const activeRatings = params.value.amgRatings ?? [];
+    const activeLabels = params.value.amgLabels ?? [];
+    const subItems: Array<{
+      label: string;
+      selected?: boolean;
+      action: () => void;
+    }> = [];
+    for (const n of [5, 4, 3, 2, 1]) {
+      subItems.push({
+        label: "★".repeat(n) + "☆".repeat(5 - n),
+        selected: activeRatings.includes(n),
+        action: () => toggleListFilter("amgRatings", n),
+      });
+    }
+    subItems.push({
+      label: "critical_reception.favorite_pick",
+      selected: !!params.value.amgFavorite,
+      action: () => toggleBoolFilter("amgFavorite"),
+    });
+    for (const l of ACCOLADE_LABELS) {
+      subItems.push({
+        label: `critical_reception.label_kind.${l}`,
+        selected: activeLabels.includes(l),
+        action: () => toggleListFilter("amgLabels", l),
+      });
+    }
+    subItems.push({
+      label: "critical_reception.untagged",
+      selected: !!params.value.amgUntagged,
+      action: () => toggleBoolFilter("amgUntagged"),
+    });
+    items.push({
+      label: "source.amg",
+      icon: "mdi-skull",
+      disabled: loading.value,
+      active:
+        activeRatings.length > 0 ||
+        activeLabels.length > 0 ||
+        !!params.value.amgFavorite ||
+        !!params.value.amgUntagged,
+      closeOnContentClick: false,
+      overflowAllowed: true,
+      subItems,
+    });
+  }
+
+  // TPS filter — same shape; rating selectors are bands of 2 on /10
+  if (props.showTpsFilter) {
+    const activeRatings = params.value.tpsRatings ?? [];
+    const activeLabels = params.value.tpsLabels ?? [];
+    const subItems: Array<{
+      label: string;
+      selected?: boolean;
+      action: () => void;
+    }> = [];
+    for (const [n, label] of [
+      [9, "9 – 10"],
+      [7, "7 – 8"],
+      [5, "5 – 6"],
+      [3, "3 – 4"],
+      [1, "1 – 2"],
+    ] as const) {
+      subItems.push({
+        label,
+        selected: activeRatings.includes(n),
+        action: () => toggleListFilter("tpsRatings", n),
+      });
+    }
+    subItems.push({
+      label: "critical_reception.favorite_pick",
+      selected: !!params.value.tpsFavorite,
+      action: () => toggleBoolFilter("tpsFavorite"),
+    });
+    for (const l of ACCOLADE_LABELS) {
+      subItems.push({
+        label: `critical_reception.label_kind.${l}`,
+        selected: activeLabels.includes(l),
+        action: () => toggleListFilter("tpsLabels", l),
+      });
+    }
+    subItems.push({
+      label: "critical_reception.untagged",
+      selected: !!params.value.tpsUntagged,
+      action: () => toggleBoolFilter("tpsUntagged"),
+    });
+    items.push({
+      label: "source.tps",
+      icon: "mdi-subway-variant",
+      disabled: loading.value,
+      active:
+        activeRatings.length > 0 ||
+        activeLabels.length > 0 ||
+        !!params.value.tpsFavorite ||
+        !!params.value.tpsUntagged,
+      closeOnContentClick: false,
+      overflowAllowed: true,
+      subItems,
     });
   }
 
@@ -1285,13 +1421,21 @@ const restoreSettings = async function () {
     params.value.provider = prefs.providerFilter;
   }
 
-  // get stored/default rating filter for this itemtype
-  if (
-    props.showRatingFilter === true &&
-    prefs.ratings &&
-    prefs.ratings.length
-  ) {
-    params.value.ratings = prefs.ratings;
+  // critical_reception filters — restore from prefs when their dropdown is enabled
+  if (props.showDrFilter && prefs.drBuckets?.length) {
+    params.value.drBuckets = prefs.drBuckets;
+  }
+  if (props.showAmgFilter) {
+    if (prefs.amgRatings?.length) params.value.amgRatings = prefs.amgRatings;
+    if (prefs.amgLabels?.length) params.value.amgLabels = prefs.amgLabels;
+    if (prefs.amgFavorite) params.value.amgFavorite = true;
+    if (prefs.amgUntagged) params.value.amgUntagged = true;
+  }
+  if (props.showTpsFilter) {
+    if (prefs.tpsRatings?.length) params.value.tpsRatings = prefs.tpsRatings;
+    if (prefs.tpsLabels?.length) params.value.tpsLabels = prefs.tpsLabels;
+    if (prefs.tpsFavorite) params.value.tpsFavorite = true;
+    if (prefs.tpsUntagged) params.value.tpsUntagged = true;
   }
 
   // get stored searchquery (but only if we're allowed to store the state)

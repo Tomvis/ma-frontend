@@ -156,6 +156,14 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: "/listen-later",
+        name: "listen_later",
+        component: () =>
+          import(
+            /* webpackChunkName: "listen-later" */ "@/views/LibraryListenLater.vue"
+          ),
+      },
+      {
         path: "/tracks",
         children: [
           {

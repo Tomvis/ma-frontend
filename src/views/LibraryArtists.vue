@@ -16,7 +16,6 @@
     :restore-state="true"
     :total="total"
     :show-provider-filter="true"
-    :show-rating-filter="true"
   />
 </template>
 
@@ -46,8 +45,6 @@ const sortKeys = [
   "last_played_desc",
   "play_count",
   "play_count_desc",
-  "rating",
-  "rating_desc",
 ];
 
 const loadItems = async function (params: LoadDataParams) {
@@ -62,7 +59,6 @@ const loadItems = async function (params: LoadDataParams) {
     params.albumArtistsFilter,
     params.provider && params.provider.length > 0 ? params.provider : undefined,
     params.genreIds,
-    params.ratings,
   );
 };
 

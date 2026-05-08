@@ -12,6 +12,7 @@ import {
   type AuthToken,
   type BackgroundTask,
   type CommandMessage,
+  type CriticalReceptionFilter,
   type ErrorResultMessage,
   type EventMessage,
   type Genre,
@@ -452,7 +453,6 @@ export class MusicAssistantApi {
     order_by?: string,
     provider?: string | string[],
     genre?: number | number[],
-    ratings?: Array<number | null>,
   ): Promise<Track[]> {
     return this.sendCommand("music/tracks/library_items", {
       favorite,
@@ -462,7 +462,6 @@ export class MusicAssistantApi {
       order_by,
       provider,
       genre,
-      ratings,
     });
   }
 
@@ -520,10 +519,14 @@ export class MusicAssistantApi {
   public getLibraryAlbumsCount(
     favorite_only: boolean = false,
     album_types?: Array<AlbumType | string>,
+    critical_reception_filter?: CriticalReceptionFilter,
+    listen_later_only: boolean = false,
   ): Promise<number> {
     return this.sendCommand("music/albums/count", {
       favorite_only,
       album_types,
+      listen_later_only,
+      ...(critical_reception_filter ?? {}),
     });
   }
   public getLibraryTracksCount(
@@ -586,7 +589,6 @@ export class MusicAssistantApi {
     album_artists_only?: boolean,
     provider?: string | string[],
     genre?: number | number[],
-    ratings?: Array<number | null>,
   ): Promise<Artist[]> {
     return this.sendCommand("music/artists/library_items", {
       favorite,
@@ -597,7 +599,6 @@ export class MusicAssistantApi {
       album_artists_only,
       provider,
       genre,
-      ratings,
     });
   }
 
@@ -657,7 +658,8 @@ export class MusicAssistantApi {
     album_types?: Array<AlbumType | string>,
     provider?: string | string[],
     genre?: number | number[],
-    ratings?: Array<number | null>,
+    critical_reception_filter?: CriticalReceptionFilter,
+    listen_later?: boolean,
   ): Promise<Album[]> {
     return this.sendCommand("music/albums/library_items", {
       favorite,
@@ -668,7 +670,22 @@ export class MusicAssistantApi {
       album_types,
       provider,
       genre,
-      ratings,
+      listen_later,
+      ...(critical_reception_filter ?? {}),
+    });
+  }
+
+  public addAlbumToListenLater(
+    item: string | Album | ItemMapping,
+  ): Promise<void> {
+    return this.sendCommand("music/albums/listen_later_add", { item });
+  }
+
+  public removeAlbumFromListenLater(
+    library_item_id: string | number,
+  ): Promise<void> {
+    return this.sendCommand("music/albums/listen_later_remove", {
+      library_item_id,
     });
   }
 
@@ -1291,27 +1308,6 @@ export class MusicAssistantApi {
       this.addItemToFavorites(item);
       // optimistically set the value
       item.favorite = true;
-    }
-  }
-
-  public async setRating(
-    item: MediaItemType,
-    rating: number | null,
-  ): Promise<void> {
-    // Set the user rating (1-5 stars, or null to clear) for a library item.
-    // The server awaits provider sync, so this promise rejects if the
-    // provider (e.g. Navidrome) rejects the rating change — we revert the
-    // optimistic update in that case so the UI stays in sync with the server.
-    const previous = item.rating ?? null;
-    item.rating = rating;
-    try {
-      await this.sendCommand("music/library/set_rating", {
-        item,
-        rating,
-      });
-    } catch (err) {
-      item.rating = previous;
-      throw err;
     }
   }
 

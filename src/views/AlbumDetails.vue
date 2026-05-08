@@ -1,6 +1,8 @@
 <template>
   <section>
     <InfoHeader :item="itemDetails" :active-provider="provider" />
+    <CriticalReception v-if="itemDetails" :album="itemDetails" />
+    <br v-if="itemDetails" />
     <ItemsListing
       v-if="itemDetails"
       itemtype="albumtracks"
@@ -56,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import CriticalReception from "@/components/album/CriticalReception.vue";
 import InfoHeader from "@/components/InfoHeader.vue";
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import MediaItemImages from "@/components/MediaItemImages.vue";

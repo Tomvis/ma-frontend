@@ -4,6 +4,7 @@ export const DEFAULT_MENU_ITEMS = [
   "party",
   "artists",
   "albums",
+  "listen_later",
   "tracks",
   "playlists",
   "audiobooks",
