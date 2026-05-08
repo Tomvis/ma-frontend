@@ -95,7 +95,12 @@ export function useListenLater(): ListenLaterApi {
 
   const remove = async (album: Album) => {
     if (!album?.uri) return;
-    if (!cache.saved.has(album.uri)) return;
+    // Local cache is just an optimization — the source of truth is the
+    // album row's `listen_later` flag on the server. We unconditionally
+    // call the server even if the cache doesn't yet know about this URI
+    // (e.g. bulk operations triggered before the listing primed the cache),
+    // and roll the cache back on failure.
+    const wasCached = cache.saved.has(album.uri);
     cache.saved.delete(album.uri);
     try {
       // Server expects a library item id; non-library albums are never saved
@@ -105,7 +110,7 @@ export function useListenLater(): ListenLaterApi {
       const id = album.provider === "library" ? album.item_id : album.uri;
       await api.removeAlbumFromListenLater(id);
     } catch (err) {
-      cache.saved.add(album.uri);
+      if (wasCached) cache.saved.add(album.uri);
       throw err;
     }
   };
