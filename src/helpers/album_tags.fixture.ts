@@ -1,13 +1,11 @@
 import type { CriticalReception } from "@/plugins/api/interfaces";
 
-// Static fixtures used by tests and as a temporary dev seed inside
-// useAlbumTags() until the backend is wired up.
-// TODO: remove the dev-seed import from useAlbumTags.ts once the backend
-// populates `metadata.critical_reception`. The fixtures themselves can stay
-// as a test-only artifact.
+// Static fixtures used by tests. The canonical (measured) DR lives on
+// MediaItemMetadata.dynamic_range; CriticalReception only carries AMG's
+// review-reported DR (amg_dr) and per-source review entries.
 
 export const FIXTURE_FULL: CriticalReception = {
-  dr: 12,
+  amg_dr: 12,
   sources: [
     {
       source: "AMG",
@@ -38,6 +36,6 @@ export const FIXTURE_AMG_ONLY: CriticalReception = {
   ],
 };
 
-export const FIXTURE_DR_ONLY: CriticalReception = {
-  dr: 8,
+export const FIXTURE_AMG_DR_ONLY: CriticalReception = {
+  amg_dr: 8,
 };

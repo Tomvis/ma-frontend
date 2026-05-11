@@ -25,11 +25,16 @@ function formatScore(n: number): string {
   return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
 }
 
-const drTitle = computed(() =>
-  tags.value.dr
-    ? `DR ${tags.value.dr.value} — ${t(`critical_reception.dr_quality.${tags.value.dr.quality}`)}`
-    : "",
-);
+const drTitle = computed(() => {
+  const dr = tags.value.dr;
+  if (!dr) return "";
+  const verdict = t(`critical_reception.dr_quality.${dr.quality}`);
+  // When we're falling back to AMG's review-reported DR (no measured value yet),
+  // signal that in the tooltip so the badge isn't lying about being a measurement.
+  const suffix =
+    dr.source === "amg" ? ` · ${t("critical_reception.amg_dr")}` : "";
+  return `DR ${dr.value} — ${verdict}${suffix}`;
+});
 const amgTitle = computed(() => {
   const a = tags.value.amg;
   if (!a) return "";
@@ -55,16 +60,15 @@ const tpsTitle = computed(() => {
 </script>
 
 <template>
-  <div
-    v-if="tags.hasAny || savedForLater"
-    class="album-badges"
-    aria-hidden="true"
-  >
+  <div v-if="tags.hasAny || savedForLater" class="album-badges">
     <div
       v-if="tags.dr"
       class="badge dr-badge"
       :data-quality="tags.dr.quality"
+      :data-source="tags.dr.source"
       :title="drTitle"
+      :aria-label="drTitle"
+      role="img"
     >
       <span class="badge-label">DR</span>
       <span class="badge-value">{{ tags.dr.value }}</span>
@@ -77,10 +81,18 @@ const tpsTitle = computed(() => {
         v-if="savedForLater"
         class="badge listen-later-badge"
         :title="$t('listen_later.saved_short')"
+        :aria-label="$t('listen_later.saved_short')"
+        role="img"
       >
         <BookmarkCheck :size="10" class="fill-current" />
       </div>
-      <div v-if="tags.amg" class="badge source-badge amg" :title="amgTitle">
+      <div
+        v-if="tags.amg"
+        class="badge source-badge amg"
+        :title="amgTitle"
+        :aria-label="`AMG: ${amgTitle}`"
+        role="img"
+      >
         <Star
           v-if="tags.amg.rating === undefined"
           :size="9"
@@ -91,7 +103,13 @@ const tpsTitle = computed(() => {
           <span class="badge-value">{{ formatScore(tags.amg.rating) }}</span>
         </template>
       </div>
-      <div v-if="tags.tps" class="badge source-badge tps" :title="tpsTitle">
+      <div
+        v-if="tags.tps"
+        class="badge source-badge tps"
+        :title="tpsTitle"
+        :aria-label="`TPS: ${tpsTitle}`"
+        role="img"
+      >
         <Star
           v-if="tags.tps.rating === undefined"
           :size="9"
@@ -163,6 +181,12 @@ const tpsTitle = computed(() => {
 
 .dr-badge {
   padding-left: 5px;
+}
+/* Dashed underline marks the AMG-fallback case (no measured value yet, so the
+ * number you see is AMG's review-reported DR rather than a real measurement). */
+.dr-badge[data-source="amg"] .badge-label {
+  text-decoration: underline dashed rgba(255, 255, 255, 0.45);
+  text-underline-offset: 2px;
 }
 .dr-badge[data-quality="excellent"] .badge-value {
   color: rgb(74 222 128);

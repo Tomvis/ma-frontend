@@ -645,12 +645,20 @@ export interface MediaItemMetadata {
   cache_checksum?: string;
   chapters?: MediaItemChapter[];
   critical_reception?: CriticalReception;
+  // Dynamic Range (foobar2000 DR Meter convention). Measured from the audio file:
+  //   - on Album: album-scope mean of measured track DRs (rounded)
+  //   - on Track: per-track DR14 value
+  // Canonical DR — used for filtering, sorting, and the album badge. AMG's
+  // review-reported DR is exposed separately as critical_reception.amg_dr.
+  dynamic_range?: number;
 }
 
 export type ReviewSource = "AMG" | "TPS";
 
 export interface CriticalReception {
-  dr?: number;
+  // AMG-reported album DR (parsed from AMG's review metadata block). Secondary
+  // signal — the canonical DR is MediaItemMetadata.dynamic_range above.
+  amg_dr?: number;
   sources?: ReviewSourceEntry[];
 }
 

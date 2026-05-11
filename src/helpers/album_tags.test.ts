@@ -107,23 +107,54 @@ describe("parseAlbumTags", () => {
     expect(parseAlbumTags({})).toEqual({ hasAny: false });
   });
 
-  it("surfaces DR alone", () => {
-    const result = parseAlbumTags({ dr: 12 });
-    expect(result.dr).toEqual({ value: 12, quality: "good" });
+  it("surfaces measured DR (album-scope dynamic_range) as the primary value", () => {
+    const result = parseAlbumTags(undefined, 12);
+    expect(result.dr).toEqual({
+      value: 12,
+      quality: "good",
+      source: "measured",
+    });
+    expect(result.amgDr).toBeUndefined();
     expect(result.hasAny).toBe(true);
-    expect(result.amg).toBeUndefined();
-    expect(result.tps).toBeUndefined();
   });
 
-  it("ignores invalid numerics", () => {
-    const result = parseAlbumTags({
-      dr: Number.NaN,
-      sources: [
-        { source: "AMG", rating: Number.POSITIVE_INFINITY },
-        { source: "TPS", rating: -1 },
-      ],
+  it("falls back to AMG DR when no measured value is available", () => {
+    const result = parseAlbumTags({ amg_dr: 8 });
+    expect(result.dr).toEqual({ value: 8, quality: "fair", source: "amg" });
+    // No divergence caption when only one DR source exists.
+    expect(result.amgDr).toBeUndefined();
+  });
+
+  it("hides AMG DR caption when measured and AMG agree on the rounded integer", () => {
+    const result = parseAlbumTags({ amg_dr: 12.4 }, 12);
+    expect(result.dr?.source).toBe("measured");
+    expect(result.dr?.value).toBe(12);
+    expect(result.amgDr).toBeUndefined();
+  });
+
+  it("surfaces AMG DR caption only when measured and AMG diverge", () => {
+    const result = parseAlbumTags({ amg_dr: 14 }, 9);
+    expect(result.dr).toEqual({
+      value: 9,
+      quality: "fair",
+      source: "measured",
     });
+    expect(result.amgDr).toEqual({ value: 14, quality: "excellent" });
+  });
+
+  it("ignores invalid numerics on both DR inputs", () => {
+    const result = parseAlbumTags(
+      {
+        amg_dr: Number.NaN,
+        sources: [
+          { source: "AMG", rating: Number.POSITIVE_INFINITY },
+          { source: "TPS", rating: -1 },
+        ],
+      },
+      Number.POSITIVE_INFINITY,
+    );
     expect(result.dr).toBeUndefined();
+    expect(result.amgDr).toBeUndefined();
     expect(result.hasAny).toBe(false);
   });
 

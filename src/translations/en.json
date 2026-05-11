@@ -36,6 +36,9 @@
             "fair": "Fair",
             "poor": "Compressed"
         },
+        "amg_dr": "AMG DR",
+        "amg_dr_fallback_hint": "Showing AMG's review-reported DR — no measurement of this album yet.",
+        "amg_dr_divergence_hint": "AMG's review-reported DR differs from the measured value.",
         "favorite_pick": "Personal pick",
         "untagged": "Untagged",
         "score_with_max": "{score} / {max}",
@@ -126,9 +129,11 @@
         "toast_shuffled": "Shuffling your Listen Later list",
         "toast_cleared": "Listen Later cleared",
         "toast_play_failed": "Couldn't start playback",
+        "toast_toggle_failed": "Couldn't update Listen Later",
         "remove_selected": "Remove ({0})",
         "empty_all": "Empty Listen Later",
         "confirm_empty_all": "Remove all {0} albums from Listen Later? Library and favorites are not affected.",
+        "confirm_bulk_remove": "Remove {0} selected album(s) from Listen Later?",
         "toast_bulk_removed": "Removed {0} albums from Listen Later",
         "toast_bulk_failed": "Couldn't remove {0} albums"
     },

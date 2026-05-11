@@ -48,7 +48,7 @@ async function onClick(e: MouseEvent) {
     );
   } catch (err) {
     console.error(err);
-    toast.error(t("listen_later.toast_play_failed"));
+    toast.error(t("listen_later.toast_toggle_failed"));
   }
 }
 </script>

@@ -95,19 +95,22 @@ export function useListenLater(): ListenLaterApi {
 
   const remove = async (album: Album) => {
     if (!album?.uri) return;
-    // Local cache is just an optimization — the source of truth is the
-    // album row's `listen_later` flag on the server. We unconditionally
-    // call the server even if the cache doesn't yet know about this URI
-    // (e.g. bulk operations triggered before the listing primed the cache),
-    // and roll the cache back on failure.
+    // Server's set_listen_later does int(item_id), so resolve to a numeric
+    // library id before sending. Library-provider items already carry it as
+    // album.item_id; for everything else, parse it out of the canonical
+    // library URI form ("library://album/{N}") that any persisted
+    // listen-later album wears.
+    const libUriMatch = album.uri.match(/^library:\/\/album\/(\d+)$/);
+    const id = album.provider === "library" ? album.item_id : libUriMatch?.[1];
+    if (id === undefined) {
+      // Not a library album → no listen-later row exists to remove. Drop
+      // any stale cache entry and exit cleanly.
+      cache.saved.delete(album.uri);
+      return;
+    }
     const wasCached = cache.saved.has(album.uri);
     cache.saved.delete(album.uri);
     try {
-      // Server expects a library item id; non-library albums are never saved
-      // since the server adds-to-library on flip-to-true. The library mapping
-      // is the album's own item_id when provider == 'library', or the URI as
-      // a fallback that the server can resolve.
-      const id = album.provider === "library" ? album.item_id : album.uri;
       await api.removeAlbumFromListenLater(id);
     } catch (err) {
       if (wasCached) cache.saved.add(album.uri);

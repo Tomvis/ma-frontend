@@ -93,7 +93,7 @@ const buildCriticalReceptionFilter = (
 };
 
 const loadItems = async (params: LoadDataParams) => {
-  setTotals(params);
+  trackedSetTotals(params);
   const albums = await api.getLibraryAlbums(
     params.favoritesOnly || undefined,
     params.search,
@@ -163,6 +163,9 @@ const primaryBulkAction = {
   label: "listen_later.remove_selected",
   icon: "mdi-bookmark-off-outline",
   color: "warning",
+  // Confirm before nuking — matches the toolbar-level "Empty Listen Later"
+  // affordance and prevents fat-fingered mass deletion.
+  confirmLabel: "listen_later.confirm_bulk_remove",
   handler: async (items: MediaItemTypeOrItemMapping[]) => {
     let removed = 0;
     let failed = 0;
@@ -253,6 +256,16 @@ async function playAll(shuffle: boolean) {
   }
 }
 
+// Snapshot the latest filter set so the MEDIA_ITEM_UPDATED handler can
+// re-count with the current filters instead of resetting to the unfiltered
+// total. setTotals() updates this every time loadItems runs.
+const lastParams = ref<LoadDataParams | undefined>(undefined);
+
+const trackedSetTotals = async (params: LoadDataParams) => {
+  lastParams.value = params;
+  await setTotals(params);
+};
+
 onMounted(() => {
   // Refresh count when the listen-later flag flips anywhere.
   const unsub = api.subscribe(
@@ -260,13 +273,11 @@ onMounted(() => {
     (evt: EventMessage) => {
       const data = evt.data as Album | undefined;
       if (data && typeof data.listen_later === "boolean") {
-        // Re-fetch via the same path used on initial mount; reusing setTotals
-        // keeps provider-filter handling consistent.
-        api
-          .getLibraryAlbumsCount(undefined, undefined, undefined, true)
-          .then((n) => {
-            total.value = n;
-          });
+        // Re-run setTotals with the snapshotted filter set so active CR /
+        // album-type / favorites filters carry through to the new count.
+        if (lastParams.value) {
+          setTotals(lastParams.value);
+        }
       }
     },
   );

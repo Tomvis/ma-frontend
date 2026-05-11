@@ -49,8 +49,17 @@ export interface SourceTags {
   authors: AuthorWithRole[];
 }
 
+// `dr` is the album's primary DR, used for the badge and the big number on the
+// detail card. It prefers the measured ALBUM_DYNAMIC_RANGE (server-side filter and
+// sort hit the same field), and falls back to AMG's review-reported value when no
+// measured one is available so older scanned albums still show *something*.
+// `dr.source` distinguishes the two so the UI can label a fallback honestly.
+// `amgDr` is the divergence signal: present only when both measured and AMG values
+// exist *and* they disagree, so the detail view can show "AMG reported X" as a
+// secondary caption. When they agree, or only one is present, this stays undefined.
 export interface AlbumTags {
-  dr?: { value: number; quality: DRQuality };
+  dr?: { value: number; quality: DRQuality; source: "measured" | "amg" };
+  amgDr?: { value: number; quality: DRQuality };
   amg?: SourceTags;
   tps?: SourceTags;
   hasAny: boolean;
@@ -162,15 +171,40 @@ function parseSource(entry: ReviewSourceEntry): SourceTags | undefined {
   };
 }
 
+function buildDr<S extends "measured" | "amg">(
+  value: unknown,
+  source: S,
+): { value: number; quality: DRQuality; source: S } | undefined {
+  if (!isPositiveFinite(value)) return undefined;
+  return { value, quality: drQuality(value), source };
+}
+
+function buildPlainDr(
+  value: unknown,
+): { value: number; quality: DRQuality } | undefined {
+  if (!isPositiveFinite(value)) return undefined;
+  return { value, quality: drQuality(value) };
+}
+
 export function parseAlbumTags(
-  input: CriticalReception | undefined | null,
+  cr: CriticalReception | undefined | null,
+  albumDynamicRange?: number | null,
 ): AlbumTags {
-  if (!input) return { hasAny: false };
-  let dr: AlbumTags["dr"];
-  if (isPositiveFinite(input.dr)) {
-    dr = { value: input.dr, quality: drQuality(input.dr) };
-  }
-  const sources = input.sources ?? [];
+  const measured = buildDr(albumDynamicRange, "measured");
+  const amgRaw = cr ? buildDr(cr.amg_dr, "amg") : undefined;
+  // Primary DR: measured wins; fall back to AMG so older scanned albums (no audio
+  // analysis yet) still surface a value in the badge.
+  const dr = measured ?? amgRaw;
+  // Divergence caption for the detail view: only when *both* values exist and
+  // disagree on the rounded integer. If only one value exists, dr already shows
+  // it and there's nothing to compare against.
+  const amgDr =
+    measured &&
+    amgRaw &&
+    Math.round(amgRaw.value) !== Math.round(measured.value)
+      ? buildPlainDr(amgRaw.value)
+      : undefined;
+  const sources = cr?.sources ?? [];
   const amg = sources
     .filter((s) => s.source === "AMG")
     .map(parseSource)
@@ -181,8 +215,13 @@ export function parseAlbumTags(
     .find((s) => s !== undefined);
   return {
     dr,
+    amgDr,
     amg,
     tps,
-    hasAny: dr !== undefined || amg !== undefined || tps !== undefined,
+    hasAny:
+      dr !== undefined ||
+      amgDr !== undefined ||
+      amg !== undefined ||
+      tps !== undefined,
   };
 }

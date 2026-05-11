@@ -678,7 +678,7 @@ export class MusicAssistantApi {
 
   public addAlbumToListenLater(
     item: string | Album | ItemMapping,
-  ): Promise<void> {
+  ): Promise<Album> {
     return this.sendCommand("music/albums/listen_later_add", { item });
   }
 
