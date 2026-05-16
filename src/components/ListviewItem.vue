@@ -136,6 +136,12 @@
         v-if="isPlaying"
         :show-badge="getBreakpointValue('bp7')"
       />
+      <!-- DR / AMG / TPS / listen-later badges (albums only). Hidden on
+           narrow rows so the right cluster doesn't crowd the title. -->
+      <AlbumListBadges
+        v-if="item.media_type === MediaType.ALBUM && getBreakpointValue('bp4')"
+        :album="item as Album"
+      />
       <!-- hi res icon -->
       <v-img
         v-if="HiResDetails && getBreakpointValue('bp3')"
@@ -216,6 +222,7 @@ import {
   AlbumType,
   ContentType,
   MediaType,
+  type Album,
   type MediaItemType,
 } from "@/plugins/api/interfaces";
 import { getBreakpointValue } from "@/plugins/breakpoint";
@@ -225,6 +232,7 @@ import { VTooltip } from "vuetify/components";
 import MediaItemThumb from "./MediaItemThumb.vue";
 import ProviderIcon from "./ProviderIcon.vue";
 import { iconHiRes } from "./QualityDetailsBtn.vue";
+import AlbumListBadges from "@/components/album/AlbumListBadges.vue";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import ListviewItemTitle from "./ListviewItemTitle.vue";
