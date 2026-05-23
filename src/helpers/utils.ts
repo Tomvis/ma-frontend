@@ -768,9 +768,13 @@ export const handlePlayBtnClick = function (
       return;
     }
     // else: play the item directly
-    api
-      .playMedia(item, undefined, undefined, undefined, undefined, sortBy)
-      .then(() => {});
+    // Note: sortBy is intentionally NOT forwarded here. It is the sort key of
+    // the surrounding listing (e.g. albums sorted by "name") and has no
+    // bearing on how the item's own contents should be ordered. Forwarding it
+    // would cause the server to re-sort album/playlist tracks alphabetically,
+    // making playback start at a "random" track. sortBy is only meaningful in
+    // the "play from here" branch above.
+    api.playMedia(item).then(() => {});
     return;
   }
   showPlayMenuForMediaItem(item, parentItem, posX, posY);
