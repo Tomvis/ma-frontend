@@ -272,6 +272,83 @@ import ListviewItem from "./ListviewItem.vue";
 import PanelviewItem from "./PanelviewItem.vue";
 import PanelviewItemCompact from "./PanelviewItemCompact.vue";
 
+// Map a listing's itemtype to the library URI prefix its rows live under.
+// Used to filter MEDIA_ITEM_ADDED events so a sync that adds tracks
+// doesn't pop a "new content" banner on an unrelated Artists list. Only
+// the top-level library listings have a matching prefix; sub-listings
+// (e.g. "albumtracks", "artistalbums") return undefined here on purpose
+// — new library rows don't automatically belong inside a parent-scoped
+// view, so adding to those views would be a false positive.
+const itemtypeAddedPrefix = (itemtype: string): string | undefined => {
+  switch (itemtype) {
+    case "albums":
+      return "library://album/";
+    case "artists":
+      return "library://artist/";
+    case "tracks":
+      return "library://track/";
+    case "playlists":
+      return "library://playlist/";
+    case "audiobooks":
+      return "library://audiobook/";
+    case "podcasts":
+      return "library://podcast/";
+    case "radios":
+      return "library://radio/";
+    case "genres":
+      return "library://genre/";
+  }
+  return undefined;
+};
+
+// Apply a MEDIA_ITEM_{UPDATED,DELETED,PLAYED} event in-place to the given
+// item arrays. Used both by the live in-component listener (against
+// pagedItems / allItems refs) and by the "detached" listener that keeps
+// the cached restore-state snapshot fresh while no listing is mounted.
+const applyMediaEventToItems = (
+  evt: EventMessage,
+  paged: MediaItemType[],
+  all?: MediaItemType[],
+) => {
+  if (evt.event == EventType.MEDIA_ITEM_DELETED) {
+    const removeFrom = (arr: MediaItemType[]) => {
+      const idx = arr.findIndex((i) => i.uri == evt.object_id);
+      if (idx >= 0) arr.splice(idx, 1);
+    };
+    removeFrom(paged);
+    if (all) removeFrom(all);
+  } else if (evt.event == EventType.MEDIA_ITEM_UPDATED) {
+    const replaceIn = (arr: MediaItemType[]) => {
+      const idx = arr.findIndex((i) => i.uri == evt.object_id);
+      if (idx >= 0) arr[idx] = evt.data as MediaItemType;
+    };
+    replaceIn(paged);
+    if (all) replaceIn(all);
+  } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
+    const playData = evt.data as Record<string, unknown>;
+    const mergePlayedIn = (arr: MediaItemType[]) => {
+      const idx = arr.findIndex((i) => i.uri == evt.object_id);
+      if (idx < 0) return;
+      if ("fully_played" in arr[idx])
+        arr[idx].fully_played = playData["fully_played"] as boolean;
+      if ("resume_position_ms" in arr[idx])
+        arr[idx].resume_position_ms =
+          (playData["seconds_played"] as number) * 1000;
+    };
+    mergePlayedIn(paged);
+    if (all) mergePlayedIn(all);
+  }
+};
+
+// Module-scoped listener that bridges media-item events to the cached
+// store.prevState snapshot whenever the owning ItemsListing is unmounted.
+// Without it, favoriting/rating/etc. an item from a detail page would
+// leave the back-restored list view showing stale state. Only one
+// detached listener can exist at a time because store.prevState is a
+// single slot — re-registered on every restore-state unmount and torn
+// down whenever a listing reclaims its snapshot on mount.
+let _detachedPrevStateUnsub: (() => void) | undefined;
+
 export interface LoadDataParams {
   offset: number;
   limit: number;
@@ -1518,7 +1595,12 @@ if (props.restoreState) {
     const key = props.path || props.itemtype;
     const el = document.querySelector(".content-section");
 
-    store.prevState = {
+    // Tear down any prior detached listener BEFORE overwriting prevState,
+    // so an event arriving in this window can't be misapplied to the new
+    // snapshot.
+    _detachedPrevStateUnsub?.();
+
+    const snapshot: StoredState = {
       path: key,
       scrollPos: el?.scrollTop || 0,
       pagedItems: pagedItems.value,
@@ -1526,6 +1608,34 @@ if (props.restoreState) {
       allItemsReceived: allItemsReceived.value,
       initialDataReceived: initialDataReceived.value,
       params: params.value,
+    };
+    store.prevState = snapshot;
+
+    // Bind a fresh detached listener to this snapshot. Closing over the
+    // snapshot (not store.prevState) means a later overwrite can't divert
+    // updates into the wrong arrays — the orphan listener is simply torn
+    // down by the next unmount.
+    const addedPrefix = itemtypeAddedPrefix(props.itemtype);
+    const unsubUpdated = api.subscribe_multi(
+      [
+        EventType.MEDIA_ITEM_UPDATED,
+        EventType.MEDIA_ITEM_DELETED,
+        EventType.MEDIA_ITEM_PLAYED,
+      ],
+      (evt: EventMessage) => {
+        applyMediaEventToItems(evt, snapshot.pagedItems, snapshot.allItems);
+      },
+    );
+    const unsubAdded = addedPrefix
+      ? api.subscribe(EventType.MEDIA_ITEM_ADDED, (evt: EventMessage) => {
+          if (evt.object_id?.startsWith(addedPrefix)) {
+            snapshot.newContentAvailable = true;
+          }
+        })
+      : undefined;
+    _detachedPrevStateUnsub = () => {
+      unsubUpdated();
+      unsubAdded?.();
     };
   });
 }
@@ -1640,11 +1750,23 @@ onMounted(async () => {
   // so we can jump back there on back navigation
   const key = props.path || props.itemtype;
   if (props.restoreState && store.prevState?.path == key) {
+    // Reclaim ownership of the snapshot: the live in-component listener
+    // (registered later in this onMounted) will keep pagedItems/allItems
+    // fresh from here on, so the detached bridge is no longer needed.
+    _detachedPrevStateUnsub?.();
+    _detachedPrevStateUnsub = undefined;
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
     allItems.value = store.prevState.allItems;
     allItemsReceived.value = store.prevState.allItemsReceived;
     initialDataReceived.value = store.prevState.initialDataReceived;
+    // If items were added to this library while we were unmounted, surface
+    // the banner so the user can refresh — and clear the flag on the
+    // snapshot so a subsequent reclaim without new adds starts clean.
+    if (store.prevState.newContentAvailable) {
+      newContentAvailable.value = true;
+      store.prevState.newContentAvailable = false;
+    }
     // scroll the main listing back to its previous scroll position
     nextTick(() => {
       const el = document.querySelector(".content-section") as HTMLElement;
@@ -1678,32 +1800,32 @@ onMounted(async () => {
       EventType.MEDIA_ITEM_PLAYED,
     ],
     (evt: EventMessage) => {
-      if (evt.event == EventType.MEDIA_ITEM_DELETED) {
-        pagedItems.value = pagedItems.value.filter(
-          (i) => i.uri != evt.object_id,
-        );
-      } else if (evt.event == EventType.MEDIA_ITEM_UPDATED) {
-        // update item
-        const idx = pagedItems.value.findIndex((i) => i.uri == evt.object_id);
-        if (idx >= 0) {
-          pagedItems.value[idx] = evt.data as MediaItemType;
-        }
-      } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
-        // update item
-        const idx = pagedItems.value.findIndex((i) => i.uri == evt.object_id);
-        if (idx >= 0) {
-          const playData = evt.data as Record<string, unknown>;
-          if ("fully_played" in pagedItems.value[idx])
-            pagedItems.value[idx].fully_played = playData[
-              "fully_played"
-            ] as boolean;
-          if ("resume_position_ms" in pagedItems.value[idx])
-            pagedItems.value[idx].resume_position_ms =
-              (playData["seconds_played"] as number) * 1000;
-        }
-      }
+      applyMediaEventToItems(evt, pagedItems.value, allItems.value);
     },
   );
+
+  // Surface MEDIA_ITEM_ADDED via the "new content available" banner
+  // (handled by parent views previously, but with a buggy / inconsistent
+  // URI-prefix check). Doing it here applies a single correct filter to
+  // every top-level library listing and keeps detail-page sub-listings
+  // out of it. We deliberately don't insert in-place — sort/filter
+  // context isn't known here, and during a sync we'd thrash the list.
+  const addedPrefix = itemtypeAddedPrefix(props.itemtype);
+  if (addedPrefix) {
+    const unsubAdded = api.subscribe(
+      EventType.MEDIA_ITEM_ADDED,
+      (evt: EventMessage) => {
+        if (evt.object_id?.startsWith(addedPrefix)) {
+          newContentAvailable.value = true;
+        }
+      },
+    );
+    const prevUnsub = _unsubscribeMediaEvents;
+    _unsubscribeMediaEvents = () => {
+      prevUnsub?.();
+      unsubAdded();
+    };
+  }
 });
 
 watch(
@@ -1724,6 +1846,12 @@ export interface StoredState {
   allItemsReceived: boolean;
   initialDataReceived: boolean;
   params: LoadDataParams;
+  // Toggled true by the detached listener when a matching MEDIA_ITEM_ADDED
+  // arrives while the listing is unmounted (e.g. a sync ran or the user
+  // added an album to listen-later from elsewhere). The reclaiming mount
+  // surfaces it through the "new content available" banner so the user
+  // knows to refresh — we don't auto-reload to keep back-nav snappy.
+  newContentAvailable?: boolean;
 }
 
 const getSortName = function (
