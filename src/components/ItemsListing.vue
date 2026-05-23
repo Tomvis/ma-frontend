@@ -15,6 +15,21 @@
       </template>
     </Toolbar>
 
+    <ReviewFiltersPanel
+      v-if="showDrFilter || showAmgFilter || showTpsFilter"
+      v-model="reviewFiltersOpen"
+      :params="params"
+      :show-dr="showDrFilter"
+      :show-amg="showAmgFilter"
+      :show-tps="showTpsFilter"
+      @toggle-list="
+        (k, v) => toggleListFilter(k as ListFilterKey, v as string | number)
+      "
+      @toggle-bool="(k) => toggleBoolFilter(k as BoolFilterKey)"
+      @set-match-mode="setReviewFiltersMatchMode"
+      @clear-all="clearAllReviewFilters"
+    />
+
     <v-divider />
 
     <v-text-field
@@ -271,6 +286,7 @@ import { toast } from "vue-sonner";
 import ListviewItem from "./ListviewItem.vue";
 import PanelviewItem from "./PanelviewItem.vue";
 import PanelviewItemCompact from "./PanelviewItemCompact.vue";
+import ReviewFiltersPanel from "./album/ReviewFiltersPanel.vue";
 
 // Map a listing's itemtype to the library URI prefix its rows live under.
 // Used to filter MEDIA_ITEM_ADDED events so a sync that adds tracks
@@ -372,6 +388,10 @@ export interface LoadDataParams {
   tpsFavorite?: boolean;
   tpsLabels?: string[];
   tpsUntagged?: boolean;
+  // How the DR/AMG/TPS clauses combine. "all" (default) ANDs them; "any" ORs
+  // them so an album matches if it satisfies at least one. Doesn't affect
+  // other filters — favorites/genre/provider still AND alongside this group.
+  criticalReceptionMatch?: "all" | "any";
 }
 // properties
 export interface Props {
@@ -863,6 +883,95 @@ const toggleBoolFilter = function (key: BoolFilterKey) {
   loadData(true, undefined, true);
 };
 
+// Unified review-filters panel (DR / AMG / TPS) — open state lives here so
+// the toolbar action can flip it without each subitem reaching for its own
+// popover anchor.
+const reviewFiltersOpen = ref(false);
+
+// Cross-clause match mode for the review-filters group. "all" (AND, default)
+// or "any" (OR). Persisted per-listing alongside the rest of the prefs.
+const setReviewFiltersMatchMode = function (mode: "all" | "any") {
+  const next = mode === "any" ? "any" : undefined;
+  params.value.criticalReceptionMatch = next;
+  setItemsListingPreference(
+    props.path || props.itemtype,
+    props.itemtype,
+    "criticalReceptionMatch",
+    next as never,
+  );
+  loadData(true, undefined, true);
+};
+
+const clearAllReviewFilters = function () {
+  const listKeys: ListFilterKey[] = [
+    "drBuckets",
+    "amgRatings",
+    "amgLabels",
+    "tpsRatings",
+    "tpsLabels",
+  ];
+  const boolKeys: BoolFilterKey[] = [
+    "amgFavorite",
+    "amgUntagged",
+    "tpsFavorite",
+    "tpsUntagged",
+  ];
+  let touched = false;
+  for (const k of listKeys) {
+    if ((params.value[k] ?? []).length) {
+      (params.value as Record<string, unknown>)[k] = undefined;
+      setItemsListingPreference(
+        props.path || props.itemtype,
+        props.itemtype,
+        k,
+        undefined as never,
+      );
+      touched = true;
+    }
+  }
+  for (const k of boolKeys) {
+    if (params.value[k]) {
+      (params.value as Record<string, unknown>)[k] = undefined;
+      setItemsListingPreference(
+        props.path || props.itemtype,
+        props.itemtype,
+        k,
+        undefined as never,
+      );
+      touched = true;
+    }
+  }
+  // Match-mode resets to "all" alongside the data filters — an empty filter
+  // set with mode=any is meaningless and would silently re-apply on the next
+  // edit, surprising the user.
+  if (params.value.criticalReceptionMatch === "any") {
+    params.value.criticalReceptionMatch = undefined;
+    setItemsListingPreference(
+      props.path || props.itemtype,
+      props.itemtype,
+      "criticalReceptionMatch",
+      undefined as never,
+    );
+    touched = true;
+  }
+  if (touched) loadData(true, undefined, true);
+};
+
+const hasAnyReviewFilter = computed(() => {
+  const p = params.value;
+  return (
+    (p.drBuckets?.length ?? 0) > 0 ||
+    (p.amgRatings?.length ?? 0) > 0 ||
+    (p.amgLabels?.length ?? 0) > 0 ||
+    (p.tpsRatings?.length ?? 0) > 0 ||
+    (p.tpsLabels?.length ?? 0) > 0 ||
+    !!p.amgFavorite ||
+    !!p.amgUntagged ||
+    !!p.tpsFavorite ||
+    !!p.tpsUntagged
+  );
+});
+
 const redirectSearch = function () {
   store.globalSearchTerm = params.value.search;
   if (props.itemtype == "artists") {
@@ -1144,131 +1253,19 @@ const menuItems = computed(() => {
     });
   }
 
-  // dynamic-range filter — quality buckets + untagged
-  if (props.showDrFilter) {
-    const active = params.value.drBuckets ?? [];
-    const buckets: Array<"excellent" | "good" | "fair" | "poor" | "untagged"> =
-      ["excellent", "good", "fair", "poor", "untagged"];
+  // Unified review filters (DR / AMG / TPS) — one toolbar button opens a
+  // dedicated panel (ReviewFiltersPanel) rather than three separate flat
+  // submenus that mix ratings, accolades and untagged with no hierarchy.
+  if (props.showDrFilter || props.showAmgFilter || props.showTpsFilter) {
     items.push({
-      label: "tooltip.filter_dr",
-      icon: "mdi-sine-wave",
+      label: "review_filters.title",
+      icon: "mdi-tune-vertical-variant",
       disabled: loading.value,
-      active: active.length > 0,
-      closeOnContentClick: false,
+      active: hasAnyReviewFilter.value,
       overflowAllowed: true,
-      subItems: buckets.map((b) => ({
-        label:
-          b === "untagged"
-            ? "critical_reception.untagged"
-            : `critical_reception.dr_quality.${b}`,
-        selected: active.includes(b),
-        action: () => toggleListFilter("drBuckets", b),
-      })),
-    });
-  }
-
-  // AMG filter — rating buckets (1..5) + favorite + accolade labels + untagged
-  const ACCOLADE_LABELS: Array<
-    "aoty" | "record_of_the_month" | "aotm" | "honorable_mention"
-  > = ["aoty", "record_of_the_month", "aotm", "honorable_mention"];
-  if (props.showAmgFilter) {
-    const activeRatings = params.value.amgRatings ?? [];
-    const activeLabels = params.value.amgLabels ?? [];
-    const subItems: Array<{
-      label: string;
-      selected?: boolean;
-      action: () => void;
-    }> = [];
-    for (const n of [5, 4, 3, 2, 1]) {
-      subItems.push({
-        label: "★".repeat(n) + "☆".repeat(5 - n),
-        selected: activeRatings.includes(n),
-        action: () => toggleListFilter("amgRatings", n),
-      });
-    }
-    subItems.push({
-      label: "critical_reception.favorite_pick",
-      selected: !!params.value.amgFavorite,
-      action: () => toggleBoolFilter("amgFavorite"),
-    });
-    for (const l of ACCOLADE_LABELS) {
-      subItems.push({
-        label: `critical_reception.label_kind.${l}`,
-        selected: activeLabels.includes(l),
-        action: () => toggleListFilter("amgLabels", l),
-      });
-    }
-    subItems.push({
-      label: "critical_reception.untagged",
-      selected: !!params.value.amgUntagged,
-      action: () => toggleBoolFilter("amgUntagged"),
-    });
-    items.push({
-      label: "source.amg",
-      icon: "mdi-skull",
-      disabled: loading.value,
-      active:
-        activeRatings.length > 0 ||
-        activeLabels.length > 0 ||
-        !!params.value.amgFavorite ||
-        !!params.value.amgUntagged,
-      closeOnContentClick: false,
-      overflowAllowed: true,
-      subItems,
-    });
-  }
-
-  // TPS filter — same shape; rating selectors are bands of 2 on /10
-  if (props.showTpsFilter) {
-    const activeRatings = params.value.tpsRatings ?? [];
-    const activeLabels = params.value.tpsLabels ?? [];
-    const subItems: Array<{
-      label: string;
-      selected?: boolean;
-      action: () => void;
-    }> = [];
-    for (const [n, label] of [
-      [9, "9 – 10"],
-      [7, "7 – 8"],
-      [5, "5 – 6"],
-      [3, "3 – 4"],
-      [1, "1 – 2"],
-    ] as const) {
-      subItems.push({
-        label,
-        selected: activeRatings.includes(n),
-        action: () => toggleListFilter("tpsRatings", n),
-      });
-    }
-    subItems.push({
-      label: "critical_reception.favorite_pick",
-      selected: !!params.value.tpsFavorite,
-      action: () => toggleBoolFilter("tpsFavorite"),
-    });
-    for (const l of ACCOLADE_LABELS) {
-      subItems.push({
-        label: `critical_reception.label_kind.${l}`,
-        selected: activeLabels.includes(l),
-        action: () => toggleListFilter("tpsLabels", l),
-      });
-    }
-    subItems.push({
-      label: "critical_reception.untagged",
-      selected: !!params.value.tpsUntagged,
-      action: () => toggleBoolFilter("tpsUntagged"),
-    });
-    items.push({
-      label: "source.tps",
-      icon: "mdi-subway-variant",
-      disabled: loading.value,
-      active:
-        activeRatings.length > 0 ||
-        activeLabels.length > 0 ||
-        !!params.value.tpsFavorite ||
-        !!params.value.tpsUntagged,
-      closeOnContentClick: false,
-      overflowAllowed: true,
-      subItems,
+      action: () => {
+        reviewFiltersOpen.value = true;
+      },
     });
   }
 
@@ -1555,6 +1552,14 @@ const restoreSettings = async function () {
     if (prefs.tpsLabels?.length) params.value.tpsLabels = prefs.tpsLabels;
     if (prefs.tpsFavorite) params.value.tpsFavorite = true;
     if (prefs.tpsUntagged) params.value.tpsUntagged = true;
+  }
+  // Only restore the match mode when any review-filter dropdown is visible;
+  // it has no effect when none are configured for this listing.
+  if (
+    (props.showDrFilter || props.showAmgFilter || props.showTpsFilter) &&
+    prefs.criticalReceptionMatch === "any"
+  ) {
+    params.value.criticalReceptionMatch = "any";
   }
 
   // get stored searchquery (but only if we're allowed to store the state)

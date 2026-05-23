@@ -89,7 +89,11 @@ const buildCriticalReceptionFilter = (
   if (params.tpsFavorite) f.tps_favorite = true;
   if (params.tpsLabels?.length) f.tps_labels = params.tpsLabels;
   if (params.tpsUntagged) f.tps_untagged = true;
-  return Object.keys(f).length ? f : undefined;
+  if (Object.keys(f).length === 0) return undefined;
+  if (params.criticalReceptionMatch === "any") {
+    f.critical_reception_match = "any";
+  }
+  return f;
 };
 
 const loadItems = async (params: LoadDataParams) => {

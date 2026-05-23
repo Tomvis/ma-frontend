@@ -183,6 +183,27 @@
     "export_playlist": "Export playlist",
     "remove_library": "Remove from library",
     "remove_playlist": "Remove from playlist",
+    "review_filters": {
+        "title": "Review filters",
+        "eyebrow": "Filters",
+        "clear_all": "Clear all",
+        "n_active": "{0} active",
+        "rating": "Rating",
+        "accolades": "Accolades",
+        "label_short": {
+            "aoty": "AOTY",
+            "aotm": "AOTM",
+            "record_of_the_month": "ROTM",
+            "honorable_mention": "HM"
+        },
+        "match": {
+            "label": "Match",
+            "all": "All",
+            "any": "Any",
+            "all_hint": "Album must satisfy every active filter below.",
+            "any_hint": "Album passes if it satisfies any active filter — broadens the result set."
+        }
+    },
     "search": "Search",
     "settings": {
         "add_new": "Add new",

@@ -687,7 +687,11 @@ export interface ReviewSourceEntry {
 }
 
 // Library-query filter for critical_reception fields. All values are optional;
-// within a single field multiple values combine as OR, across fields they combine as AND.
+// within a single field multiple values combine as OR. By default the fields AND
+// with each other (`critical_reception_match: "all"`); set "any" to OR them so an
+// album matches when it satisfies at least one of the active critical-reception
+// clauses. The match-mode only affects the critical_reception group itself —
+// favorite/genre/provider filters still AND alongside it.
 // Sent flat (spread) into the music/albums/library_items + music/albums/count commands.
 // `*_ratings` are integer bucket selectors:
 //   AMG (/5):  1..5 — selector N matches an AMG entry whose floor(rating) == N
@@ -703,6 +707,7 @@ export interface CriticalReceptionFilter {
   tps_favorite?: boolean;
   tps_labels?: string[];
   tps_untagged?: boolean;
+  critical_reception_match?: "all" | "any";
 }
 
 interface _MediaItemBase {

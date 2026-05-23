@@ -26,6 +26,9 @@ export interface ItemsListingPreferences {
   tpsFavorite?: boolean;
   tpsLabels?: string[];
   tpsUntagged?: boolean;
+  // "any" makes the DR/AMG/TPS clauses combine with OR instead of AND. Stored
+  // per-listing so a saved "find anything acclaimed" view sticks across reloads.
+  criticalReceptionMatch?: "all" | "any";
   expand?: boolean;
   search?: string;
 }
