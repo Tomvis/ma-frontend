@@ -287,6 +287,10 @@ import ListviewItem from "./ListviewItem.vue";
 import PanelviewItem from "./PanelviewItem.vue";
 import PanelviewItemCompact from "./PanelviewItemCompact.vue";
 import ReviewFiltersPanel from "./album/ReviewFiltersPanel.vue";
+import {
+  getDetachedPrevStateUnsub,
+  setDetachedPrevStateUnsub,
+} from "./itemsListingDetached";
 
 // Map a listing's itemtype to the library URI prefix its rows live under.
 // Used to filter MEDIA_ITEM_ADDED events so a sync that adds tracks
@@ -356,14 +360,10 @@ const applyMediaEventToItems = (
   }
 };
 
-// Module-scoped listener that bridges media-item events to the cached
-// store.prevState snapshot whenever the owning ItemsListing is unmounted.
-// Without it, favoriting/rating/etc. an item from a detail page would
-// leave the back-restored list view showing stale state. Only one
-// detached listener can exist at a time because store.prevState is a
-// single slot — re-registered on every restore-state unmount and torn
-// down whenever a listing reclaims its snapshot on mount.
-let _detachedPrevStateUnsub: (() => void) | undefined;
+// The bridge listener that keeps the cached store.prevState snapshot fresh while
+// no ItemsListing is mounted lives in `./itemsListingDetached` — a regular .ts
+// module — so it's truly module-scoped (one slot shared across all instances of
+// this SFC). See that file's comment for the leak this prevents.
 
 export interface LoadDataParams {
   offset: number;
@@ -1603,7 +1603,7 @@ if (props.restoreState) {
     // Tear down any prior detached listener BEFORE overwriting prevState,
     // so an event arriving in this window can't be misapplied to the new
     // snapshot.
-    _detachedPrevStateUnsub?.();
+    getDetachedPrevStateUnsub()?.();
 
     const snapshot: StoredState = {
       path: key,
@@ -1638,10 +1638,10 @@ if (props.restoreState) {
           }
         })
       : undefined;
-    _detachedPrevStateUnsub = () => {
+    setDetachedPrevStateUnsub(() => {
       unsubUpdated();
       unsubAdded?.();
-    };
+    });
   });
 }
 
@@ -1758,8 +1758,8 @@ onMounted(async () => {
     // Reclaim ownership of the snapshot: the live in-component listener
     // (registered later in this onMounted) will keep pagedItems/allItems
     // fresh from here on, so the detached bridge is no longer needed.
-    _detachedPrevStateUnsub?.();
-    _detachedPrevStateUnsub = undefined;
+    getDetachedPrevStateUnsub()?.();
+    setDetachedPrevStateUnsub(undefined);
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
     allItems.value = store.prevState.allItems;
@@ -2048,6 +2048,12 @@ const selectAll = async function () {
 
 defineExpose({
   sortBy: computed(() => params.value.sortBy),
+  // Force a full reload from the server. Used by host views (LibraryListenLater)
+  // that need to drop rows whose server-side state changes mean they no longer
+  // belong in this listing — applyMediaEventToItems only replaces in place, so
+  // a row toggled out of e.g. listen_later=true otherwise lingers visible until
+  // the user navigates away.
+  refresh: () => loadData(true, undefined, true),
 });
 </script>
 

@@ -1,5 +1,6 @@
 <template>
   <ItemsListing
+    ref="listingRef"
     itemtype="albums"
     path="listenlater"
     :show-provider="false"
@@ -270,8 +271,27 @@ const trackedSetTotals = async (params: LoadDataParams) => {
   await setTotals(params);
 };
 
+// Template ref to the embedded ItemsListing — used to force a server reload
+// when a listen-later flip means a row no longer belongs in this view.
+const listingRef = ref<{ refresh?: () => void } | null>(null);
+
+// Coalesce listen-later removals into a single reload. Bulk-remove fires many
+// MEDIA_ITEM_UPDATED events back-to-back; a per-event refresh would re-fetch
+// the page once for each, hammering the server during inbox-clearing churn.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+const scheduleListingRefresh = () => {
+  if (refreshTimer !== null) return;
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    listingRef.value?.refresh?.();
+  }, 250);
+};
+
 onMounted(() => {
-  // Refresh count when the listen-later flag flips anywhere.
+  // Refresh count + drop now-stale rows when the listen-later flag flips
+  // anywhere. applyMediaEventToItems on the embedded listing only replaces
+  // in place, so a row flipped to listen_later=false would otherwise linger
+  // visible until navigation.
   const unsub = api.subscribe(
     EventType.MEDIA_ITEM_UPDATED,
     (evt: EventMessage) => {
@@ -282,9 +302,18 @@ onMounted(() => {
         if (lastParams.value) {
           setTotals(lastParams.value);
         }
+        if (data.listen_later === false) {
+          scheduleListingRefresh();
+        }
       }
     },
   );
-  onBeforeUnmount(unsub);
+  onBeforeUnmount(() => {
+    unsub();
+    if (refreshTimer !== null) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+  });
 });
 </script>

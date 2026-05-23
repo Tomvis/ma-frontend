@@ -2,6 +2,7 @@ import { reactive, computed, type ComputedRef } from "vue";
 import api from "@/plugins/api";
 import {
   EventType,
+  MediaType,
   type Album,
   type EventMessage,
 } from "@/plugins/api/interfaces";
@@ -84,11 +85,22 @@ export function useListenLater(): ListenLaterApi {
   const add = async (album: Album) => {
     if (!album?.uri) return;
     if (cache.saved.has(album.uri)) return;
-    cache.saved.add(album.uri);
+    const originalUri = album.uri;
+    cache.saved.add(originalUri);
     try {
-      await api.addAlbumToListenLater(album);
+      const persisted = await api.addAlbumToListenLater(album);
+      // Server persists a library:// row. If the caller passed a streaming-
+      // provider URI (e.g. spotify://album/abc), swap the cache key over to
+      // the canonical library URI returned from the server. Keeping both
+      // would let a later remove() against the original URI silently fail to
+      // clear the server flag — see remove() below for the lookup fallback
+      // that backstops this for stale state from prior sessions.
+      if (persisted?.uri && persisted.uri !== originalUri) {
+        cache.saved.delete(originalUri);
+        cache.saved.add(persisted.uri);
+      }
     } catch (err) {
-      cache.saved.delete(album.uri);
+      cache.saved.delete(originalUri);
       throw err;
     }
   };
@@ -101,10 +113,33 @@ export function useListenLater(): ListenLaterApi {
     // library URI form ("library://album/{N}") that any persisted
     // listen-later album wears.
     const libUriMatch = album.uri.match(/^library:\/\/album\/(\d+)$/);
-    const id = album.provider === "library" ? album.item_id : libUriMatch?.[1];
+    let id: string | undefined =
+      album.provider === "library" ? album.item_id : libUriMatch?.[1];
+    if (id === undefined && cache.saved.has(album.uri)) {
+      // Stale-cache fallback: the URI is flagged saved locally but isn't in
+      // library form — likely a streaming-provider Album reference whose
+      // server-side row lives under a different library:// URI (e.g. add()
+      // was called in a prior session that pre-dates the URI-swap fix above).
+      // Look up the matching library row by provider+id so we can actually
+      // clear the flag instead of silently dropping the cache entry.
+      try {
+        const libraryAlbum = (await api.getLibraryItem(
+          MediaType.ALBUM,
+          album.item_id,
+          album.provider,
+        )) as Album | null;
+        const libId = libraryAlbum?.item_id;
+        if (libId !== undefined && libId !== null) {
+          id = String(libId);
+          if (libraryAlbum?.uri) cache.saved.delete(libraryAlbum.uri);
+        }
+      } catch {
+        // Lookup failed — fall through to the "no row exists" branch below.
+      }
+    }
     if (id === undefined) {
-      // Not a library album → no listen-later row exists to remove. Drop
-      // any stale cache entry and exit cleanly.
+      // Not a library album and no matching row was found → nothing on the
+      // server to clear. Drop any stale cache entry and exit cleanly.
       cache.saved.delete(album.uri);
       return;
     }
