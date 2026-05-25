@@ -626,6 +626,10 @@ export interface MediaItemImage {
   path: string;
   provider: string;
   remotely_accessible: boolean;
+  // Opaque sha256(provider+path) id used to address the image via the
+  // canonical /imageproxy/<proxy_id> endpoint. Injected by the server on
+  // schema_version >= 31; absent on older servers.
+  proxy_id?: string;
 }
 
 export interface MediaItemChapter {
@@ -918,6 +922,7 @@ export interface QueueItem {
   extra_attributes?: {
     party_guest?: boolean; // true if added by party guest
     party_boosted?: boolean; // true if added as "boost" (play next)
+    playback_speed?: number; // current playback speed multiplier (audiobook/podcast)
   };
 }
 
@@ -953,6 +958,7 @@ export interface PlayerQueue {
   next_item?: QueueItem;
   radio_source: MediaItemType[];
   enqueued_media_items: MediaItemType[];
+  is_dynamic: boolean;
   // extra_attributes: additional attributes for this player_queue to store/forward
   // additional data that is not part of the standard model
   // must be serializable types only

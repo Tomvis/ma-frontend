@@ -8,7 +8,6 @@ import {
   MediaType,
   Player,
   PlayerQueue,
-  Playlist,
 } from "./interfaces";
 
 /**
@@ -18,12 +17,18 @@ import {
 export const isQueueDynamicPlaylist = function (
   queue: PlayerQueue | undefined,
 ): boolean {
-  const source = queue?.radio_source;
-  return (
-    source?.length === 1 &&
-    source[0].media_type === MediaType.PLAYLIST &&
-    (source[0] as Playlist).is_dynamic
-  );
+  return queue?.is_dynamic ?? false;
+};
+
+/**
+ * Returns true when the queue's current item is an infinite stream
+ * (radio station or AudioSource). Shuffle and repeat don't apply in that case.
+ */
+export const isQueueInfiniteStream = function (
+  queue: PlayerQueue | undefined,
+): boolean {
+  const mediaType = queue?.current_item?.media_item?.media_type;
+  return mediaType === MediaType.RADIO || mediaType === MediaType.AUDIO_SOURCE;
 };
 
 /**

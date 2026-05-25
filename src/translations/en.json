@@ -155,6 +155,7 @@
     "play_on": "Play on: {0}",
     "play_playlist_from": "Play Playlist from here",
     "play_radio": "Start Radio",
+    "change_playback_speed": "Change playback speed",
     "player_type": {
         "group": "Group",
         "player": "Player",
@@ -203,6 +204,10 @@
             "all_hint": "Album must satisfy every active filter below.",
             "any_hint": "Album passes if it satisfies any active filter — broadens the result set."
         }
+    },
+    "shortcut": {
+        "add_to": "Add to shortcuts",
+        "remove_from": "Remove from shortcuts"
     },
     "search": "Search",
     "settings": {
@@ -861,7 +866,18 @@
         "genre_table_rows_per_page": "Rows per page",
         "genre_table_page_info": "{0}–{1} of {2}",
         "missing_players_hint": "Missing players? {0}",
-        "add_player_providers": "Add more player providers"
+        "add_player_providers": "Add more player providers",
+        "audio_analysis_coverage": {
+            "title": "Audio Analysis Coverage",
+            "col_provider": "Provider",
+            "col_coverage": "Coverage",
+            "col_pending": "Pending",
+            "col_stale": "Stale",
+            "col_version": "Version",
+            "unavailable": "unavailable",
+            "none": "—"
+        },
+        "audio_analysis_description": "Track audio analysis coverage across your providers"
     },
     "similar_tracks": "Similar tracks",
     "show_info": "Show info",
@@ -928,6 +944,7 @@
         "sort_options": "Sort options",
         "toggle_view_mode": "Toggle view mode list\/thumbs",
         "filter_favorites": "Only show favorites",
+        "filter_hide_fully_played": "Hide fully-played episodes",
         "favorite": "Mark\/unmark as a favorite",
         "filter_dr": "Filter by Dynamic Range",
         "open_provider_link": "Open this item on the provider's website",
@@ -1085,6 +1102,7 @@
         "in_progress_items": "Continue listening...",
         "recommended_new_tracks": "Recommended new tracks",
         "recently_played": "Recently played",
+        "inspired_by_recently_played": "Inspired by recently played",
         "suggested_new_albums_for_you": "Suggested new albums for you",
         "random_artists": "Random artists",
         "random_albums": "Random albums",
