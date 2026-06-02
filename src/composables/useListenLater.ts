@@ -90,13 +90,14 @@ export function useListenLater(): ListenLaterApi {
     try {
       const persisted = await api.addAlbumToListenLater(album);
       // Server persists a library:// row. If the caller passed a streaming-
-      // provider URI (e.g. spotify://album/abc), swap the cache key over to
-      // the canonical library URI returned from the server. Keeping both
-      // would let a later remove() against the original URI silently fail to
-      // clear the server flag — see remove() below for the lookup fallback
-      // that backstops this for stale state from prior sessions.
+      // provider URI (e.g. spotify://album/abc), also cache the canonical
+      // library URI returned from the server, but keep the ORIGINAL key too.
+      // Consumers (ListenLaterButton, album badges) read saved-state off the
+      // album object's original URI, which the server round-trip doesn't mutate
+      // — dropping it would flip the icon back to "unsaved" and make a second
+      // click re-add instead of remove. remove() resolves a non-library URI to
+      // its server row via the lookup fallback below, so both keys clear fine.
       if (persisted?.uri && persisted.uri !== originalUri) {
-        cache.saved.delete(originalUri);
         cache.saved.add(persisted.uri);
       }
     } catch (err) {

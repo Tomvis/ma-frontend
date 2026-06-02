@@ -27,12 +27,12 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { ToolBarMenuItem } from "@/components/Toolbar.vue";
+import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
 import {
   EventType,
   QueueOption,
   type Album,
-  type CriticalReceptionFilter,
   type EventMessage,
   type MediaItemTypeOrItemMapping,
 } from "@/plugins/api/interfaces";
@@ -77,26 +77,6 @@ const sortKeys = [
   "tps_rating_desc",
 ];
 
-const buildCriticalReceptionFilter = (
-  params: LoadDataParams,
-): CriticalReceptionFilter | undefined => {
-  const f: CriticalReceptionFilter = {};
-  if (params.drBuckets?.length) f.dr_buckets = params.drBuckets;
-  if (params.amgRatings?.length) f.amg_ratings = params.amgRatings;
-  if (params.amgFavorite) f.amg_favorite = true;
-  if (params.amgLabels?.length) f.amg_labels = params.amgLabels;
-  if (params.amgUntagged) f.amg_untagged = true;
-  if (params.tpsRatings?.length) f.tps_ratings = params.tpsRatings;
-  if (params.tpsFavorite) f.tps_favorite = true;
-  if (params.tpsLabels?.length) f.tps_labels = params.tpsLabels;
-  if (params.tpsUntagged) f.tps_untagged = true;
-  if (Object.keys(f).length === 0) return undefined;
-  if (params.criticalReceptionMatch === "any") {
-    f.critical_reception_match = "any";
-  }
-  return f;
-};
-
 const loadItems = async (params: LoadDataParams) => {
   trackedSetTotals(params);
   const albums = await api.getLibraryAlbums(
@@ -127,6 +107,8 @@ const setTotals = async (params: LoadDataParams) => {
     params.albumType || undefined,
     buildCriticalReceptionFilter(params),
     true,
+    params.search || undefined,
+    params.genreIds,
   );
 };
 
@@ -192,18 +174,22 @@ async function emptyAll() {
   if (!total.value) return;
   if (!confirm(t("listen_later.confirm_empty_all", [total.value]))) return;
   try {
-    // Pull every saved album in one page, then drop them through the same
-    // remove() helper so the optimistic cache stays in sync.
+    // Pull every saved album that matches the CURRENT filters in one page, then
+    // drop them through the same remove() helper so the optimistic cache stays in
+    // sync. Mirror loadItems' filter args (snapshotted in lastParams) so we clear
+    // exactly the rows the count/confirm describe, not an arbitrary top-N of the
+    // unfiltered pile.
+    const p = lastParams.value;
     const all = await api.getLibraryAlbums(
-      undefined,
-      undefined,
+      p?.favoritesOnly || undefined,
+      p?.search,
       Math.max(total.value, 1),
       0,
       "listen_later_added_at_desc",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+      p?.albumType,
+      p?.provider && p.provider.length > 0 ? p.provider : undefined,
+      p?.genreIds,
+      p ? buildCriticalReceptionFilter(p) : undefined,
       true,
     );
     let removed = 0;
@@ -229,16 +215,19 @@ async function playAll(shuffle: boolean) {
   if (!store.activePlayer) return;
   try {
     // Pull a single page sized to the total — server resolves URIs to a queue.
+    // Mirror the active filters (lastParams) so "Play all" plays exactly the rows
+    // the user is looking at, not an arbitrary top-N of the unfiltered pile.
+    const p = lastParams.value;
     const all = await api.getLibraryAlbums(
-      undefined,
-      undefined,
+      p?.favoritesOnly || undefined,
+      p?.search,
       Math.max(total.value ?? 1, 1),
       0,
       "listen_later_added_at_desc",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+      p?.albumType,
+      p?.provider && p.provider.length > 0 ? p.provider : undefined,
+      p?.genreIds,
+      p ? buildCriticalReceptionFilter(p) : undefined,
       true,
     );
     if (!all.length) return;

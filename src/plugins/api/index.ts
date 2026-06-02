@@ -534,11 +534,15 @@ export class MusicAssistantApi {
     album_types?: Array<AlbumType | string>,
     critical_reception_filter?: CriticalReceptionFilter,
     listen_later_only: boolean = false,
+    search?: string,
+    genre?: number | number[],
   ): Promise<number> {
     return this.sendCommand("music/albums/count", {
       favorite_only,
       album_types,
       listen_later_only,
+      search,
+      genre,
       ...(critical_reception_filter ?? {}),
     });
   }

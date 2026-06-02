@@ -1,62 +1,16 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { toRef } from "vue";
 import { BookmarkCheck, Star } from "lucide-vue-next";
-import { useI18n } from "vue-i18n";
 import type { Album } from "@/plugins/api/interfaces";
-import { useAlbumTags } from "@/composables/useAlbumTags";
-import { useListenLater } from "@/composables/useListenLater";
+import { useAlbumBadgeLabels } from "@/composables/useAlbumBadgeLabels";
 
 interface Props {
   album: Album;
 }
 const props = defineProps<Props>();
 const albumRef = toRef(props, "album");
-const tags = useAlbumTags(albumRef);
-const { t } = useI18n();
-// Reads listen_later straight from the album payload returned by the server.
-// Falls back to the local cache for cards rendered before the server-side
-// field is available (e.g. legacy responses, optimistic toggles).
-const { isListenLater } = useListenLater();
-const savedForLater = computed(
-  () => props.album?.listen_later === true || isListenLater(props.album?.uri),
-);
-
-function formatScore(n: number): string {
-  return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
-}
-
-const drTitle = computed(() => {
-  const dr = tags.value.dr;
-  if (!dr) return "";
-  const verdict = t(`critical_reception.dr_quality.${dr.quality}`);
-  // When we're falling back to AMG's review-reported DR (no measured value yet),
-  // signal that in the tooltip so the badge isn't lying about being a measurement.
-  const suffix =
-    dr.source === "amg" ? ` · ${t("critical_reception.amg_dr")}` : "";
-  return `DR ${dr.value} — ${verdict}${suffix}`;
-});
-const amgTitle = computed(() => {
-  const a = tags.value.amg;
-  if (!a) return "";
-  if (a.rating !== undefined) {
-    return t("critical_reception.score_with_max", {
-      score: formatScore(a.rating),
-      max: 5,
-    });
-  }
-  return t("critical_reception.favorite_pick");
-});
-const tpsTitle = computed(() => {
-  const tp = tags.value.tps;
-  if (!tp) return "";
-  if (tp.rating !== undefined) {
-    return t("critical_reception.score_with_max", {
-      score: formatScore(tp.rating),
-      max: 10,
-    });
-  }
-  return t("critical_reception.favorite_pick");
-});
+const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
+  useAlbumBadgeLabels(albumRef);
 </script>
 
 <template>

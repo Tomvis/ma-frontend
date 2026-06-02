@@ -731,8 +731,10 @@ export interface MediaItem extends _MediaItemBase {
   provider_mappings: ProviderMapping[];
   metadata: MediaItemMetadata;
   favorite: boolean;
-  // Roon-style "save for later" flag, currently exposed only on Album.
-  // Optional on the wire because non-album responses omit the field entirely.
+  // Roon-style "save for later" flag. The server defines it on the MediaItem
+  // base, so every media item type serializes it (defaulting to false/null on
+  // non-albums); only Album currently surfaces a UI affordance. Kept optional
+  // here for version tolerance — don't rely on its absence as an album discriminator.
   listen_later?: boolean;
   listen_later_added_at?: number | null;
   position?: number; //required for playlist tracks, optional for all other

@@ -24,12 +24,9 @@
 
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
+import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
-import {
-  EventMessage,
-  EventType,
-  type CriticalReceptionFilter,
-} from "@/plugins/api/interfaces";
+import { EventMessage, EventType } from "@/plugins/api/interfaces";
 import { store } from "@/plugins/store";
 import { Disc3 } from "lucide-vue-next";
 import { onBeforeUnmount, onMounted, ref } from "vue";
@@ -70,34 +67,13 @@ onMounted(() => {
     EventType.MEDIA_ITEM_ADDED,
     (evt: EventMessage) => {
       // signal user that there might be updated info available for this item
-      if (evt.object_id?.startsWith("library://artist")) {
+      if (evt.object_id?.startsWith("library://album")) {
         updateAvailable.value = true;
       }
     },
   );
   onBeforeUnmount(unsub);
 });
-
-const buildCriticalReceptionFilter = function (
-  params: LoadDataParams,
-): CriticalReceptionFilter | undefined {
-  const f: CriticalReceptionFilter = {};
-  if (params.drBuckets?.length) f.dr_buckets = params.drBuckets;
-  if (params.amgRatings?.length) f.amg_ratings = params.amgRatings;
-  if (params.amgFavorite) f.amg_favorite = true;
-  if (params.amgLabels?.length) f.amg_labels = params.amgLabels;
-  if (params.amgUntagged) f.amg_untagged = true;
-  if (params.tpsRatings?.length) f.tps_ratings = params.tpsRatings;
-  if (params.tpsFavorite) f.tps_favorite = true;
-  if (params.tpsLabels?.length) f.tps_labels = params.tpsLabels;
-  if (params.tpsUntagged) f.tps_untagged = true;
-  if (Object.keys(f).length === 0) return undefined;
-  // Only emit match mode when ANY is selected; the server defaults to ALL.
-  if (params.criticalReceptionMatch === "any") {
-    f.critical_reception_match = "any";
-  }
-  return f;
-};
 
 const loadItems = async function (params: LoadDataParams) {
   updateAvailable.value = false;
@@ -121,6 +97,8 @@ const setTotals = async function (params: LoadDataParams) {
     !params.favoritesOnly &&
     !params.albumType &&
     !params.provider &&
+    !params.search &&
+    !params.genreIds &&
     !crFilter
   ) {
     total.value = store.libraryAlbumsCount;
@@ -136,6 +114,9 @@ const setTotals = async function (params: LoadDataParams) {
     params.favoritesOnly || undefined,
     params.albumType || undefined,
     crFilter,
+    false,
+    params.search || undefined,
+    params.genreIds,
   );
 };
 </script>
