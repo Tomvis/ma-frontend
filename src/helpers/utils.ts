@@ -123,6 +123,16 @@ export const formatRelativeTime = (seconds: number): string => {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
+export const buildItemUri = function (
+  mediaType: MediaType,
+  mapping: ProviderMapping | null,
+  fallbackItemId: string,
+): string {
+  const domain = mapping?.provider_domain ?? "library";
+  const itemId = mapping?.item_id ?? fallbackItemId;
+  return `${domain}://${mediaType}/${itemId}`;
+};
+
 export const kebabize = (str: string) => {
   return str
     .split("")
@@ -583,17 +593,6 @@ export const panelViewItemResponsive = function (displaySize: number) {
       condition: "gt",
     }) &&
     getBreakpointValue({
-      breakpoint: "bp5",
-      condition: "lt",
-    })
-  ) {
-    return 3;
-  } else if (
-    getBreakpointValue({
-      breakpoint: "bp5",
-      condition: "gt",
-    }) &&
-    getBreakpointValue({
       breakpoint: "bp6",
       condition: "lt",
     })
@@ -605,62 +604,51 @@ export const panelViewItemResponsive = function (displaySize: number) {
       condition: "gt",
     }) &&
     getBreakpointValue({
-      breakpoint: "bp7",
+      breakpoint: "bp8",
       condition: "lt",
     })
   ) {
     return 4;
   } else if (
     getBreakpointValue({
-      breakpoint: "bp7",
+      breakpoint: "bp8",
       condition: "gt",
     }) &&
     getBreakpointValue({
-      breakpoint: "bp8",
+      breakpoint: "bp9",
       condition: "lt",
     })
   ) {
     return 5;
   } else if (
     getBreakpointValue({
-      breakpoint: "bp8",
+      breakpoint: "bp9",
       condition: "gt",
     }) &&
     getBreakpointValue({
-      breakpoint: "bp9",
+      breakpoint: "bp10",
       condition: "lt",
     })
   ) {
     return 6;
   } else if (
     getBreakpointValue({
-      breakpoint: "bp9",
+      breakpoint: "bp10",
       condition: "gt",
     }) &&
     getBreakpointValue({
-      breakpoint: "bp10",
+      breakpoint: "bp11",
       condition: "lt",
+    })
+  ) {
+    return 7;
+  } else if (
+    getBreakpointValue({
+      breakpoint: "bp11",
+      condition: "gt",
     })
   ) {
     return 8;
-  } else if (
-    getBreakpointValue({
-      breakpoint: "bp10",
-      condition: "gt",
-    }) &&
-    getBreakpointValue({
-      breakpoint: "bp11",
-      condition: "lt",
-    })
-  ) {
-    return 9;
-  } else if (
-    getBreakpointValue({
-      breakpoint: "bp11",
-      condition: "gt",
-    })
-  ) {
-    return 10;
   } else {
     return 0;
   }
@@ -792,6 +780,17 @@ export const playerVisible = function (
     return false;
   }
   return true;
+};
+
+// Whether a player can be offered in the group/sync member picker. Honours
+// hide_in_ui, except for light/visualizer players which are hidden from the
+// normal player view but exist to be grouped (e.g. Hue lights synced to audio).
+export const groupMemberPickerVisible = function (player: Player): boolean {
+  return (
+    !player.hide_in_ui ||
+    player.type === PlayerType.LIGHT ||
+    player.type === PlayerType.VISUALIZER
+  );
 };
 
 /* Handle play button click */

@@ -144,12 +144,17 @@
           v-if="viewMode == 'list'"
           :item-height="70"
           height="100%"
-          :items="pagedItems"
+          :items="listDisplayItems"
           style="height: 100%; overflow: hidden"
         >
           <template #default="{ item }">
+            <div v-if="'isDiscHeader' in item" class="disc-header">
+              {{ $t("disc", { number: item.disc }) }}
+            </div>
             <ListviewItem
+              v-else
               :item="item"
+              :album-track-view="itemtype === 'albumtracks'"
               :show-track-number="showTrackNumber"
               :show-disc-number="showTrackNumber"
               :show-duration="showDuration"
@@ -269,6 +274,7 @@ import {
   type MediaItemType,
   type Track,
 } from "@/plugins/api/interfaces";
+import { SMART_PLAYLIST_PROVIDER_DOMAIN } from "@/components/smart_playlist/constants";
 import { eventbus } from "@/plugins/eventbus";
 import { store } from "@/plugins/store";
 import {
@@ -517,6 +523,36 @@ const allItemsReceived = ref(false);
 const initialDataReceived = ref(false);
 const tempHide = ref(false);
 const genreOptions = ref<{ label: string; value: number }[]>([]);
+
+interface DiscHeader {
+  isDiscHeader: true;
+  disc: number;
+}
+
+const discNumber = (i: MediaItemType) =>
+  "disc_number" in i ? i.disc_number : undefined;
+
+// for multi-disc albums (in default track order), insert a "Disc X" header
+// before the first track of each disc.
+const listDisplayItems = computed<(MediaItemType | DiscHeader)[]>(() => {
+  const multiDisc =
+    props.itemtype === "albumtracks" &&
+    allItems.value.some((i) => (discNumber(i) ?? 0) > 1);
+  if (!multiDisc || params.value.sortBy !== "track_number") {
+    return pagedItems.value;
+  }
+  const result: (MediaItemType | DiscHeader)[] = [];
+  let lastDisc: number | undefined;
+  for (const item of pagedItems.value) {
+    const disc = discNumber(item);
+    if (disc && disc !== lastDisc) {
+      result.push({ isDiscHeader: true, disc });
+      lastDisc = disc;
+    }
+    result.push(item);
+  }
+  return result;
+});
 
 // methods
 const applyQueryGenreFilter = function () {
@@ -1070,26 +1106,52 @@ const isPlayActionInProgress = computed(() => {
 });
 
 const musicProviders = computed(() => {
-  // Map itemtype to required ProviderFeature(s)
-  const featureMap: Record<string, ProviderFeature | ProviderFeature[]> = {
-    artists: ProviderFeature.LIBRARY_ARTISTS,
-    albums: ProviderFeature.LIBRARY_ALBUMS,
-    tracks: ProviderFeature.LIBRARY_TRACKS,
+  // Map itemtype to the ProviderFeatures that mark a provider as a possible
+  // source of that mediatype. This is intentionally broader than the
+  // LIBRARY_* (sync) features: a provider without a syncable library can still
+  // contribute items to the library by being browsed/searched and favorited
+  // (e.g. catalog providers exposing an artist's albums/tracks).
+  const featureMap: Record<string, ProviderFeature[]> = {
+    artists: [
+      ProviderFeature.LIBRARY_ARTISTS,
+      ProviderFeature.ARTIST_ALBUMS,
+      ProviderFeature.ARTIST_TOPALBUMS,
+      ProviderFeature.ARTIST_TRACKS,
+      ProviderFeature.ARTIST_TOPTRACKS,
+    ],
+    albums: [
+      ProviderFeature.LIBRARY_ALBUMS,
+      ProviderFeature.ARTIST_ALBUMS,
+      ProviderFeature.ARTIST_TOPALBUMS,
+    ],
+    tracks: [
+      ProviderFeature.LIBRARY_TRACKS,
+      ProviderFeature.ARTIST_TRACKS,
+      ProviderFeature.ARTIST_TOPTRACKS,
+    ],
     artisttracks: [
+      ProviderFeature.ARTIST_TRACKS,
       ProviderFeature.ARTIST_TOPTRACKS,
       ProviderFeature.LIBRARY_TRACKS,
     ],
-    playlists: ProviderFeature.LIBRARY_PLAYLISTS,
-    radios: ProviderFeature.LIBRARY_RADIOS,
-    podcasts: ProviderFeature.LIBRARY_PODCASTS,
-    audiobooks: ProviderFeature.LIBRARY_AUDIOBOOKS,
-    genres: ProviderFeature.LIBRARY_GENRES,
+    playlists: [ProviderFeature.LIBRARY_PLAYLISTS],
+    radios: [ProviderFeature.LIBRARY_RADIOS],
+    podcasts: [ProviderFeature.LIBRARY_PODCASTS],
+    audiobooks: [ProviderFeature.LIBRARY_AUDIOBOOKS],
+    genres: [ProviderFeature.LIBRARY_GENRES],
   };
 
   const requiredFeatures = featureMap[props.itemtype];
 
   return Object.values(api.providers)
     .filter((provider) => {
+      // include Smart Playlist plugin provider in the playlists filter
+      if (
+        props.itemtype === "playlists" &&
+        provider.domain === SMART_PLAYLIST_PROVIDER_DOMAIN
+      ) {
+        return provider.available;
+      }
       if (provider.type !== ProviderType.MUSIC) return false;
       if (
         store.currentUser &&
@@ -1102,10 +1164,7 @@ const musicProviders = computed(() => {
       }
       // If we have required feature(s) for this itemtype, filter by them
       if (requiredFeatures) {
-        const features = Array.isArray(requiredFeatures)
-          ? requiredFeatures
-          : [requiredFeatures];
-        return features.some((feature) =>
+        return requiredFeatures.some((feature) =>
           provider.supported_features.includes(feature),
         );
       }
@@ -1565,7 +1624,9 @@ const restoreSettings = async function () {
     prefs.providerFilter &&
     musicProviders.value.length > 1
   ) {
-    params.value.provider = prefs.providerFilter;
+    const validIds = new Set(musicProviders.value.map((p) => p.value));
+    const filtered = prefs.providerFilter.filter((id) => validIds.has(id));
+    params.value.provider = filtered.length > 0 ? filtered : undefined;
   }
 
   // critical_reception filters — restore from prefs when their dropdown is enabled
@@ -1732,6 +1793,23 @@ watch(
 
 // Watch savedPrefs and restore settings when they change (e.g., when user loads)
 watch(savedPrefs, () => restoreSettings(), { immediate: true });
+
+// When a provider stops being usable at runtime, drop it from the active filter
+// and reload so the view refreshes without a remount. Only the live query is
+// touched, not the saved preference: a temporarily unavailable provider keeps
+// its filter so it is reapplied on return. Cleaning up removed providers from
+// the saved preference is handled by pruneStaleProviderFilters.
+watch(
+  () => musicProviders.value.map((p) => p.value).join("|"),
+  () => {
+    if (!params.value.provider || params.value.provider.length === 0) return;
+    const validIds = new Set(musicProviders.value.map((p) => p.value));
+    const next = params.value.provider.filter((id) => validIds.has(id));
+    if (next.length === params.value.provider.length) return;
+    params.value.provider = next.length > 0 ? next : undefined;
+    loadData(true, undefined, true);
+  },
+);
 
 const itemtypeToMediaType: Partial<Record<string, MediaType>> = {
   tracks: MediaType.TRACK,
@@ -2083,6 +2161,7 @@ const selectAll = async function () {
 
 defineExpose({
   sortBy: computed(() => params.value.sortBy),
+  reload: () => loadData(true, true),
   // Force a full reload from the server. Used by host views (LibraryListenLater)
   // that need to drop rows whose server-side state changes mean they no longer
   // belong in this listing — applyMediaEventToItems only replaces in place, so
@@ -2093,6 +2172,16 @@ defineExpose({
 </script>
 
 <style scoped>
+.disc-header {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  padding: 16px 8px 8px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
 /* ThumbView panel columns */
 .col-2 {
   width: 50%;

@@ -18,10 +18,12 @@
           </router-view>
           <add-to-playlist-dialog />
           <create-playlist-dialog />
+          <create-smart-playlist-dialog />
           <import-playlist-dialog />
           <merge-genre-dialog />
           <delete-genre-dialog />
           <link-genre-dialog />
+          <dialog-delete-confirmation />
           <item-context-menu />
           <AddManualLink
             v-model="showEditItemDialog"
@@ -43,8 +45,10 @@ import PlayerSelect from "./PlayerSelect.vue";
 import DeleteGenreDialog from "@/components/genre/DeleteGenreDialog.vue";
 import LinkGenreDialog from "@/components/genre/LinkGenreDialog.vue";
 import MergeGenreDialog from "@/components/genre/MergeGenreDialog.vue";
+import DialogDeleteConfirmation from "@/components/DialogDeleteConfirmation.vue";
 import AddToPlaylistDialog from "./AddToPlaylistDialog.vue";
 import CreatePlaylistDialog from "./CreatePlaylistDialog.vue";
+import CreateSmartPlaylistDialog from "./CreateSmartPlaylistDialog.vue";
 import ImportPlaylistDialog from "./ImportPlaylistDialog.vue";
 import ItemContextMenu from "./ItemContextMenu.vue";
 import AddManualLink from "@/components/AddManualLink.vue";

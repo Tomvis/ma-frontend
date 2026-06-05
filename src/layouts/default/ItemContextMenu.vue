@@ -218,7 +218,7 @@ const playMenuHeaderClicked = function (evt: MouseEvent | KeyboardEvent) {
 import router from "@/plugins/router";
 
 import { playerVisible } from "@/helpers/utils";
-import { itemIsAvailable } from "@/plugins/api/helpers";
+import { isItemInLibrary, itemIsAvailable } from "@/plugins/api/helpers";
 import {
   Album,
   BrowseFolder,
@@ -239,9 +239,11 @@ import { $t } from "@/plugins/i18n";
 import { toast } from "vue-sonner";
 import { useListenLater } from "@/composables/useListenLater";
 import {
+  getShortcutMoveAvailability,
   isShortcutMediaType,
   isShortcutPinnedItem,
   isShortcutCapReached,
+  moveShortcutStandaloneItem,
   pinShortcutStandalone,
   unpinShortcutStandaloneItem,
 } from "@/composables/useShortcuts";
@@ -270,6 +272,7 @@ export const showContextMenuForMediaItem = async function (
   includePlayMenuItems = false,
   showPlayMenuHeader = false,
   sortBy?: string,
+  options?: ContextMenuOptions,
 ) {
   // show ContextMenu for given MediaItem(s)
   const mediaItems: MediaItemTypeOrItemMapping[] = Array.isArray(item)
@@ -286,7 +289,11 @@ export const showContextMenuForMediaItem = async function (
     return;
   }
 
-  const contextMenuItems = await getContextMenuItems(mediaItems, parentItem);
+  const contextMenuItems = await getContextMenuItems(
+    mediaItems,
+    parentItem,
+    options,
+  );
 
   let menuItems: ContextMenuItem[] = [];
 
@@ -342,9 +349,13 @@ export const showPlayMenuForMediaItem = async function (
   const firstItem = playableItems[0];
 
   let playMenuItems: ContextMenuItem[] = [];
+  const LiveSourceTypes = [MediaType.RADIO, MediaType.AUDIO_SOURCE];
+  const enqueueConfigKey = LiveSourceTypes.includes(firstItem.media_type)
+    ? "default_enqueue_option_live_sources"
+    : `default_enqueue_option_${firstItem.media_type}`;
   const defaultEnqueueOption = (await api.getCoreConfigValue(
     "player_queues",
-    `default_enqueue_option_${firstItem.media_type}`,
+    enqueueConfigKey,
   )) as QueueOption;
   // Start Radio
   if (radioModeSupported(firstItem)) {
@@ -394,9 +405,16 @@ export const showPlayMenuForMediaItem = async function (
   });
 };
 
+export interface ContextMenuOptions {
+  // true when the menu is opened from the sidebar shortcuts list,
+  // enabling actions that only make sense there (e.g. move up/down).
+  shortcutContext?: boolean;
+}
+
 export const getContextMenuItems = async function (
   items: MediaItemTypeOrItemMapping[],
   parentItem?: MediaItemType,
+  options?: ContextMenuOptions,
 ) {
   const contextMenuItems: ContextMenuItem[] = [];
   if (items.length == 0) {
@@ -533,7 +551,7 @@ export const getContextMenuItems = async function (
 
   // add to library
   if (
-    resolvedItem.provider != "library" &&
+    !isItemInLibrary(resolvedItem) &&
     [
       MediaType.ALBUM,
       MediaType.ARTIST,
@@ -550,7 +568,12 @@ export const getContextMenuItems = async function (
       label: "add_library",
       labelArgs: [],
       action: () => {
-        for (const item of items) api.addItemToLibrary(item);
+        for (const item of items) {
+          api.addItemToLibrary(item);
+          // optimistically flag the mappings so the derived state re-evaluates
+          if ("provider_mappings" in item)
+            item.provider_mappings.forEach((pm) => (pm.in_library = true));
+        }
         // Clear the multi-select after action
         eventbus.emit("clearSelection");
       },
@@ -607,7 +630,7 @@ export const getContextMenuItems = async function (
   }
   // remove from library
   if (
-    resolvedItem.provider == "library" &&
+    isItemInLibrary(resolvedItem) &&
     [
       MediaType.ALBUM,
       MediaType.ARTIST,
@@ -622,12 +645,24 @@ export const getContextMenuItems = async function (
       label: "remove_library",
       labelArgs: [],
       action: () => {
-        if (!confirm($t("confirm_library_remove"))) return;
-        for (const item of items)
-          api.removeItemFromLibrary(item.media_type, item.item_id);
-        if (resolvedItem.item_id == parentItem?.item_id) router.go(-1);
-        // Clear the multi-select after action
-        eventbus.emit("clearSelection");
+        eventbus.emit("deleteConfirmationDialog", {
+          title: $t("remove_library"),
+          message: $t("confirm_library_remove"),
+          confirmLabel: $t("remove"),
+          onConfirm: () => {
+            for (const item of items) {
+              api.removeItemFromLibrary(item.media_type, item.item_id);
+              // optimistically clear membership so the derived state re-evaluates;
+              // favorite implies membership, so it must clear too
+              if ("favorite" in item) item.favorite = false;
+              if ("provider_mappings" in item)
+                item.provider_mappings.forEach((pm) => (pm.in_library = false));
+            }
+            if (resolvedItem.item_id == parentItem?.item_id) router.go(-1);
+            // Clear the multi-select after action
+            eventbus.emit("clearSelection");
+          },
+        });
       },
       icon: "mdi-bookshelf",
     });
@@ -959,6 +994,26 @@ export const getContextMenuItems = async function (
   ) {
     const shortcutItem = items[0];
     if (isShortcutPinnedItem(shortcutItem)) {
+      // move up/down only make sense when the menu is opened on the
+      // sidebar shortcuts list itself
+      if (options?.shortcutContext) {
+        const { canMoveUp, canMoveDown } =
+          getShortcutMoveAvailability(shortcutItem);
+        contextMenuItems.push({
+          label: "queue_move_up",
+          labelArgs: [],
+          action: () => moveShortcutStandaloneItem(shortcutItem, "up"),
+          icon: "mdi-arrow-up",
+          disabled: !canMoveUp,
+        });
+        contextMenuItems.push({
+          label: "queue_move_down",
+          labelArgs: [],
+          action: () => moveShortcutStandaloneItem(shortcutItem, "down"),
+          icon: "mdi-arrow-down",
+          disabled: !canMoveDown,
+        });
+      }
       contextMenuItems.push({
         label: "shortcut.remove_from",
         labelArgs: [],
@@ -1086,9 +1141,13 @@ export const getPlaybackContextMenuItems = async function (
   if (playableItems.length == 0) return playMenuItems;
   const firstItem = playableItems[0];
 
+  const LiveSourceTypes = [MediaType.RADIO, MediaType.AUDIO_SOURCE];
+  const enqueueConfigKey = LiveSourceTypes.includes(firstItem.media_type)
+    ? "default_enqueue_option_live_sources"
+    : `default_enqueue_option_${firstItem.media_type}`;
   const defaultEnqueueOption = (await api.getCoreConfigValue(
     "player_queues",
-    `default_enqueue_option_${firstItem.media_type}`,
+    enqueueConfigKey,
   )) as QueueOption;
 
   if (!store.activePlayer) return playMenuItems;

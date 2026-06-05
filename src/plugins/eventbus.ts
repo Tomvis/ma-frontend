@@ -41,9 +41,20 @@ export type LinkGenreDialogEvent = {
   items: MediaItemType[];
 };
 
+export type DeleteConfirmationDialogEvent = {
+  message: string;
+  title?: string;
+  confirmLabel?: string;
+  onConfirm: () => void | Promise<void>;
+};
+
 export type ImportPlaylistEvent = {
   m3uData: string;
   playlistName: string;
+};
+
+export type CreateSmartPlaylistEvent = {
+  providerId?: string;
 };
 
 export type Events = {
@@ -52,8 +63,10 @@ export type Events = {
   createPlaylist: CreatePlaylistEvent;
   mergeGenreDialog: MergeGenreDialogEvent;
   deleteGenreDialog: DeleteGenreDialogEvent;
+  deleteConfirmationDialog: DeleteConfirmationDialogEvent;
   linkGenreDialog: LinkGenreDialogEvent;
   importPlaylistDialog: ImportPlaylistEvent;
+  createSmartPlaylist: CreateSmartPlaylistEvent;
   editItemDialog: Radio | Track | Playlist;
   clearSelection: void;
   genreExcluded: void;

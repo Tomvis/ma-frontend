@@ -55,6 +55,7 @@ import {
   RemoteAccessInfo,
   RepeatMode,
   SearchResults,
+  SmartPlaylistRules,
   UserRole,
 } from "./interfaces";
 
@@ -852,6 +853,18 @@ export class MusicAssistantApi {
     });
   }
 
+  public updatePlaylist(
+    item_id: string | number,
+    update: Playlist,
+    overwrite: boolean = false,
+  ): Promise<Playlist> {
+    return this.sendCommand("music/playlists/update", {
+      item_id,
+      update,
+      overwrite,
+    });
+  }
+
   public exportPlaylist(db_playlist_id: string | number): Promise<string> {
     return this.sendCommand("music/playlists/export_playlist", {
       db_playlist_id,
@@ -868,6 +881,42 @@ export class MusicAssistantApi {
       library_matching,
       match_providers,
     });
+  }
+
+  public createSmartPlaylist(
+    name: string,
+    rules: SmartPlaylistRules,
+    is_dynamic: boolean = true,
+  ): Promise<Playlist> {
+    return this.sendCommand("smart_playlists/create", {
+      name,
+      rules,
+      is_dynamic,
+    });
+  }
+
+  public getSmartPlaylistRules(
+    db_playlist_id: string | number,
+  ): Promise<SmartPlaylistRules | null> {
+    return this.sendCommand("smart_playlists/get_rules", {
+      playlist_id: db_playlist_id,
+    });
+  }
+
+  public updateSmartPlaylistRules(
+    db_playlist_id: string | number,
+    rules: SmartPlaylistRules,
+  ): Promise<void> {
+    return this.sendCommand("smart_playlists/update_rules", {
+      playlist_id: db_playlist_id,
+      rules,
+    });
+  }
+
+  public countSmartPlaylistTracks(
+    rules: SmartPlaylistRules,
+  ): Promise<{ count: number; duration_seconds: number }> {
+    return this.sendCommand("smart_playlists/count_tracks", { rules });
   }
 
   /**

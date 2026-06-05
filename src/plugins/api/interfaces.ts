@@ -265,8 +265,13 @@ export enum PlaybackState {
 
 export enum PlayerType {
   PLAYER = "player", // A regular player.
-  GROUP = "group", // A (dedicated) group player or playergroup.
   STEREO_PAIR = "stereo_pair",
+  GROUP = "group", // A (dedicated) group player or playergroup.
+  PROTOCOL = "protocol",
+  DISPLAY = "display",
+  VISUALIZER = "visualizer",
+  LIGHT = "light",
+  UNKNOWN = "unknown",
 }
 
 export enum PlayerOptionType {
@@ -348,7 +353,9 @@ export enum ProviderFeature {
   LIBRARY_GENRES = "library_genres",
   // additional library features
   ARTIST_ALBUMS = "artist_albums",
+  ARTIST_TRACKS = "artist_tracks",
   ARTIST_TOPTRACKS = "artist_toptracks",
+  ARTIST_TOPALBUMS = "artist_topalbums",
   // library edit (=add/remove) feature per mediatype
   LIBRARY_ARTISTS_EDIT = "library_artists_edit",
   LIBRARY_ALBUMS_EDIT = "library_albums_edit",
@@ -1349,4 +1356,39 @@ export interface PartyConfig {
   qr_text: string | null;
   hide_back_button: boolean;
   show_progress_bar: boolean;
+}
+
+export interface SmartPlaylistRules {
+  genre_ids: number[];
+  artist_ids: number[];
+  album_ids: number[];
+  favorites_only: boolean;
+  seed_track_uris?: string[];
+  seed_artist_uris?: string[];
+  seed_album_uris?: string[];
+  seed_playlist_uris?: string[];
+  seed_names?: Record<string, string>;
+  min_popularity?: number;
+  logic: "AND" | "OR";
+  limit: number;
+  genre_names?: Record<number, string>;
+  artist_names?: Record<number, string>;
+  album_names?: Record<number, string>;
+  year_from?: number;
+  year_to?: number;
+  excluded_artist_ids?: number[];
+  excluded_album_ids?: number[];
+  excluded_genre_ids?: number[];
+  excluded_track_uris?: string[];
+  excluded_artist_names?: Record<number, string>;
+  excluded_album_names?: Record<number, string>;
+  excluded_genre_names?: Record<number, string>;
+  dedup_hours?: number;
+  album_types?: string[];
+  excluded_album_types?: string[];
+}
+
+export interface SmartPlaylistTrackStats {
+  count: number;
+  duration_seconds: number;
 }
