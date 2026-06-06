@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
-import { Star, StarHalf, Sparkles, Trophy } from "lucide-vue-next";
+import { Star, StarHalf, Sparkles } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import type { Album } from "@/plugins/api/interfaces";
+import type { Album, ReviewLink } from "@/plugins/api/interfaces";
 import { useAlbumTags } from "@/composables/useAlbumTags";
+import AccoladeChip from "@/components/album/AccoladeChip.vue";
 import type {
-  ParsedLabel,
+  ParsedAccolade,
   AuthorWithRole,
   SourceTags,
 } from "@/helpers/album_tags";
@@ -16,7 +17,7 @@ interface Props {
 const props = defineProps<Props>();
 const albumRef = toRef(props, "album");
 const tags = useAlbumTags(albumRef);
-const { t, te } = useI18n();
+const { t } = useI18n();
 
 const drVerdict = computed(() =>
   tags.value.dr
@@ -37,43 +38,6 @@ function formatScore(n: number): string {
   return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
 }
 
-function typeLabel(kind: string): string {
-  const key = `critical_reception.type.${kind}`;
-  return te(key) ? t(key) : kind;
-}
-
-function labelDisplay(label: ParsedLabel): string {
-  if (label.kind === "aoty" && label.year !== undefined) {
-    return t("critical_reception.label.AOTY_year", { year: label.year });
-  }
-  if (
-    label.kind === "aotm" &&
-    label.year !== undefined &&
-    label.month !== undefined
-  ) {
-    return t("critical_reception.label.AOTM_year_month", {
-      year: label.year,
-      month: String(label.month).padStart(2, "0"),
-    });
-  }
-  if (label.kind === "honorable_mention" && label.year !== undefined) {
-    return t("critical_reception.label.HONORABLE_MENTION_year", {
-      year: label.year,
-    });
-  }
-  const key = `critical_reception.label.${label.raw}`;
-  return te(key) ? t(key) : label.raw;
-}
-
-function isAccolade(label: ParsedLabel): boolean {
-  return (
-    label.kind === "aoty" ||
-    label.kind === "record_of_the_month" ||
-    label.kind === "aotm" ||
-    label.kind === "honorable_mention"
-  );
-}
-
 function authorRoleTitle(author: AuthorWithRole): string {
   return t(`critical_reception.author_role.${author.role}`);
 }
@@ -88,6 +52,18 @@ function ratingAria(s: SourceTags): string {
     score: formatScore(s.rating),
     max: s.scale,
   });
+}
+
+// URL for the review score: the post labeled "Review" (the canonical review).
+function reviewHref(s: SourceTags): string | undefined {
+  return s.links.find((l) => l.label === "Review")?.url;
+}
+
+// The post links matching an accolade chip. Link labels mirror the stored accolade
+// string; legacy-folded chips keep their raw token, so match either form. The chip
+// (AccoladeChip) decides how to surface them: a direct link for one, a menu for many.
+function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
+  return s.links.filter((l) => l.label === a.raw || l.label === a.display);
 }
 </script>
 
@@ -196,10 +172,22 @@ function ratingAria(s: SourceTags): string {
                 />
               </template>
             </div>
-            <span class="rs-numeric rs-numeric--amg">
+            <component
+              :is="reviewHref(tags.amg) ? 'a' : 'span'"
+              class="rs-numeric rs-numeric--amg"
+              :class="{ 'rs-numeric--link': reviewHref(tags.amg) }"
+              :href="reviewHref(tags.amg) || undefined"
+              :target="reviewHref(tags.amg) ? '_blank' : undefined"
+              :rel="reviewHref(tags.amg) ? 'noopener noreferrer' : undefined"
+              :title="
+                reviewHref(tags.amg)
+                  ? $t('critical_reception.open_review')
+                  : undefined
+              "
+            >
               {{ formatScore(tags.amg.rating)
               }}<span class="rs-scale"> / 5</span>
-            </span>
+            </component>
           </template>
           <template v-else-if="tags.amg.favorite">
             <div class="rs-favorite">
@@ -209,27 +197,14 @@ function ratingAria(s: SourceTags): string {
           </template>
         </div>
 
-        <div
-          v-if="tags.amg.labels.length || tags.amg.types.length"
-          class="rs-chips"
-        >
-          <span
-            v-for="label in tags.amg.labels"
-            :key="`amg-l-${label.raw}`"
-            class="rs-chip"
-            :class="{ 'rs-chip--accolade': isAccolade(label) }"
-            data-accent="amg"
-          >
-            <Trophy v-if="isAccolade(label)" :size="10" aria-hidden="true" />
-            <span>{{ labelDisplay(label) }}</span>
-          </span>
-          <span
-            v-for="kind in tags.amg.types"
-            :key="`amg-t-${kind}`"
-            class="rs-chip rs-chip--type"
-          >
-            {{ typeLabel(kind) }}
-          </span>
+        <div v-if="tags.amg.accolades.length" class="rs-chips">
+          <AccoladeChip
+            v-for="accolade in tags.amg.accolades"
+            :key="`amg-acc-${accolade.raw}`"
+            :accolade="accolade"
+            :links="linksForAccolade(tags.amg, accolade)"
+            accent="amg"
+          />
         </div>
 
         <div v-if="tags.amg.authors.length" class="rs-caption rs-byline">
@@ -261,10 +236,22 @@ function ratingAria(s: SourceTags): string {
 
         <div class="rs-main">
           <template v-if="tags.tps.rating !== undefined">
-            <span class="rs-numeric rs-numeric--tps">
+            <component
+              :is="reviewHref(tags.tps) ? 'a' : 'span'"
+              class="rs-numeric rs-numeric--tps"
+              :class="{ 'rs-numeric--link': reviewHref(tags.tps) }"
+              :href="reviewHref(tags.tps) || undefined"
+              :target="reviewHref(tags.tps) ? '_blank' : undefined"
+              :rel="reviewHref(tags.tps) ? 'noopener noreferrer' : undefined"
+              :title="
+                reviewHref(tags.tps)
+                  ? $t('critical_reception.open_review')
+                  : undefined
+              "
+            >
               {{ formatScore(tags.tps.rating)
               }}<span class="rs-scale"> / {{ tags.tps.scale }}</span>
-            </span>
+            </component>
             <div class="rs-bar" role="img" :aria-label="ratingAria(tags.tps)">
               <div
                 class="rs-bar-fill"
@@ -282,27 +269,14 @@ function ratingAria(s: SourceTags): string {
           </template>
         </div>
 
-        <div
-          v-if="tags.tps.labels.length || tags.tps.types.length"
-          class="rs-chips"
-        >
-          <span
-            v-for="label in tags.tps.labels"
-            :key="`tps-l-${label.raw}`"
-            class="rs-chip"
-            :class="{ 'rs-chip--accolade': isAccolade(label) }"
-            data-accent="tps"
-          >
-            <Trophy v-if="isAccolade(label)" :size="10" aria-hidden="true" />
-            <span>{{ labelDisplay(label) }}</span>
-          </span>
-          <span
-            v-for="kind in tags.tps.types"
-            :key="`tps-t-${kind}`"
-            class="rs-chip rs-chip--type"
-          >
-            {{ typeLabel(kind) }}
-          </span>
+        <div v-if="tags.tps.accolades.length" class="rs-chips">
+          <AccoladeChip
+            v-for="accolade in tags.tps.accolades"
+            :key="`tps-acc-${accolade.raw}`"
+            :accolade="accolade"
+            :links="linksForAccolade(tags.tps, accolade)"
+            accent="tps"
+          />
         </div>
 
         <div v-if="tags.tps.authors.length" class="rs-caption rs-byline">
@@ -680,37 +654,23 @@ function ratingAria(s: SourceTags): string {
   gap: 5px;
 }
 
-.rs-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border, #e5e7eb) 80%, transparent);
-  color: var(--muted-foreground, #475569);
-  background: transparent;
-  white-space: nowrap;
+/* Clickable review score links out to the canonical "Review" post; inherits the
+   numeric colour (no default link blue) with a subtle underline-on-hover. The
+   accolade chips live in AccoladeChip.vue, which owns their styles. */
+a.rs-numeric--link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 }
-
-.rs-chip--type {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 9.5px;
-  opacity: 0.85;
+a.rs-numeric--link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
 }
-
-.rs-chip--accolade[data-accent="amg"] {
-  color: rgb(225 29 72);
-  border-color: rgb(244 63 94 / 0.45);
-  background: rgb(244 63 94 / 0.07);
-}
-.rs-chip--accolade[data-accent="tps"] {
-  color: rgb(2 132 199);
-  border-color: rgb(56 189 248 / 0.55);
-  background: rgb(56 189 248 / 0.08);
+a.rs-numeric--link:focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @media (max-width: 760px) {

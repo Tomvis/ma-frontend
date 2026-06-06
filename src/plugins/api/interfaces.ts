@@ -688,13 +688,30 @@ export interface CriticalReception {
 //   position 0  -> canonical reviewer (or sole list-picker if no scored review)
 //   position 1  -> dual-review secondary, when present
 //   remaining   -> list-pickers
+// One labeled post link for a review source (TAG_SCHEMA_VERSION 3.3.0+). One entry
+// per post: `label` mirrors an `accolades` value, but several links can share a label
+// (e.g. an Album of the Year honor appearing in multiple writers' year-end lists).
+export interface ReviewLink {
+  label: string;
+  url: string;
+}
+
 export interface ReviewSourceEntry {
   source: ReviewSource;
   rating?: number;
   favorite?: boolean;
+  // editorial honors as human-readable display strings, each appearing once with any
+  // date inlined, e.g. ["Review", "Album of the Year (2024)"] (TAG_SCHEMA_VERSION 3.2.0+).
+  accolades?: string[];
+  // one labeled post URL per post (3.3.0+); label mirrors an `accolades` value.
+  links?: ReviewLink[];
+  authors?: string[];
+  // DEPRECATED (<= 3.1.1): the separate review-kind / award-label lists, superseded by
+  // `accolades`. Still accepted from pre-3.2.0 servers during the transition.
   types?: string[];
   labels?: string[];
-  authors?: string[];
+  // DEPRECATED (<= 3.2.x): the single canonical review URL, superseded by `links`.
+  review_url?: string;
 }
 
 // Library-query filter for critical_reception fields. All values are optional;
@@ -707,20 +724,19 @@ export interface ReviewSourceEntry {
 // `*_ratings` are integer bucket selectors:
 //   AMG (/5):  1..5 — selector N matches an AMG entry whose floor(rating) == N
 //   TPS (/10): 1,3,5,7,9 — selector N matches a TPS entry whose rating ∈ [N, N+2)
-// `*_labels` are normalized label kinds: "aoty" | "aotm" | "record_of_the_month" | "honorable_mention"
-// `*_types` are exact review-column strings ("TYMHM", "YMIO", "Lost in Time", …). The server
-// accepts both AMG and TPS; today only `amg_types` is surfaced (those columns are AMG-only).
+// `*_accolades` are normalized accolade kinds matched against the merged accolades[]
+// list: "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" |
+// "tymhm" | "sitf" | "ymio" | "lit" | "rfu". Dated awards prefix-match every year/month
+// variant; the review-column kinds match exactly. Accepted for both AMG and TPS.
 export interface CriticalReceptionFilter {
   dr_buckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
   amg_ratings?: number[];
   amg_favorite?: boolean;
-  amg_labels?: string[];
-  amg_types?: string[];
+  amg_accolades?: string[];
   amg_untagged?: boolean;
   tps_ratings?: number[];
   tps_favorite?: boolean;
-  tps_labels?: string[];
-  tps_types?: string[];
+  tps_accolades?: string[];
   tps_untagged?: boolean;
   critical_reception_match?: "all" | "any";
 }

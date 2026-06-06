@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   drQuality,
-  parseLabel,
-  sortLabels,
+  parseAccolade,
+  sortAccolades,
   parseAlbumTags,
   DR_THRESHOLDS,
-  type ParsedLabel,
+  type ParsedAccolade,
 } from "./album_tags";
 
 describe("drQuality", () => {
@@ -21,82 +21,117 @@ describe("drQuality", () => {
   });
 });
 
-describe("parseLabel", () => {
-  it("recognizes flat labels", () => {
-    expect(parseLabel("RECORD_OF_THE_MONTH").kind).toBe("record_of_the_month");
-    expect(parseLabel("SCORE_REVISED").kind).toBe("score_revised");
-    expect(parseLabel("TYMHM").kind).toBe("tymhm");
-    expect(parseLabel("SITF").kind).toBe("sitf");
-    expect(parseLabel("YMIO").kind).toBe("ymio");
-    expect(parseLabel("LIT").kind).toBe("lit");
-    expect(parseLabel("RFU").kind).toBe("rfu");
+describe("parseAccolade", () => {
+  it("recognizes exact 3.2.0 / column accolades", () => {
+    expect(parseAccolade("Review").kind).toBe("review");
+    expect(parseAccolade("TYMHM").kind).toBe("tymhm");
+    expect(parseAccolade("SITF").kind).toBe("sitf");
+    expect(parseAccolade("YMIO").kind).toBe("ymio");
+    expect(parseAccolade("Lost in Time").kind).toBe("lit");
+    expect(parseAccolade("RFU").kind).toBe("rfu");
+    expect(parseAccolade("Score Revised").kind).toBe("score_revised");
   });
 
-  it("parses AOTY-{year}", () => {
-    expect(parseLabel("AOTY-2024")).toEqual({
-      raw: "AOTY-2024",
+  it("parses dated 3.2.0 award display strings (display kept verbatim)", () => {
+    expect(parseAccolade("Album of the Year (2024)")).toEqual({
+      raw: "Album of the Year (2024)",
       kind: "aoty",
+      display: "Album of the Year (2024)",
       year: 2024,
+      month: undefined,
+      isAward: true,
     });
-  });
-
-  it("parses AOTM-{year}-{month}", () => {
-    expect(parseLabel("AOTM-2024-03")).toEqual({
-      raw: "AOTM-2024-03",
-      kind: "aotm",
+    expect(parseAccolade("Record of the Month (Sep 2024)")).toEqual({
+      raw: "Record of the Month (Sep 2024)",
+      kind: "record_of_the_month",
+      display: "Record of the Month (Sep 2024)",
       year: 2024,
-      month: 3,
+      month: 9,
+      isAward: true,
     });
-    expect(parseLabel("AOTM-2024-3")).toEqual({
-      raw: "AOTM-2024-3",
-      kind: "aotm",
-      year: 2024,
-      month: 3,
-    });
-  });
-
-  it("parses HONORABLE_MENTION-{year}", () => {
-    expect(parseLabel("HONORABLE_MENTION-2023")).toEqual({
-      raw: "HONORABLE_MENTION-2023",
+    expect(parseAccolade("Honorable Mention (2023)")).toMatchObject({
       kind: "honorable_mention",
       year: 2023,
+      isAward: true,
+    });
+    // undated Record of the Month is still an award, just without a date facet
+    expect(parseAccolade("Record of the Month")).toMatchObject({
+      kind: "record_of_the_month",
+      year: undefined,
+      isAward: true,
     });
   });
 
-  it("falls back to unknown for unrecognized labels", () => {
-    expect(parseLabel("AOTY-202").kind).toBe("unknown");
-    expect(parseLabel("RANDOM_LABEL").kind).toBe("unknown");
-    expect(parseLabel("").kind).toBe("unknown");
+  it("flags review-column kinds as non-awards", () => {
+    expect(parseAccolade("TYMHM").isAward).toBe(false);
+    expect(parseAccolade("Score Revised").isAward).toBe(false);
+  });
+
+  it("still recognizes deprecated machine tokens, folded to a display form", () => {
+    expect(parseAccolade("AOTY-2024")).toMatchObject({
+      kind: "aoty",
+      display: "Album of the Year (2024)",
+      year: 2024,
+    });
+    expect(parseAccolade("AOTM-2024-03")).toMatchObject({
+      kind: "record_of_the_month",
+      display: "Record of the Month (Mar 2024)",
+      year: 2024,
+      month: 3,
+    });
+    expect(parseAccolade("RECORD_OF_THE_MONTH")).toMatchObject({
+      kind: "record_of_the_month",
+      display: "Record of the Month",
+    });
+    expect(parseAccolade("HONORABLE_MENTION-2023")).toMatchObject({
+      kind: "honorable_mention",
+      display: "Honorable Mention (2023)",
+      year: 2023,
+    });
+    expect(parseAccolade("SCORE_REVISED").kind).toBe("score_revised");
+    expect(parseAccolade("Contrite").kind).toBe("score_revised");
+    expect(parseAccolade("LIT")).toMatchObject({
+      kind: "lit",
+      display: "Lost in Time",
+    });
+  });
+
+  it("falls back to unknown (opaque) for unrecognized values", () => {
+    expect(parseAccolade("AOTY-202").kind).toBe("unknown");
+    expect(parseAccolade("Some Future Honor (2030)").kind).toBe("unknown");
+    expect(parseAccolade("").kind).toBe("unknown");
+    // an unknown value is rendered verbatim
+    expect(parseAccolade("Weird Thing").display).toBe("Weird Thing");
   });
 });
 
-describe("sortLabels", () => {
-  it("orders by prestige: AOTY > Record of the Month > AOTM > HM > others", () => {
-    const labels: ParsedLabel[] = [
-      { raw: "TYMHM", kind: "tymhm" },
-      { raw: "AOTM-2024-03", kind: "aotm", year: 2024, month: 3 },
-      { raw: "RECORD_OF_THE_MONTH", kind: "record_of_the_month" },
-      { raw: "AOTY-2024", kind: "aoty", year: 2024 },
-      { raw: "HONORABLE_MENTION-2023", kind: "honorable_mention", year: 2023 },
+describe("sortAccolades", () => {
+  it("orders by prestige: awards before review-columns", () => {
+    const accolades: ParsedAccolade[] = [
+      parseAccolade("TYMHM"),
+      parseAccolade("Score Revised"),
+      parseAccolade("Record of the Month (Mar 2024)"),
+      parseAccolade("Album of the Year (2024)"),
+      parseAccolade("Honorable Mention (2023)"),
     ];
-    const sorted = sortLabels(labels).map((l) => l.kind);
-    expect(sorted).toEqual([
+    expect(sortAccolades(accolades).map((a) => a.kind)).toEqual([
       "aoty",
       "record_of_the_month",
-      "aotm",
       "honorable_mention",
+      "score_revised",
       "tymhm",
     ]);
   });
 
   it("descends by year within the same kind", () => {
-    const labels: ParsedLabel[] = [
-      { raw: "AOTY-2022", kind: "aoty", year: 2022 },
-      { raw: "AOTY-2024", kind: "aoty", year: 2024 },
-      { raw: "AOTY-2023", kind: "aoty", year: 2023 },
+    const accolades: ParsedAccolade[] = [
+      parseAccolade("Album of the Year (2022)"),
+      parseAccolade("Album of the Year (2024)"),
+      parseAccolade("Album of the Year (2023)"),
     ];
-    const sorted = sortLabels(labels).map((l) => l.year);
-    expect(sorted).toEqual([2024, 2023, 2022]);
+    expect(sortAccolades(accolades).map((a) => a.year)).toEqual([
+      2024, 2023, 2022,
+    ]);
   });
 });
 
@@ -121,7 +156,6 @@ describe("parseAlbumTags", () => {
   it("falls back to AMG DR when no measured value is available", () => {
     const result = parseAlbumTags({ amg_dr: 8 });
     expect(result.dr).toEqual({ value: 8, quality: "fair", source: "amg" });
-    // No divergence caption when only one DR source exists.
     expect(result.amgDr).toBeUndefined();
   });
 
@@ -168,7 +202,7 @@ describe("parseAlbumTags", () => {
 
   it("uses favorite when rating absent", () => {
     const result = parseAlbumTags({
-      sources: [{ source: "TPS", favorite: true, types: ["TYMHM"] }],
+      sources: [{ source: "TPS", favorite: true, accolades: ["TYMHM"] }],
     });
     expect(result.tps?.rating).toBeUndefined();
     expect(result.tps?.favorite).toBe(true);
@@ -210,8 +244,8 @@ describe("parseAlbumTags", () => {
   it("omits a source entry that carries no usable data", () => {
     const result = parseAlbumTags({
       sources: [
-        { source: "AMG", types: [], labels: [], authors: [] },
-        { source: "TPS", rating: 8.5, types: ["Review"] },
+        { source: "AMG", accolades: [], authors: [] },
+        { source: "TPS", rating: 8.5, accolades: ["Review"] },
       ],
     });
     expect(result.amg).toBeUndefined();
@@ -219,21 +253,101 @@ describe("parseAlbumTags", () => {
     expect(result.hasAny).toBe(true);
   });
 
-  it("sorts labels deterministically inside a source", () => {
+  it("sorts accolades deterministically inside a source", () => {
     const result = parseAlbumTags({
       sources: [
         {
           source: "AMG",
           rating: 4,
-          labels: ["TYMHM", "AOTY-2024", "AOTM-2024-03"],
+          accolades: [
+            "TYMHM",
+            "Album of the Year (2024)",
+            "Record of the Month (Mar 2024)",
+          ],
         },
       ],
     });
-    expect(result.amg?.labels.map((l) => l.kind)).toEqual([
+    expect(result.amg?.accolades.map((a) => a.kind)).toEqual([
       "aoty",
-      "aotm",
+      "record_of_the_month",
       "tymhm",
     ]);
+  });
+
+  it("folds & dedupes deprecated types/labels when accolades is absent", () => {
+    const result = parseAlbumTags({
+      sources: [
+        {
+          source: "AMG",
+          rating: 4,
+          // triple-encodes Record of the Month across both fields
+          types: ["Review", "AOTM"],
+          labels: ["AOTY-2024", "RECORD_OF_THE_MONTH", "AOTM-2024-09"],
+        },
+      ],
+    });
+    const accolades = result.amg?.accolades ?? [];
+    expect(accolades.map((a) => a.kind)).toEqual([
+      "aoty",
+      "record_of_the_month",
+      "review",
+    ]);
+    // the dated variant wins the dedupe
+    expect(
+      accolades.find((a) => a.kind === "record_of_the_month")?.display,
+    ).toBe("Record of the Month (Sep 2024)");
+  });
+
+  it("exposes 3.3.0 post links on the source (one entry per post)", () => {
+    const result = parseAlbumTags({
+      sources: [
+        {
+          source: "AMG",
+          rating: 4,
+          accolades: ["Review", "Album of the Year (2024)"],
+          links: [
+            { label: "Review", url: "https://amg/review/" },
+            { label: "Album of the Year (2024)", url: "https://amg/a/" },
+            { label: "Album of the Year (2024)", url: "https://amg/b/" },
+          ],
+        },
+      ],
+    });
+    expect(result.amg?.links).toEqual([
+      { label: "Review", url: "https://amg/review/" },
+      { label: "Album of the Year (2024)", url: "https://amg/a/" },
+      { label: "Album of the Year (2024)", url: "https://amg/b/" },
+    ]);
+  });
+
+  it("falls back to a single Review link from a legacy review_url", () => {
+    const result = parseAlbumTags({
+      sources: [{ source: "AMG", rating: 4, review_url: "https://amg/old/" }],
+    });
+    expect(result.amg?.links).toEqual([
+      { label: "Review", url: "https://amg/old/" },
+    ]);
+  });
+
+  it("prefers the links array over a legacy review_url", () => {
+    const result = parseAlbumTags({
+      sources: [
+        {
+          source: "AMG",
+          rating: 4,
+          links: [{ label: "Review", url: "https://amg/new/" }],
+          review_url: "https://amg/old/",
+        },
+      ],
+    });
+    expect(result.amg?.links?.map((l) => l.url)).toEqual(["https://amg/new/"]);
+  });
+
+  it("has no links when neither links nor review_url are present", () => {
+    const result = parseAlbumTags({
+      sources: [{ source: "AMG", rating: 4 }],
+    });
+    expect(result.amg?.links).toEqual([]);
   });
 
   it("attaches the correct scale per source", () => {

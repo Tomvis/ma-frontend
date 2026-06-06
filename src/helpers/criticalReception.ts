@@ -15,12 +15,11 @@ export function buildCriticalReceptionFilter(
   if (params.drBuckets?.length) f.dr_buckets = params.drBuckets;
   if (params.amgRatings?.length) f.amg_ratings = params.amgRatings;
   if (params.amgFavorite) f.amg_favorite = true;
-  if (params.amgLabels?.length) f.amg_labels = params.amgLabels;
-  if (params.amgTypes?.length) f.amg_types = params.amgTypes;
+  if (params.amgAccolades?.length) f.amg_accolades = params.amgAccolades;
   if (params.amgUntagged) f.amg_untagged = true;
   if (params.tpsRatings?.length) f.tps_ratings = params.tpsRatings;
   if (params.tpsFavorite) f.tps_favorite = true;
-  if (params.tpsLabels?.length) f.tps_labels = params.tpsLabels;
+  if (params.tpsAccolades?.length) f.tps_accolades = params.tpsAccolades;
   if (params.tpsUntagged) f.tps_untagged = true;
   if (Object.keys(f).length === 0) return undefined;
   // Only emit match mode when ANY is selected; the server defaults to ALL.

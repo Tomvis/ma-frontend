@@ -389,12 +389,11 @@ export interface LoadDataParams {
   drBuckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
   amgRatings?: number[];
   amgFavorite?: boolean;
-  amgLabels?: string[];
-  amgTypes?: string[];
+  amgAccolades?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;
-  tpsLabels?: string[];
+  tpsAccolades?: string[];
   tpsUntagged?: boolean;
   // How the DR/AMG/TPS clauses combine. "all" (default) ANDs them; "any" ORs
   // them so an album matches if it satisfies at least one. Doesn't affect
@@ -893,10 +892,9 @@ const changeProviderFilter = function (providerId: string) {
 type ListFilterKey =
   | "drBuckets"
   | "amgRatings"
-  | "amgLabels"
-  | "amgTypes"
+  | "amgAccolades"
   | "tpsRatings"
-  | "tpsLabels";
+  | "tpsAccolades";
 type BoolFilterKey =
   | "amgFavorite"
   | "amgUntagged"
@@ -958,10 +956,9 @@ const clearAllReviewFilters = function () {
   const listKeys: ListFilterKey[] = [
     "drBuckets",
     "amgRatings",
-    "amgLabels",
-    "amgTypes",
+    "amgAccolades",
     "tpsRatings",
-    "tpsLabels",
+    "tpsAccolades",
   ];
   const boolKeys: BoolFilterKey[] = [
     "amgFavorite",
@@ -1015,10 +1012,9 @@ const hasAnyReviewFilter = computed(() => {
   return (
     (p.drBuckets?.length ?? 0) > 0 ||
     (p.amgRatings?.length ?? 0) > 0 ||
-    (p.amgLabels?.length ?? 0) > 0 ||
-    (p.amgTypes?.length ?? 0) > 0 ||
+    (p.amgAccolades?.length ?? 0) > 0 ||
     (p.tpsRatings?.length ?? 0) > 0 ||
-    (p.tpsLabels?.length ?? 0) > 0 ||
+    (p.tpsAccolades?.length ?? 0) > 0 ||
     !!p.amgFavorite ||
     !!p.amgUntagged ||
     !!p.tpsFavorite ||
@@ -1639,14 +1635,15 @@ const restoreSettings = async function () {
   }
   if (props.showAmgFilter) {
     if (prefs.amgRatings?.length) params.value.amgRatings = prefs.amgRatings;
-    if (prefs.amgLabels?.length) params.value.amgLabels = prefs.amgLabels;
-    if (prefs.amgTypes?.length) params.value.amgTypes = prefs.amgTypes;
+    if (prefs.amgAccolades?.length)
+      params.value.amgAccolades = prefs.amgAccolades;
     if (prefs.amgFavorite) params.value.amgFavorite = true;
     if (prefs.amgUntagged) params.value.amgUntagged = true;
   }
   if (props.showTpsFilter) {
     if (prefs.tpsRatings?.length) params.value.tpsRatings = prefs.tpsRatings;
-    if (prefs.tpsLabels?.length) params.value.tpsLabels = prefs.tpsLabels;
+    if (prefs.tpsAccolades?.length)
+      params.value.tpsAccolades = prefs.tpsAccolades;
     if (prefs.tpsFavorite) params.value.tpsFavorite = true;
     if (prefs.tpsUntagged) params.value.tpsUntagged = true;
   }

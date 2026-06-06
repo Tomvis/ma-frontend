@@ -209,44 +209,24 @@
           </div>
         </div>
 
-        <!-- accolades row -->
+        <!-- accolades row: merged awards + review-columns, matched against the
+             source's accolades[] array (3.2.0). -->
         <div class="rf-row">
           <span class="rf-row__label">{{
             $t("review_filters.accolades")
           }}</span>
           <div class="rf-chips" role="group">
             <button
-              v-for="label in ACCOLADE_LABELS"
-              :key="`amg-l-${label}`"
+              v-for="kind in ACCOLADE_KINDS"
+              :key="`amg-acc-${kind}`"
               type="button"
               class="rf-chip"
               data-accent="amg"
-              :class="{ 'rf-chip--active': isAmgLabelActive(label) }"
-              :title="$t(`critical_reception.label_kind.${label}`)"
-              @click="$emit('toggleList', 'amgLabels', label)"
+              :class="{ 'rf-chip--active': isAmgAccoladeActive(kind) }"
+              :title="$t(`critical_reception.accolade.${kind}`)"
+              @click="$emit('toggleList', 'amgAccolades', kind)"
             >
-              {{ $t(`review_filters.label_short.${label}`) }}
-            </button>
-          </div>
-        </div>
-
-        <!-- columns row: AMG review-format chips (TYMHM, YMIO, …). These live in
-             the source's types[] rather than its labels[], so they emit to the
-             amgTypes filter — distinct from the accolades row above. -->
-        <div class="rf-row">
-          <span class="rf-row__label">{{ $t("review_filters.columns") }}</span>
-          <div class="rf-chips" role="group">
-            <button
-              v-for="kind in COLUMN_TYPES"
-              :key="`amg-t-${kind}`"
-              type="button"
-              class="rf-chip"
-              data-accent="amg"
-              :class="{ 'rf-chip--active': isAmgTypeActive(kind) }"
-              :title="$t(`critical_reception.type.${kind}`)"
-              @click="$emit('toggleList', 'amgTypes', kind)"
-            >
-              {{ $t(`review_filters.type_short.${kind}`) }}
+              {{ $t(`review_filters.accolade_short.${kind}`) }}
             </button>
           </div>
         </div>
@@ -322,23 +302,24 @@
           </div>
         </div>
 
-        <!-- accolades row -->
+        <!-- accolades row: merged awards + review-columns, matched against the
+             source's accolades[] array (3.2.0). -->
         <div class="rf-row">
           <span class="rf-row__label">{{
             $t("review_filters.accolades")
           }}</span>
           <div class="rf-chips" role="group">
             <button
-              v-for="label in ACCOLADE_LABELS"
-              :key="`tps-l-${label}`"
+              v-for="kind in ACCOLADE_KINDS"
+              :key="`tps-acc-${kind}`"
               type="button"
               class="rf-chip"
               data-accent="tps"
-              :class="{ 'rf-chip--active': isTpsLabelActive(label) }"
-              :title="$t(`critical_reception.label_kind.${label}`)"
-              @click="$emit('toggleList', 'tpsLabels', label)"
+              :class="{ 'rf-chip--active': isTpsAccoladeActive(kind) }"
+              :title="$t(`critical_reception.accolade.${kind}`)"
+              @click="$emit('toggleList', 'tpsAccolades', kind)"
             >
-              {{ $t(`review_filters.label_short.${label}`) }}
+              {{ $t(`review_filters.accolade_short.${kind}`) }}
             </button>
           </div>
         </div>
@@ -381,23 +362,29 @@
 import { computed } from "vue";
 
 type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
-type AccoladeLabel =
+// Normalized accolade-kind selectors (3.2.0 merged shape). Awards prefix-match
+// every dated variant; the review-column kinds match exactly server-side.
+type AccoladeKind =
   | "aoty"
   | "record_of_the_month"
-  | "aotm"
-  | "honorable_mention";
+  | "honorable_mention"
+  | "score_revised"
+  | "tymhm"
+  | "sitf"
+  | "ymio"
+  | "lit"
+  | "rfu";
 
 // Mirrors LoadDataParams' critical-reception slice.
 export interface ReviewFiltersParams {
   drBuckets?: DrBucket[];
   amgRatings?: number[];
   amgFavorite?: boolean;
-  amgLabels?: string[];
-  amgTypes?: string[];
+  amgAccolades?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;
-  tpsLabels?: string[];
+  tpsAccolades?: string[];
   tpsUntagged?: boolean;
   criticalReceptionMatch?: "all" | "any";
 }
@@ -423,10 +410,9 @@ const emit = defineEmits<{
     key:
       | "drBuckets"
       | "amgRatings"
-      | "amgLabels"
-      | "amgTypes"
+      | "amgAccolades"
       | "tpsRatings"
-      | "tpsLabels",
+      | "tpsAccolades",
     value: string | number,
   ): void;
   (
@@ -470,46 +456,44 @@ const TPS_BANDS: Array<{ lo: number; hi: number }> = [
   { lo: 1, hi: 2 },
 ];
 
-const ACCOLADE_LABELS: AccoladeLabel[] = [
+// The single accolades row (3.2.0 merge of the old award-labels + review-columns
+// rows). "review" is the default column and isn't a useful filter, so it's omitted.
+// Awards come first, then the review-column kinds. Each value is matched against the
+// source's merged accolades[] array server-side. Localized via critical_reception.*.
+const ACCOLADE_KINDS: AccoladeKind[] = [
   "aoty",
   "record_of_the_month",
-  "aotm",
   "honorable_mention",
+  "score_revised",
+  "tymhm",
+  "sitf",
+  "ymio",
+  "lit",
+  "rfu",
 ];
-
-// AMG review-column "types" — the format an album was covered under, distinct
-// from the accolades above. Stored verbatim in the source entry's `types[]`
-// (from the AMG_TYPE tag) so the values are the exact strings the server matches,
-// not normalized kinds. "Review" is the default column and isn't a useful filter,
-// so it's excluded. Mirrors the keys under `critical_reception.type.*`.
-const COLUMN_TYPES = ["TYMHM", "SITF", "YMIO", "Lost in Time", "RFU"] as const;
-type ColumnType = (typeof COLUMN_TYPES)[number];
 
 const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
 const isAmgRatingActive = (n: number) =>
   (props.params.amgRatings ?? []).includes(n);
-const isAmgLabelActive = (l: AccoladeLabel) =>
-  (props.params.amgLabels ?? []).includes(l);
-const isAmgTypeActive = (t: ColumnType) =>
-  (props.params.amgTypes ?? []).includes(t);
+const isAmgAccoladeActive = (k: AccoladeKind) =>
+  (props.params.amgAccolades ?? []).includes(k);
 const isTpsRatingActive = (n: number) =>
   (props.params.tpsRatings ?? []).includes(n);
-const isTpsLabelActive = (l: AccoladeLabel) =>
-  (props.params.tpsLabels ?? []).includes(l);
+const isTpsAccoladeActive = (k: AccoladeKind) =>
+  (props.params.tpsAccolades ?? []).includes(k);
 
 const drActiveCount = computed(() => (props.params.drBuckets ?? []).length);
 const amgActiveCount = computed(
   () =>
     (props.params.amgRatings ?? []).length +
-    (props.params.amgLabels ?? []).length +
-    (props.params.amgTypes ?? []).length +
+    (props.params.amgAccolades ?? []).length +
     (props.params.amgFavorite ? 1 : 0) +
     (props.params.amgUntagged ? 1 : 0),
 );
 const tpsActiveCount = computed(
   () =>
     (props.params.tpsRatings ?? []).length +
-    (props.params.tpsLabels ?? []).length +
+    (props.params.tpsAccolades ?? []).length +
     (props.params.tpsFavorite ? 1 : 0) +
     (props.params.tpsUntagged ? 1 : 0),
 );

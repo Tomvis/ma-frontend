@@ -47,34 +47,20 @@
         "untagged": "Untagged",
         "score_with_max": "{score} / {max}",
         "stars_aria": "{score} of {max} stars",
-        "label_kind": {
+        "open_review": "Open the review",
+        "open_post": "Open the post",
+        "choose_post": "Choose from {count} posts",
+        "accolade": {
             "aoty": "Album of the Year",
-            "aotm": "Album of the Month",
             "record_of_the_month": "Record of the Month",
-            "honorable_mention": "Honorable Mention"
-        },
-        "type": {
-            "Review": "Review",
-            "TYMHM": "Things You Might Have Missed",
-            "SITF": "Stuck in the Filter",
-            "YMIO": "Yer Metal Is Olde",
-            "AOTY": "Album of the Year",
-            "AOTM": "Album of the Month",
-            "Contrite": "Contrite",
-            "Lost in Time": "Lost in Time",
-            "RFU": "Records From the Underground"
-        },
-        "label": {
-            "RECORD_OF_THE_MONTH": "Record of the Month",
-            "SCORE_REVISED": "Score Revised",
-            "AOTY_year": "AOTY {year}",
-            "AOTM_year_month": "AOTM {year}-{month}",
-            "HONORABLE_MENTION_year": "Honorable Mention {year}",
-            "TYMHM": "TYMHM",
-            "SITF": "SITF",
-            "YMIO": "YMIO",
-            "LIT": "Lost in Time",
-            "RFU": "RFU"
+            "honorable_mention": "Honorable Mention",
+            "score_revised": "Score Revised",
+            "review": "Review",
+            "tymhm": "Things You Might Have Missed",
+            "sitf": "Stuck in the Filter",
+            "ymio": "Yer Metal Is Olde",
+            "lit": "Lost in Time",
+            "rfu": "Records From the Underground"
         },
         "authors": "by {authors}",
         "author_role": {
@@ -198,19 +184,16 @@
         "n_active": "{0} active",
         "rating": "Rating",
         "accolades": "Accolades",
-        "columns": "Columns",
-        "label_short": {
+        "accolade_short": {
             "aoty": "AOTY",
-            "aotm": "AOTM",
             "record_of_the_month": "ROTM",
-            "honorable_mention": "HM"
-        },
-        "type_short": {
-            "TYMHM": "TYMHM",
-            "SITF": "SITF",
-            "YMIO": "YMIO",
-            "Lost in Time": "LIT",
-            "RFU": "RFU"
+            "honorable_mention": "HM",
+            "score_revised": "Revised",
+            "tymhm": "TYMHM",
+            "sitf": "SITF",
+            "ymio": "YMIO",
+            "lit": "LIT",
+            "rfu": "RFU"
         },
         "match": {
             "label": "Match",

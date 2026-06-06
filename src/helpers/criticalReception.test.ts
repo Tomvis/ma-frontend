@@ -21,9 +21,9 @@ describe("buildCriticalReceptionFilter", () => {
           drBuckets: ["excellent"],
           amgRatings: [5],
           amgFavorite: true,
-          amgLabels: ["AOTY"],
-          amgTypes: ["TYMHM", "YMIO"],
+          amgAccolades: ["aoty", "tymhm", "ymio"],
           tpsRatings: [9],
+          tpsAccolades: ["record_of_the_month"],
           tpsUntagged: true,
         }),
       ),
@@ -31,9 +31,9 @@ describe("buildCriticalReceptionFilter", () => {
       dr_buckets: ["excellent"],
       amg_ratings: [5],
       amg_favorite: true,
-      amg_labels: ["AOTY"],
-      amg_types: ["TYMHM", "YMIO"],
+      amg_accolades: ["aoty", "tymhm", "ymio"],
       tps_ratings: [9],
+      tps_accolades: ["record_of_the_month"],
       tps_untagged: true,
     });
   });

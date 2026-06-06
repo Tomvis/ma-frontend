@@ -21,12 +21,11 @@ export interface ItemsListingPreferences {
   drBuckets?: DrBucket[];
   amgRatings?: number[];
   amgFavorite?: boolean;
-  amgLabels?: string[];
-  amgTypes?: string[];
+  amgAccolades?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;
-  tpsLabels?: string[];
+  tpsAccolades?: string[];
   tpsUntagged?: boolean;
   // "any" makes the DR/AMG/TPS clauses combine with OR instead of AND. Stored
   // per-listing so a saved "find anything acclaimed" view sticks across reloads.

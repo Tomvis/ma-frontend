@@ -2,7 +2,8 @@ import type { CriticalReception } from "@/plugins/api/interfaces";
 
 // Static fixtures used by tests. The canonical (measured) DR lives on
 // MediaItemMetadata.dynamic_range; CriticalReception only carries AMG's
-// review-reported DR (amg_dr) and per-source review entries.
+// review-reported DR (amg_dr) and per-source review entries. Accolades use the
+// 3.2.0 merged display-string shape.
 
 export const FIXTURE_FULL: CriticalReception = {
   amg_dr: 12,
@@ -10,15 +11,13 @@ export const FIXTURE_FULL: CriticalReception = {
     {
       source: "AMG",
       rating: 4,
-      types: ["Review", "AOTY"],
-      labels: ["AOTY-2024", "RECORD_OF_THE_MONTH"],
+      accolades: ["Review", "Album of the Year (2024)", "Record of the Month"],
       authors: ["Steel Druhm", "Dr. A.N. Grier"],
     },
     {
       source: "TPS",
       favorite: true,
-      types: ["AOTM", "Review"],
-      labels: ["AOTM-2024-03", "SCORE_REVISED"],
+      accolades: ["Review", "Record of the Month (Mar 2024)", "Score Revised"],
       authors: ["Dolphin Whisperer"],
     },
   ],
@@ -29,8 +28,7 @@ export const FIXTURE_AMG_ONLY: CriticalReception = {
     {
       source: "AMG",
       rating: 3.5,
-      types: ["Review"],
-      labels: [],
+      accolades: ["Review"],
       authors: ["Carcharodon"],
     },
   ],
