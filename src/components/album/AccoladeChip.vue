@@ -40,10 +40,6 @@ const menuTitle = computed(() =>
   t("critical_reception.choose_post", { count: props.links.length }),
 );
 
-function openLink(url: string): void {
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
 // A distinguishing label for a post in the menu: host + path (protocol and
 // trailing slash stripped). The links share an accolade label, so the path is
 // what tells the writers' posts apart.
@@ -107,7 +103,10 @@ function postName(link: ReviewLink): string {
       <DropdownMenuItem
         v-for="(link, i) in links"
         :key="`${link.url}-${i}`"
-        @click="openLink(link.url)"
+        as="a"
+        :href="link.url"
+        target="_blank"
+        rel="noopener noreferrer"
       >
         <ExternalLink class="size-4" />
         <span class="rs-post-name">{{ postName(link) }}</span>
