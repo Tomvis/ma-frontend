@@ -390,6 +390,7 @@ export interface LoadDataParams {
   amgRatings?: number[];
   amgFavorite?: boolean;
   amgLabels?: string[];
+  amgTypes?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;
@@ -893,6 +894,7 @@ type ListFilterKey =
   | "drBuckets"
   | "amgRatings"
   | "amgLabels"
+  | "amgTypes"
   | "tpsRatings"
   | "tpsLabels";
 type BoolFilterKey =
@@ -957,6 +959,7 @@ const clearAllReviewFilters = function () {
     "drBuckets",
     "amgRatings",
     "amgLabels",
+    "amgTypes",
     "tpsRatings",
     "tpsLabels",
   ];
@@ -1013,6 +1016,7 @@ const hasAnyReviewFilter = computed(() => {
     (p.drBuckets?.length ?? 0) > 0 ||
     (p.amgRatings?.length ?? 0) > 0 ||
     (p.amgLabels?.length ?? 0) > 0 ||
+    (p.amgTypes?.length ?? 0) > 0 ||
     (p.tpsRatings?.length ?? 0) > 0 ||
     (p.tpsLabels?.length ?? 0) > 0 ||
     !!p.amgFavorite ||
@@ -1636,6 +1640,7 @@ const restoreSettings = async function () {
   if (props.showAmgFilter) {
     if (prefs.amgRatings?.length) params.value.amgRatings = prefs.amgRatings;
     if (prefs.amgLabels?.length) params.value.amgLabels = prefs.amgLabels;
+    if (prefs.amgTypes?.length) params.value.amgTypes = prefs.amgTypes;
     if (prefs.amgFavorite) params.value.amgFavorite = true;
     if (prefs.amgUntagged) params.value.amgUntagged = true;
   }

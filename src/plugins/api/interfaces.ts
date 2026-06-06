@@ -708,15 +708,19 @@ export interface ReviewSourceEntry {
 //   AMG (/5):  1..5 — selector N matches an AMG entry whose floor(rating) == N
 //   TPS (/10): 1,3,5,7,9 — selector N matches a TPS entry whose rating ∈ [N, N+2)
 // `*_labels` are normalized label kinds: "aoty" | "aotm" | "record_of_the_month" | "honorable_mention"
+// `*_types` are exact review-column strings ("TYMHM", "YMIO", "Lost in Time", …). The server
+// accepts both AMG and TPS; today only `amg_types` is surfaced (those columns are AMG-only).
 export interface CriticalReceptionFilter {
   dr_buckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
   amg_ratings?: number[];
   amg_favorite?: boolean;
   amg_labels?: string[];
+  amg_types?: string[];
   amg_untagged?: boolean;
   tps_ratings?: number[];
   tps_favorite?: boolean;
   tps_labels?: string[];
+  tps_types?: string[];
   tps_untagged?: boolean;
   critical_reception_match?: "all" | "any";
 }

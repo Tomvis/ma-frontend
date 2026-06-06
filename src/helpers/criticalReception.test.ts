@@ -22,6 +22,7 @@ describe("buildCriticalReceptionFilter", () => {
           amgRatings: [5],
           amgFavorite: true,
           amgLabels: ["AOTY"],
+          amgTypes: ["TYMHM", "YMIO"],
           tpsRatings: [9],
           tpsUntagged: true,
         }),
@@ -31,6 +32,7 @@ describe("buildCriticalReceptionFilter", () => {
       amg_ratings: [5],
       amg_favorite: true,
       amg_labels: ["AOTY"],
+      amg_types: ["TYMHM", "YMIO"],
       tps_ratings: [9],
       tps_untagged: true,
     });

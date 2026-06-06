@@ -57,7 +57,7 @@
             "Review": "Review",
             "TYMHM": "Things You Might Have Missed",
             "SITF": "Stuck in the Filter",
-            "YMIO": "You Missed It On…",
+            "YMIO": "Yer Metal Is Olde",
             "AOTY": "Album of the Year",
             "AOTM": "Album of the Month",
             "Contrite": "Contrite",
@@ -198,11 +198,19 @@
         "n_active": "{0} active",
         "rating": "Rating",
         "accolades": "Accolades",
+        "columns": "Columns",
         "label_short": {
             "aoty": "AOTY",
             "aotm": "AOTM",
             "record_of_the_month": "ROTM",
             "honorable_mention": "HM"
+        },
+        "type_short": {
+            "TYMHM": "TYMHM",
+            "SITF": "SITF",
+            "YMIO": "YMIO",
+            "Lost in Time": "LIT",
+            "RFU": "RFU"
         },
         "match": {
             "label": "Match",

@@ -16,6 +16,7 @@ export function buildCriticalReceptionFilter(
   if (params.amgRatings?.length) f.amg_ratings = params.amgRatings;
   if (params.amgFavorite) f.amg_favorite = true;
   if (params.amgLabels?.length) f.amg_labels = params.amgLabels;
+  if (params.amgTypes?.length) f.amg_types = params.amgTypes;
   if (params.amgUntagged) f.amg_untagged = true;
   if (params.tpsRatings?.length) f.tps_ratings = params.tpsRatings;
   if (params.tpsFavorite) f.tps_favorite = true;

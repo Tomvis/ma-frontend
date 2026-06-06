@@ -22,6 +22,7 @@ export interface ItemsListingPreferences {
   amgRatings?: number[];
   amgFavorite?: boolean;
   amgLabels?: string[];
+  amgTypes?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;

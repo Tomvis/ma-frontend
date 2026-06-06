@@ -230,6 +230,27 @@
           </div>
         </div>
 
+        <!-- columns row: AMG review-format chips (TYMHM, YMIO, …). These live in
+             the source's types[] rather than its labels[], so they emit to the
+             amgTypes filter — distinct from the accolades row above. -->
+        <div class="rf-row">
+          <span class="rf-row__label">{{ $t("review_filters.columns") }}</span>
+          <div class="rf-chips" role="group">
+            <button
+              v-for="kind in COLUMN_TYPES"
+              :key="`amg-t-${kind}`"
+              type="button"
+              class="rf-chip"
+              data-accent="amg"
+              :class="{ 'rf-chip--active': isAmgTypeActive(kind) }"
+              :title="$t(`critical_reception.type.${kind}`)"
+              @click="$emit('toggleList', 'amgTypes', kind)"
+            >
+              {{ $t(`review_filters.type_short.${kind}`) }}
+            </button>
+          </div>
+        </div>
+
         <!-- footer: pick + untagged -->
         <div class="rf-footer">
           <button
@@ -372,6 +393,7 @@ export interface ReviewFiltersParams {
   amgRatings?: number[];
   amgFavorite?: boolean;
   amgLabels?: string[];
+  amgTypes?: string[];
   amgUntagged?: boolean;
   tpsRatings?: number[];
   tpsFavorite?: boolean;
@@ -398,7 +420,13 @@ const emit = defineEmits<{
   (e: "update:modelValue", v: boolean): void;
   (
     e: "toggleList",
-    key: "drBuckets" | "amgRatings" | "amgLabels" | "tpsRatings" | "tpsLabels",
+    key:
+      | "drBuckets"
+      | "amgRatings"
+      | "amgLabels"
+      | "amgTypes"
+      | "tpsRatings"
+      | "tpsLabels",
     value: string | number,
   ): void;
   (
@@ -449,11 +477,20 @@ const ACCOLADE_LABELS: AccoladeLabel[] = [
   "honorable_mention",
 ];
 
+// AMG review-column "types" — the format an album was covered under, distinct
+// from the accolades above. Stored verbatim in the source entry's `types[]`
+// (from the AMG_TYPE tag) so the values are the exact strings the server matches,
+// not normalized kinds. "Review" is the default column and isn't a useful filter,
+// so it's excluded. Mirrors the keys under `critical_reception.type.*`.
+const COLUMN_TYPES = ["TYMHM", "SITF", "YMIO", "Lost in Time", "RFU"] as const;
+
 const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
 const isAmgRatingActive = (n: number) =>
   (props.params.amgRatings ?? []).includes(n);
 const isAmgLabelActive = (l: AccoladeLabel) =>
   (props.params.amgLabels ?? []).includes(l);
+const isAmgTypeActive = (t: string) =>
+  (props.params.amgTypes ?? []).includes(t);
 const isTpsRatingActive = (n: number) =>
   (props.params.tpsRatings ?? []).includes(n);
 const isTpsLabelActive = (l: AccoladeLabel) =>
@@ -464,6 +501,7 @@ const amgActiveCount = computed(
   () =>
     (props.params.amgRatings ?? []).length +
     (props.params.amgLabels ?? []).length +
+    (props.params.amgTypes ?? []).length +
     (props.params.amgFavorite ? 1 : 0) +
     (props.params.amgUntagged ? 1 : 0),
 );
