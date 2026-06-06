@@ -483,13 +483,14 @@ const ACCOLADE_LABELS: AccoladeLabel[] = [
 // not normalized kinds. "Review" is the default column and isn't a useful filter,
 // so it's excluded. Mirrors the keys under `critical_reception.type.*`.
 const COLUMN_TYPES = ["TYMHM", "SITF", "YMIO", "Lost in Time", "RFU"] as const;
+type ColumnType = (typeof COLUMN_TYPES)[number];
 
 const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
 const isAmgRatingActive = (n: number) =>
   (props.params.amgRatings ?? []).includes(n);
 const isAmgLabelActive = (l: AccoladeLabel) =>
   (props.params.amgLabels ?? []).includes(l);
-const isAmgTypeActive = (t: string) =>
+const isAmgTypeActive = (t: ColumnType) =>
   (props.params.amgTypes ?? []).includes(t);
 const isTpsRatingActive = (n: number) =>
   (props.params.tpsRatings ?? []).includes(n);
