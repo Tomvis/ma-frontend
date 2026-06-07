@@ -297,10 +297,15 @@ function parseSource(entry: ReviewSourceEntry): SourceTags | undefined {
     accolades = sortAccolades(dedupeByKind(legacy.map(parseAccolade)));
   }
   // Post links: prefer the 3.3.0 `links` array; fall back to a single legacy
-  // review_url presented as the "Review" link during the transition.
-  const links: ReviewLink[] =
-    entry.links?.filter((l) => l.url) ??
-    (entry.review_url ? [{ label: "Review", url: entry.review_url }] : []);
+  // review_url presented as the "Review" link during the transition. A links array
+  // that's absent — or present but empty after dropping url-less entries — falls
+  // through to review_url, matching the server's `if not links:` fold (tags.py).
+  const validLinks = (entry.links ?? []).filter((l) => l.url);
+  const links: ReviewLink[] = validLinks.length
+    ? validLinks
+    : entry.review_url
+      ? [{ label: "Review", url: entry.review_url }]
+      : [];
   const authors = inferAuthorRoles(entry.authors ?? [], rating !== undefined);
   const hasAny =
     rating !== undefined ||

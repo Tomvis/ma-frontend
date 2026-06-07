@@ -217,7 +217,7 @@
           }}</span>
           <div class="rf-chips" role="group">
             <button
-              v-for="kind in ACCOLADE_KINDS"
+              v-for="kind in AMG_ACCOLADE_KINDS"
               :key="`amg-acc-${kind}`"
               type="button"
               class="rf-chip"
@@ -310,7 +310,7 @@
           }}</span>
           <div class="rf-chips" role="group">
             <button
-              v-for="kind in ACCOLADE_KINDS"
+              v-for="kind in TPS_ACCOLADE_KINDS"
               :key="`tps-acc-${kind}`"
               type="button"
               class="rf-chip"
@@ -456,21 +456,32 @@ const TPS_BANDS: Array<{ lo: number; hi: number }> = [
   { lo: 1, hi: 2 },
 ];
 
-// The single accolades row (3.2.0 merge of the old award-labels + review-columns
-// rows). "review" is the default column and isn't a useful filter, so it's omitted.
-// Awards come first, then the review-column kinds. Each value is matched against the
-// source's merged accolades[] array server-side. Localized via critical_reception.*.
-const ACCOLADE_KINDS: AccoladeKind[] = [
+// Accolade-row kinds (3.2.0 merge of the old award-labels + review-columns rows).
+// "review" is the default column and isn't a useful filter, so it's omitted. Each
+// value is matched against the source's merged accolades[] array server-side and
+// localized via critical_reception.*.
+//
+// The five review columns (tymhm/sitf/ymio/lit/rfu) only ever appear on AMG entries,
+// so they're offered in the AMG row alone — surfacing them under TPS makes a dead
+// control that always filters to zero (see server test_accolade_filter_is_source_scoped).
+const AWARD_ACCOLADE_KINDS: AccoladeKind[] = [
   "aoty",
   "record_of_the_month",
   "honorable_mention",
   "score_revised",
+];
+const AMG_COLUMN_ACCOLADE_KINDS: AccoladeKind[] = [
   "tymhm",
   "sitf",
   "ymio",
   "lit",
   "rfu",
 ];
+const AMG_ACCOLADE_KINDS: AccoladeKind[] = [
+  ...AWARD_ACCOLADE_KINDS,
+  ...AMG_COLUMN_ACCOLADE_KINDS,
+];
+const TPS_ACCOLADE_KINDS: AccoladeKind[] = AWARD_ACCOLADE_KINDS;
 
 const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
 const isAmgRatingActive = (n: number) =>
