@@ -54,10 +54,24 @@ function ratingAria(s: SourceTags): string {
   });
 }
 
-// URL for the review score: the post labeled "Review" (the canonical review).
-function reviewHref(s: SourceTags): string | undefined {
-  return s.links.find((l) => l.label === "Review")?.url;
+// Bindings for the review-score element: when the source has a canonical "Review"
+// post the score renders as a real <a> (link attrs below); otherwise the empty
+// object leaves it an inert <span>. Resolved once per source via the computeds
+// below so the link lookup isn't repeated across the element's bindings per render.
+function reviewLinkAttrs(s: SourceTags | undefined): Record<string, string> {
+  const href = s?.links.find((l) => l.label === "Review")?.url;
+  return href
+    ? {
+        href,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        class: "rs-numeric--link",
+        title: t("critical_reception.open_review"),
+      }
+    : {};
 }
+const amgReviewLink = computed(() => reviewLinkAttrs(tags.value.amg));
+const tpsReviewLink = computed(() => reviewLinkAttrs(tags.value.tps));
 
 // The post links matching an accolade chip. Link labels mirror the stored accolade
 // string; legacy-folded chips keep their raw token, so match either form. The chip
@@ -173,17 +187,9 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
               </template>
             </div>
             <component
-              :is="reviewHref(tags.amg) ? 'a' : 'span'"
+              :is="amgReviewLink.href ? 'a' : 'span'"
+              v-bind="amgReviewLink"
               class="rs-numeric rs-numeric--amg"
-              :class="{ 'rs-numeric--link': reviewHref(tags.amg) }"
-              :href="reviewHref(tags.amg) || undefined"
-              :target="reviewHref(tags.amg) ? '_blank' : undefined"
-              :rel="reviewHref(tags.amg) ? 'noopener noreferrer' : undefined"
-              :title="
-                reviewHref(tags.amg)
-                  ? $t('critical_reception.open_review')
-                  : undefined
-              "
             >
               {{ formatScore(tags.amg.rating)
               }}<span class="rs-scale"> / 5</span>
@@ -237,17 +243,9 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
         <div class="rs-main">
           <template v-if="tags.tps.rating !== undefined">
             <component
-              :is="reviewHref(tags.tps) ? 'a' : 'span'"
+              :is="tpsReviewLink.href ? 'a' : 'span'"
+              v-bind="tpsReviewLink"
               class="rs-numeric rs-numeric--tps"
-              :class="{ 'rs-numeric--link': reviewHref(tags.tps) }"
-              :href="reviewHref(tags.tps) || undefined"
-              :target="reviewHref(tags.tps) ? '_blank' : undefined"
-              :rel="reviewHref(tags.tps) ? 'noopener noreferrer' : undefined"
-              :title="
-                reviewHref(tags.tps)
-                  ? $t('critical_reception.open_review')
-                  : undefined
-              "
             >
               {{ formatScore(tags.tps.rating)
               }}<span class="rs-scale"> / {{ tags.tps.scale }}</span>

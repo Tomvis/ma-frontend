@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { Trophy, ExternalLink, ChevronDown } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import type { ParsedAccolade } from "@/helpers/album_tags";
+import { formatDated, type ParsedAccolade } from "@/helpers/album_tags";
 import type { ReviewLink } from "@/plugins/api/interfaces";
 import {
   DropdownMenu,
@@ -22,15 +22,16 @@ interface Props {
 const props = defineProps<Props>();
 const { t, te } = useI18n();
 
-// Localized chip text: full name from the accolade namespace, with any inlined
-// date ("(Sep 2024)") re-attached from the parsed display string.
+// Localized chip text: the full name from the accolade namespace with any date
+// the accolade carries re-inlined via the shared formatDated (the same producer
+// the parser uses), rather than re-scraping the parenthetical out of a.display.
+// Unknown kinds, or kinds without a translation, render a.display verbatim — it
+// already has the date inlined.
 const display = computed(() => {
   const a = props.accolade;
-  if (a.kind === "unknown") return a.display;
   const key = `critical_reception.accolade.${a.kind}`;
-  const base = te(key) ? t(key) : a.display;
-  const paren = /\(([^)]*)\)\s*$/.exec(a.display);
-  return paren ? `${base} (${paren[1]})` : base;
+  if (a.kind === "unknown" || !te(key)) return a.display;
+  return formatDated(t(key), a.year, a.month);
 });
 
 const singleTitle = computed(() =>

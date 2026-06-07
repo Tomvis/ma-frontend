@@ -133,7 +133,11 @@ const EXACT_ACCOLADES: Record<string, { kind: AccoladeKind; display: string }> =
     Contrite: { kind: "score_revised", display: "Score Revised" },
   };
 
-function formatDated(name: string, year?: number, month?: number): string {
+export function formatDated(
+  name: string,
+  year?: number,
+  month?: number,
+): string {
   if (year === undefined) return name;
   if (month !== undefined && month >= 1 && month <= 12) {
     return `${name} (${MONTH_ABBR[month - 1]} ${year})`;
