@@ -73,7 +73,6 @@ import {
   ContentType,
   type Album,
   type MediaItemType,
-  type ItemMapping,
   MediaType,
 } from "@/plugins/api/interfaces";
 import { getBreakpointValue } from "@/plugins/breakpoint";
@@ -152,7 +151,7 @@ const onMenu = function (evt: MouseEvent) {
 .panel-item-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   margin-top: 8px;
   height: 32px;
 }

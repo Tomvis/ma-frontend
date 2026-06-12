@@ -850,6 +850,7 @@ export interface BrowseFolder extends MediaItem {
 }
 export interface RecommendationFolder extends BrowseFolder {
   icon?: string;
+  subtitle?: string;
   items: MediaItemTypeOrItemMapping[];
 }
 

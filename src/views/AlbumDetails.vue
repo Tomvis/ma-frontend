@@ -24,6 +24,7 @@
         'duration_desc',
       ]"
       :title="$t('tracks')"
+      :refresh-on-parent-update="true"
     />
     <br />
     <ItemsListing

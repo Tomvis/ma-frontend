@@ -463,6 +463,7 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useDisplay } from "vuetify";
+import { useUserPreferences } from "@/composables/userPreferences";
 import MarqueeText from "./MarqueeText.vue";
 import MediaItemThumb from "./MediaItemThumb.vue";
 import MenuButton from "./MenuButton.vue";
@@ -495,6 +496,7 @@ const imgGradient = new URL("../assets/info_gradient.jpg", import.meta.url)
 const marqueeSync = new MarqueeTextSync();
 const router = useRouter();
 const { t, te } = useI18n();
+const { getPreference } = useUserPreferences();
 
 const headerTitle = computed(() => {
   if (!compProps.item) return "";
@@ -540,6 +542,17 @@ watch(
   },
   { immediate: true },
 );
+
+// Watch shortcuts preference to update overflow menu when shortcuts change
+const shortcutsPreference = getPreference<string[]>("sidebar.shortcuts", []);
+watch(shortcutsPreference, async () => {
+  if (compProps.item) {
+    menuItems.value = await getContextMenuItems(
+      [compProps.item],
+      compProps.item,
+    );
+  }
+});
 
 const showGenreChipContextMenu = (evt: MouseEvent, genre: Genre) => {
   if (
