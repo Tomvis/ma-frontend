@@ -128,7 +128,7 @@ const runSearch = useDebounceFn(async (q: string) => {
         item: a,
       }));
     } else if (props.source === "album") {
-      const res = await api.getLibraryAlbums(undefined, q, 20);
+      const res = await api.getLibraryAlbums({ search: q, limit: 20 });
       results = res.map((a) => ({
         id: parseInt(a.item_id),
         name: a.name,

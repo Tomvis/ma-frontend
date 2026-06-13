@@ -5,10 +5,11 @@ import { useI18n } from "vue-i18n";
 import type { Album, ReviewLink } from "@/plugins/api/interfaces";
 import { useAlbumTags } from "@/composables/useAlbumTags";
 import AccoladeChip from "@/components/album/AccoladeChip.vue";
-import type {
-  ParsedAccolade,
-  AuthorWithRole,
-  SourceTags,
+import {
+  formatScore,
+  type ParsedAccolade,
+  type AuthorWithRole,
+  type SourceTags,
 } from "@/helpers/album_tags";
 
 interface Props {
@@ -33,10 +34,6 @@ const drMeterPercent = computed(() =>
     ? Math.max(0, Math.min(100, (tags.value.dr.value / 20) * 100))
     : 0,
 );
-
-function formatScore(n: number): string {
-  return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
-}
 
 function authorRoleTitle(author: AuthorWithRole): string {
   return t(`critical_reception.author_role.${author.role}`);
@@ -70,8 +67,23 @@ function reviewLinkAttrs(s: SourceTags | undefined): Record<string, string> {
       }
     : {};
 }
-const amgReviewLink = computed(() => reviewLinkAttrs(tags.value.amg));
-const tpsReviewLink = computed(() => reviewLinkAttrs(tags.value.tps));
+// AMG and TPS render the same head / favorite-pick / accolade-chip / byline
+// markup; only the accent and the rating widget (stars vs numeric+bar) differ.
+// Drive both from one descriptor list so the shared markup lives once. accent is
+// derived from the source name; the review-link attrs are resolved per source.
+interface ReviewSourceDescriptor {
+  src: SourceTags;
+  accent: "amg" | "tps";
+  reviewLink: Record<string, string>;
+}
+const reviewSources = computed<ReviewSourceDescriptor[]>(() =>
+  [
+    { src: tags.value.amg, accent: "amg" as const },
+    { src: tags.value.tps, accent: "tps" as const },
+  ]
+    .filter((d): d is { src: SourceTags; accent: "amg" | "tps" } => !!d.src)
+    .map((d) => ({ ...d, reviewLink: reviewLinkAttrs(d.src) })),
+);
 
 // The post links matching an accolade chip. Link labels mirror the stored accolade
 // string; legacy-folded chips keep their raw token, so match either form. The chip
@@ -149,147 +161,114 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
         </div>
       </div>
 
-      <span
-        v-if="tags.dr && (tags.amg || tags.tps)"
-        class="rs-divider"
-        aria-hidden="true"
-      ></span>
+      <!-- ── Review sources (AMG / TPS) ────────────────────────────── -->
+      <template
+        v-for="({ src, accent, reviewLink }, si) in reviewSources"
+        :key="accent"
+      >
+        <span
+          v-if="si > 0 || tags.dr"
+          class="rs-divider"
+          aria-hidden="true"
+        ></span>
 
-      <!-- ── AMG ───────────────────────────────────────────────────── -->
-      <div v-if="tags.amg" class="rs-block rs-block--source" data-accent="amg">
-        <div class="rs-head">
-          <span class="rs-mark" data-accent="amg" aria-hidden="true"></span>
-          <span class="rs-source-name">{{ sourceFullName(tags.amg) }}</span>
-        </div>
+        <div class="rs-block rs-block--source" :data-accent="accent">
+          <div class="rs-head">
+            <span
+              class="rs-mark"
+              :data-accent="accent"
+              aria-hidden="true"
+            ></span>
+            <span class="rs-source-name">{{ sourceFullName(src) }}</span>
+          </div>
 
-        <div class="rs-main">
-          <template v-if="tags.amg.rating !== undefined">
-            <div class="rs-stars" role="img" :aria-label="ratingAria(tags.amg)">
-              <template v-for="i in 5" :key="i">
-                <Star
-                  v-if="tags.amg.rating >= i"
-                  :size="17"
-                  class="fill-current"
-                  aria-hidden="true"
-                />
-                <StarHalf
-                  v-else-if="tags.amg.rating >= i - 0.5"
-                  :size="17"
-                  class="fill-current"
-                  aria-hidden="true"
-                />
-                <Star
-                  v-else
-                  :size="17"
-                  class="rs-stars__empty"
-                  aria-hidden="true"
-                />
+          <div class="rs-main">
+            <template v-if="src.rating !== undefined">
+              <!-- AMG: star rating then the numeric score. -->
+              <template v-if="accent === 'amg'">
+                <div class="rs-stars" role="img" :aria-label="ratingAria(src)">
+                  <template v-for="i in 5" :key="i">
+                    <Star
+                      v-if="src.rating >= i"
+                      :size="17"
+                      class="fill-current"
+                      aria-hidden="true"
+                    />
+                    <StarHalf
+                      v-else-if="src.rating >= i - 0.5"
+                      :size="17"
+                      class="fill-current"
+                      aria-hidden="true"
+                    />
+                    <Star
+                      v-else
+                      :size="17"
+                      class="rs-stars__empty"
+                      aria-hidden="true"
+                    />
+                  </template>
+                </div>
+                <component
+                  :is="reviewLink.href ? 'a' : 'span'"
+                  v-bind="reviewLink"
+                  class="rs-numeric rs-numeric--amg"
+                >
+                  {{ formatScore(src.rating)
+                  }}<span class="rs-scale"> / 5</span>
+                </component>
               </template>
-            </div>
-            <component
-              :is="amgReviewLink.href ? 'a' : 'span'"
-              v-bind="amgReviewLink"
-              class="rs-numeric rs-numeric--amg"
+              <!-- TPS: numeric score then a fill bar. -->
+              <template v-else>
+                <component
+                  :is="reviewLink.href ? 'a' : 'span'"
+                  v-bind="reviewLink"
+                  class="rs-numeric rs-numeric--tps"
+                >
+                  {{ formatScore(src.rating)
+                  }}<span class="rs-scale"> / {{ src.scale }}</span>
+                </component>
+                <div class="rs-bar" role="img" :aria-label="ratingAria(src)">
+                  <div
+                    class="rs-bar-fill"
+                    :style="{
+                      width: `${(src.rating / src.scale) * 100}%`,
+                    }"
+                  ></div>
+                </div>
+              </template>
+            </template>
+            <template v-else-if="src.favorite">
+              <div class="rs-favorite">
+                <Sparkles :size="14" aria-hidden="true" />
+                <span>{{ $t("critical_reception.favorite_pick") }}</span>
+              </div>
+            </template>
+          </div>
+
+          <div v-if="src.accolades.length" class="rs-chips">
+            <AccoladeChip
+              v-for="accolade in src.accolades"
+              :key="`${accent}-acc-${accolade.raw}`"
+              :accolade="accolade"
+              :links="linksForAccolade(src, accolade)"
+              :accent="accent"
+            />
+          </div>
+
+          <div v-if="src.authors.length" class="rs-caption rs-byline">
+            <span class="rs-em" aria-hidden="true">—</span>
+            <template
+              v-for="(author, ai) in src.authors"
+              :key="`${accent}-a-${author.name}-${ai}`"
             >
-              {{ formatScore(tags.amg.rating)
-              }}<span class="rs-scale"> / 5</span>
-            </component>
-          </template>
-          <template v-else-if="tags.amg.favorite">
-            <div class="rs-favorite">
-              <Sparkles :size="14" aria-hidden="true" />
-              <span>{{ $t("critical_reception.favorite_pick") }}</span>
-            </div>
-          </template>
+              <span class="rs-author" :title="authorRoleTitle(author)">{{
+                author.name
+              }}</span>
+              <span v-if="ai < src.authors.length - 1">, </span>
+            </template>
+          </div>
         </div>
-
-        <div v-if="tags.amg.accolades.length" class="rs-chips">
-          <AccoladeChip
-            v-for="accolade in tags.amg.accolades"
-            :key="`amg-acc-${accolade.raw}`"
-            :accolade="accolade"
-            :links="linksForAccolade(tags.amg, accolade)"
-            accent="amg"
-          />
-        </div>
-
-        <div v-if="tags.amg.authors.length" class="rs-caption rs-byline">
-          <span class="rs-em" aria-hidden="true">—</span>
-          <template
-            v-for="(author, i) in tags.amg.authors"
-            :key="`amg-a-${author.name}-${i}`"
-          >
-            <span class="rs-author" :title="authorRoleTitle(author)">{{
-              author.name
-            }}</span>
-            <span v-if="i < tags.amg.authors.length - 1">, </span>
-          </template>
-        </div>
-      </div>
-
-      <span
-        v-if="tags.amg && tags.tps"
-        class="rs-divider"
-        aria-hidden="true"
-      ></span>
-
-      <!-- ── TPS ───────────────────────────────────────────────────── -->
-      <div v-if="tags.tps" class="rs-block rs-block--source" data-accent="tps">
-        <div class="rs-head">
-          <span class="rs-mark" data-accent="tps" aria-hidden="true"></span>
-          <span class="rs-source-name">{{ sourceFullName(tags.tps) }}</span>
-        </div>
-
-        <div class="rs-main">
-          <template v-if="tags.tps.rating !== undefined">
-            <component
-              :is="tpsReviewLink.href ? 'a' : 'span'"
-              v-bind="tpsReviewLink"
-              class="rs-numeric rs-numeric--tps"
-            >
-              {{ formatScore(tags.tps.rating)
-              }}<span class="rs-scale"> / {{ tags.tps.scale }}</span>
-            </component>
-            <div class="rs-bar" role="img" :aria-label="ratingAria(tags.tps)">
-              <div
-                class="rs-bar-fill"
-                :style="{
-                  width: `${(tags.tps.rating / tags.tps.scale) * 100}%`,
-                }"
-              ></div>
-            </div>
-          </template>
-          <template v-else-if="tags.tps.favorite">
-            <div class="rs-favorite">
-              <Sparkles :size="14" aria-hidden="true" />
-              <span>{{ $t("critical_reception.favorite_pick") }}</span>
-            </div>
-          </template>
-        </div>
-
-        <div v-if="tags.tps.accolades.length" class="rs-chips">
-          <AccoladeChip
-            v-for="accolade in tags.tps.accolades"
-            :key="`tps-acc-${accolade.raw}`"
-            :accolade="accolade"
-            :links="linksForAccolade(tags.tps, accolade)"
-            accent="tps"
-          />
-        </div>
-
-        <div v-if="tags.tps.authors.length" class="rs-caption rs-byline">
-          <span class="rs-em" aria-hidden="true">—</span>
-          <template
-            v-for="(author, i) in tags.tps.authors"
-            :key="`tps-a-${author.name}-${i}`"
-          >
-            <span class="rs-author" :title="authorRoleTitle(author)">{{
-              author.name
-            }}</span>
-            <span v-if="i < tags.tps.authors.length - 1">, </span>
-          </template>
-        </div>
-      </div>
+      </template>
     </div>
   </section>
 </template>

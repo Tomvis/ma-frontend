@@ -760,47 +760,29 @@ export const getContextMenuItems = async function (
   if (albumItems.length > 0) {
     const ll = useListenLater();
     // Source of truth is the album object from the server, not the local
-    // cache — the cache may not yet have been primed for these URIs.
-    const allSaved = albumItems.every((a) => a.listen_later === true);
-    const noneSaved = albumItems.every((a) => !a.listen_later);
+    // cache — the cache may not yet have been primed for these URIs. Two
+    // independent gated pushes (add first, then remove) cover all-saved,
+    // none-saved and mixed states with one copy of each entry.
+    const toAdd = albumItems.filter((a) => !a.listen_later);
+    const toRemove = albumItems.filter((a) => a.listen_later);
 
-    if (allSaved) {
-      contextMenuItems.push({
-        label: "listen_later.remove",
-        labelArgs: [],
-        action: async () => {
-          for (const a of albumItems) await ll.remove(a);
-          eventbus.emit("clearSelection");
-        },
-        icon: "mdi-bookmark-check",
-      });
-    } else if (noneSaved) {
+    if (toAdd.length > 0) {
       contextMenuItems.push({
         label: "listen_later.add",
         labelArgs: [],
         action: async () => {
-          for (const a of albumItems) await ll.add(a);
+          for (const a of toAdd) await ll.add(a);
           eventbus.emit("clearSelection");
         },
         icon: "mdi-bookmark-plus-outline",
       });
-    } else {
-      contextMenuItems.push({
-        label: "listen_later.add",
-        labelArgs: [],
-        action: async () => {
-          for (const a of albumItems.filter((a) => !a.listen_later))
-            await ll.add(a);
-          eventbus.emit("clearSelection");
-        },
-        icon: "mdi-bookmark-plus-outline",
-      });
+    }
+    if (toRemove.length > 0) {
       contextMenuItems.push({
         label: "listen_later.remove",
         labelArgs: [],
         action: async () => {
-          for (const a of albumItems.filter((a) => a.listen_later))
-            await ll.remove(a);
+          for (const a of toRemove) await ll.remove(a);
           eventbus.emit("clearSelection");
         },
         icon: "mdi-bookmark-check",

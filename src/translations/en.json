@@ -402,7 +402,8 @@
             "audio": "Audio",
             "preferences": "Preferences",
             "display_settings": "Display",
-            "airplay": "AirPlay specific settings"
+            "airplay": "AirPlay specific settings",
+            "audio_analysis": "Audio analysis"
         },
         "tts_pre_announce": {
             "label": "Pre-announce TTS announcements",

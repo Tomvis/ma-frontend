@@ -9,24 +9,17 @@ import { useListenLater } from "@/composables/useListenLater";
 interface Props {
   album: Album;
   size?: number;
-  // When true, hides the click target's tooltip text so it can be replaced by
-  // a parent `title=` attribute (used inside list rows where Vuetify already
-  // renders a row-level tooltip).
-  silent?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), {
   size: 24,
-  silent: false,
 });
 
-const { isListenLater, toggle, prime } = useListenLater();
+const { isSaved, toggle, prime } = useListenLater();
 const { t } = useI18n();
 
 // Album payload from the server is authoritative; cache covers optimistic
 // flips so the icon updates instantly on click.
-const saved = computed(
-  () => props.album?.listen_later === true || isListenLater(props.album?.uri),
-);
+const saved = computed(() => isSaved(props.album));
 
 const tooltip = computed(() =>
   saved.value ? t("listen_later.remove") : t("listen_later.add"),
@@ -58,7 +51,7 @@ async function onClick(e: MouseEvent) {
     type="button"
     class="listen-later-btn"
     :class="{ 'is-saved': saved }"
-    :title="silent ? undefined : tooltip"
+    :title="tooltip"
     :aria-pressed="saved"
     :aria-label="tooltip"
     @click="onClick"

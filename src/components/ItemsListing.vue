@@ -261,13 +261,22 @@ import { Eye, EyeClosed, FilterX, Layers, ListMusic } from "lucide-vue-next";
 import ListViewSkeleton from "@/components/skeletons/ListViewSkeleton.vue";
 import PanelViewSkeleton from "@/components/skeletons/PanelViewSkeleton.vue";
 import Toolbar, { ToolBarMenuItem } from "@/components/Toolbar.vue";
-import { useUserPreferences } from "@/composables/userPreferences";
+import {
+  useUserPreferences,
+  REVIEW_LIST_KEYS,
+  REVIEW_BOOL_KEYS,
+  type ReviewListKey,
+  type ReviewBoolKey,
+  type ReviewFilterParams,
+  type ItemsListingPreferences,
+} from "@/composables/userPreferences";
 import {
   getGenreDisplayName,
   handleMenuBtnClick,
   panelViewItemResponsive,
   scrollElement,
 } from "@/helpers/utils";
+import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
 import { api } from "@/plugins/api";
 import { itemIsAvailable } from "@/plugins/api/helpers";
 import {
@@ -383,7 +392,12 @@ const applyMediaEventToItems = (
 // module — so it's truly module-scoped (one slot shared across all instances of
 // this SFC). See that file's comment for the leak this prevents.
 
-export interface LoadDataParams {
+// The critical_reception filter slice (drBuckets / amg* / tps* / criticalReceptionMatch)
+// comes from ReviewFilterParams — see CriticalReceptionFilter in interfaces.ts.
+// criticalReceptionMatch: "all" (default) ANDs the DR/AMG/TPS clauses; "any" ORs
+// them so an album matches if it satisfies at least one. Doesn't affect other
+// filters — favorites/genre/provider still AND alongside this group.
+export interface LoadDataParams extends ReviewFilterParams {
   offset: number;
   limit: number;
   sortBy: string;
@@ -397,20 +411,6 @@ export interface LoadDataParams {
   refresh?: boolean;
   albumType?: string[];
   provider?: string[];
-  // critical_reception filters — see CriticalReceptionFilter in interfaces.ts.
-  drBuckets?: Array<"excellent" | "good" | "fair" | "poor" | "untagged">;
-  amgRatings?: number[];
-  amgFavorite?: boolean;
-  amgAccolades?: string[];
-  amgUntagged?: boolean;
-  tpsRatings?: number[];
-  tpsFavorite?: boolean;
-  tpsAccolades?: string[];
-  tpsUntagged?: boolean;
-  // How the DR/AMG/TPS clauses combine. "all" (default) ANDs them; "any" ORs
-  // them so an album matches if it satisfies at least one. Doesn't affect
-  // other filters — favorites/genre/provider still AND alongside this group.
-  criticalReceptionMatch?: "all" | "any";
 }
 // properties
 export interface Props {
@@ -527,7 +527,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter();
 const route = useRoute();
 const { t, te } = useI18n();
-const { getItemsListingPreferences, setItemsListingPreference } =
+const { getItemsListingPreferences, setItemsListingPreference, setPreference } =
   useUserPreferences();
 
 // local refs
@@ -933,18 +933,28 @@ const changeProviderFilter = function (providerId: string) {
   loadData(true, undefined, true);
 };
 
-// critical_reception filters — one helper per filter shape, all reload + persist.
-type ListFilterKey =
-  | "drBuckets"
-  | "amgRatings"
-  | "amgAccolades"
-  | "tpsRatings"
-  | "tpsAccolades";
-type BoolFilterKey =
-  | "amgFavorite"
-  | "amgUntagged"
-  | "tpsFavorite"
-  | "tpsUntagged";
+// critical_reception filters — keys/types come from the shared review-filter
+// consts so adding a key is one edit (see userPreferences.ts).
+type ListFilterKey = ReviewListKey;
+type BoolFilterKey = ReviewBoolKey;
+type ReviewParamKey = keyof ReviewFilterParams;
+
+// One mutator for the params-assign + persist pair shared by every review-filter
+// helper below (replaces the copy-pasted assign + setItemsListingPreference +
+// `as never` blocks). Does NOT reload — callers decide when to loadData so
+// clearAll can batch a single refresh.
+const setReviewFilterParam = function (
+  key: ReviewParamKey,
+  value: ReviewFilterParams[ReviewParamKey],
+) {
+  (params.value as Record<string, unknown>)[key] = value;
+  setItemsListingPreference(
+    props.path || props.itemtype,
+    props.itemtype,
+    key,
+    value as never,
+  );
+};
 
 const toggleListFilter = function <V extends string | number>(
   key: ListFilterKey,
@@ -956,25 +966,13 @@ const toggleListFilter = function <V extends string | number>(
     ? current.filter((v) => v !== value)
     : [...current, value];
   const stored = next.length === 0 ? undefined : next;
-  (params.value as Record<string, unknown>)[key] = stored;
-  setItemsListingPreference(
-    props.path || props.itemtype,
-    props.itemtype,
-    key,
-    stored as never,
-  );
+  setReviewFilterParam(key, stored as ReviewFilterParams[ReviewParamKey]);
   loadData(true, undefined, true);
 };
 
 const toggleBoolFilter = function (key: BoolFilterKey) {
   const next = params.value[key] ? undefined : true;
-  (params.value as Record<string, unknown>)[key] = next;
-  setItemsListingPreference(
-    props.path || props.itemtype,
-    props.itemtype,
-    key,
-    next as never,
-  );
+  setReviewFilterParam(key, next);
   loadData(true, undefined, true);
 };
 
@@ -987,52 +985,24 @@ const reviewFiltersOpen = ref(false);
 // or "any" (OR). Persisted per-listing alongside the rest of the prefs.
 const setReviewFiltersMatchMode = function (mode: "all" | "any") {
   const next = mode === "any" ? "any" : undefined;
-  params.value.criticalReceptionMatch = next;
-  setItemsListingPreference(
-    props.path || props.itemtype,
-    props.itemtype,
-    "criticalReceptionMatch",
-    next as never,
-  );
+  setReviewFilterParam("criticalReceptionMatch", next);
   loadData(true, undefined, true);
 };
 
 const clearAllReviewFilters = function () {
-  const listKeys: ListFilterKey[] = [
-    "drBuckets",
-    "amgRatings",
-    "amgAccolades",
-    "tpsRatings",
-    "tpsAccolades",
-  ];
-  const boolKeys: BoolFilterKey[] = [
-    "amgFavorite",
-    "amgUntagged",
-    "tpsFavorite",
-    "tpsUntagged",
-  ];
+  // Prune every active review-filter key from the params and persist in ONE
+  // write (instead of up to 10 sequential setItemsListingPreference ->
+  // api.updateUser round-trips), then a single loadData refresh.
   let touched = false;
-  for (const k of listKeys) {
+  for (const k of REVIEW_LIST_KEYS) {
     if ((params.value[k] ?? []).length) {
       (params.value as Record<string, unknown>)[k] = undefined;
-      setItemsListingPreference(
-        props.path || props.itemtype,
-        props.itemtype,
-        k,
-        undefined as never,
-      );
       touched = true;
     }
   }
-  for (const k of boolKeys) {
+  for (const k of REVIEW_BOOL_KEYS) {
     if (params.value[k]) {
       (params.value as Record<string, unknown>)[k] = undefined;
-      setItemsListingPreference(
-        props.path || props.itemtype,
-        props.itemtype,
-        k,
-        undefined as never,
-      );
       touched = true;
     }
   }
@@ -1041,31 +1011,26 @@ const clearAllReviewFilters = function () {
   // edit, surprising the user.
   if (params.value.criticalReceptionMatch === "any") {
     params.value.criticalReceptionMatch = undefined;
-    setItemsListingPreference(
-      props.path || props.itemtype,
-      props.itemtype,
-      "criticalReceptionMatch",
-      undefined as never,
-    );
     touched = true;
   }
-  if (touched) loadData(true, undefined, true);
+  if (!touched) return;
+  // Build one pruned prefs object (drop all review keys) and persist once.
+  const prefKey = `itemsListing.${props.path || props.itemtype}.${props.itemtype}`;
+  const pruned: ItemsListingPreferences = { ...savedPrefs.value };
+  for (const k of [
+    ...REVIEW_LIST_KEYS,
+    ...REVIEW_BOOL_KEYS,
+    "criticalReceptionMatch" as const,
+  ]) {
+    delete pruned[k];
+  }
+  setPreference(prefKey, pruned);
+  loadData(true, undefined, true);
 };
 
-const hasAnyReviewFilter = computed(() => {
-  const p = params.value;
-  return (
-    (p.drBuckets?.length ?? 0) > 0 ||
-    (p.amgRatings?.length ?? 0) > 0 ||
-    (p.amgAccolades?.length ?? 0) > 0 ||
-    (p.tpsRatings?.length ?? 0) > 0 ||
-    (p.tpsAccolades?.length ?? 0) > 0 ||
-    !!p.amgFavorite ||
-    !!p.amgUntagged ||
-    !!p.tpsFavorite ||
-    !!p.tpsUntagged
-  );
-});
+const hasAnyReviewFilter = computed(
+  () => buildCriticalReceptionFilter(params.value) !== undefined,
+);
 
 // the provider list shown by both the provider filter and the provider selector
 const providerFilterSubItems = () =>
@@ -1792,23 +1757,23 @@ const restoreSettings = async function () {
     params.value.provider = [musicProviders.value[0].value];
   }
 
-  // critical_reception filters — restore from prefs when their dropdown is enabled
-  if (props.showDrFilter && prefs.drBuckets?.length) {
-    params.value.drBuckets = prefs.drBuckets;
+  // critical_reception filters — restore from prefs when their dropdown is
+  // enabled. Gate each key on the matching source's prop (derived from the key
+  // prefix) and loop the shared key consts so a new key restores automatically.
+  const reviewKeyEnabled = (key: ReviewListKey | ReviewBoolKey): boolean => {
+    if (key.startsWith("dr")) return props.showDrFilter === true;
+    if (key.startsWith("amg")) return props.showAmgFilter === true;
+    return props.showTpsFilter === true;
+  };
+  for (const k of REVIEW_LIST_KEYS) {
+    if (reviewKeyEnabled(k) && prefs[k]?.length) {
+      (params.value as Record<string, unknown>)[k] = prefs[k];
+    }
   }
-  if (props.showAmgFilter) {
-    if (prefs.amgRatings?.length) params.value.amgRatings = prefs.amgRatings;
-    if (prefs.amgAccolades?.length)
-      params.value.amgAccolades = prefs.amgAccolades;
-    if (prefs.amgFavorite) params.value.amgFavorite = true;
-    if (prefs.amgUntagged) params.value.amgUntagged = true;
-  }
-  if (props.showTpsFilter) {
-    if (prefs.tpsRatings?.length) params.value.tpsRatings = prefs.tpsRatings;
-    if (prefs.tpsAccolades?.length)
-      params.value.tpsAccolades = prefs.tpsAccolades;
-    if (prefs.tpsFavorite) params.value.tpsFavorite = true;
-    if (prefs.tpsUntagged) params.value.tpsUntagged = true;
+  for (const k of REVIEW_BOOL_KEYS) {
+    if (reviewKeyEnabled(k) && prefs[k]) {
+      (params.value as Record<string, unknown>)[k] = true;
+    }
   }
   // Only restore the match mode when any review-filter dropdown is visible;
   // it has no effect when none are configured for this listing.

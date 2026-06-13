@@ -55,6 +55,10 @@ function syncFromServer(album: Album) {
 export interface ListenLaterApi {
   count: ComputedRef<number>;
   isListenLater: (uri: string | undefined) => boolean;
+  // Saved-state for a whole album: trusts the server flag, falling back to the
+  // optimistic cache keyed by URI. The single source of truth for "is this album
+  // in the Listen Later pile?" across the button and the badge components.
+  isSaved: (album: Album | undefined) => boolean;
   // Hydrate cache from a freshly-fetched album (e.g. after `getAlbum` or list
   // load). Cheap — just an `add` or `delete` on the Set.
   prime: (album: Album | undefined) => void;
@@ -75,6 +79,9 @@ export function useListenLater(): ListenLaterApi {
     if (!uri) return false;
     return cache.saved.has(uri);
   };
+
+  const isSaved = (album: Album | undefined): boolean =>
+    album?.listen_later === true || isListenLater(album?.uri);
 
   const prime = (album: Album | undefined) => {
     if (!album) return;
@@ -164,5 +171,5 @@ export function useListenLater(): ListenLaterApi {
     return true;
   };
 
-  return { count, isListenLater, prime, toggle, add, remove };
+  return { count, isListenLater, isSaved, prime, toggle, add, remove };
 }

@@ -170,224 +170,150 @@
 
       <v-divider v-if="showDr && (showAmg || showTps)" class="rf-divider" />
 
-      <!-- ── AMG · Angry Metal Guy (rose, /5 ratings) ───────────── -->
-      <section v-if="showAmg" class="rf-section rf-section--amg">
-        <h3 class="rf-heading">
-          <span class="rf-heading__tag" data-accent="amg">AMG</span>
-          <span class="rf-heading__name">{{ $t("source.amg") }}</span>
-          <span
-            v-if="amgActiveCount > 0"
-            class="rf-heading__count"
-            data-accent="amg"
-          >
-            {{ amgActiveCount }}
-          </span>
-        </h3>
+      <!-- ── Review sources (AMG · rose /5 stars · TPS · sky /10 bands) ── -->
+      <template v-for="(s, si) in visibleSources" :key="s.id">
+        <v-divider v-if="si > 0" class="rf-divider" />
 
-        <!-- rating row: 5 star-pill toggles -->
-        <div class="rf-row">
-          <span class="rf-row__label">{{ $t("review_filters.rating") }}</span>
-          <div class="rf-stars" role="group">
-            <button
-              v-for="n in [1, 2, 3, 4, 5]"
-              :key="`amg-r-${n}`"
-              type="button"
-              class="rf-star"
-              data-accent="amg"
-              :class="{ 'rf-star--active': isAmgRatingActive(n) }"
-              :title="`${'★'.repeat(n)}${'☆'.repeat(5 - n)}`"
-              @click="$emit('toggleList', 'amgRatings', n)"
+        <section class="rf-section" :class="`rf-section--${s.id}`">
+          <h3 class="rf-heading">
+            <span class="rf-heading__tag" :data-accent="s.id">{{
+              s.id.toUpperCase()
+            }}</span>
+            <span class="rf-heading__name">{{ $t(s.nameKey) }}</span>
+            <span
+              v-if="sourceActiveCount(s) > 0"
+              class="rf-heading__count"
+              :data-accent="s.id"
             >
-              <span
-                v-for="i in 5"
-                :key="`s-${i}`"
-                class="rf-star__pip"
-                :class="{ 'rf-star__pip--lit': i <= n }"
-                >★</span
+              {{ sourceActiveCount(s) }}
+            </span>
+          </h3>
+
+          <!-- rating row: AMG = 5 star-pills; TPS = 5 bands (/10 in pairs) -->
+          <div class="rf-row">
+            <span class="rf-row__label">{{ $t("review_filters.rating") }}</span>
+            <div v-if="s.id === 'amg'" class="rf-stars" role="group">
+              <button
+                v-for="n in [1, 2, 3, 4, 5]"
+                :key="`amg-r-${n}`"
+                type="button"
+                class="rf-star"
+                data-accent="amg"
+                :class="{ 'rf-star--active': isListActive('amgRatings', n) }"
+                :title="`${'★'.repeat(n)}${'☆'.repeat(5 - n)}`"
+                @click="$emit('toggleList', 'amgRatings', n)"
               >
-            </button>
-          </div>
-        </div>
-
-        <!-- accolades row: merged awards + review-columns, matched against the
-             source's accolades[] array (3.2.0). -->
-        <div class="rf-row">
-          <span class="rf-row__label">{{
-            $t("review_filters.accolades")
-          }}</span>
-          <div class="rf-chips" role="group">
-            <button
-              v-for="kind in AMG_ACCOLADE_KINDS"
-              :key="`amg-acc-${kind}`"
-              type="button"
-              class="rf-chip"
-              data-accent="amg"
-              :class="{ 'rf-chip--active': isAmgAccoladeActive(kind) }"
-              :title="$t(`critical_reception.accolade.${kind}`)"
-              @click="$emit('toggleList', 'amgAccolades', kind)"
-            >
-              {{ $t(`review_filters.accolade_short.${kind}`) }}
-            </button>
-          </div>
-        </div>
-
-        <!-- footer: pick + untagged -->
-        <div class="rf-footer">
-          <button
-            type="button"
-            class="rf-mini"
-            data-accent="amg"
-            :class="{ 'rf-mini--active': !!params.amgFavorite }"
-            @click="$emit('toggleBool', 'amgFavorite')"
-          >
-            <v-icon icon="mdi-sparkles" size="14" />
-            <span>{{ $t("critical_reception.favorite_pick") }}</span>
-          </button>
-          <button
-            type="button"
-            class="rf-mini"
-            :class="{ 'rf-mini--active': !!params.amgUntagged }"
-            @click="$emit('toggleBool', 'amgUntagged')"
-          >
-            <v-icon
-              :icon="
-                params.amgUntagged
-                  ? 'mdi-checkbox-marked-outline'
-                  : 'mdi-checkbox-blank-outline'
-              "
-              size="14"
-            />
-            <span>{{ $t("critical_reception.untagged") }}</span>
-          </button>
-        </div>
-      </section>
-
-      <v-divider v-if="showAmg && showTps" class="rf-divider" />
-
-      <!-- ── TPS · The Progressive Subway (sky, /10 bands) ──────── -->
-      <section v-if="showTps" class="rf-section rf-section--tps">
-        <h3 class="rf-heading">
-          <span class="rf-heading__tag" data-accent="tps">TPS</span>
-          <span class="rf-heading__name">{{ $t("source.tps") }}</span>
-          <span
-            v-if="tpsActiveCount > 0"
-            class="rf-heading__count"
-            data-accent="tps"
-          >
-            {{ tpsActiveCount }}
-          </span>
-        </h3>
-
-        <!-- rating row: 5 band toggles, /10 grouped in pairs -->
-        <div class="rf-row">
-          <span class="rf-row__label">{{ $t("review_filters.rating") }}</span>
-          <div class="rf-bands" role="group">
-            <button
-              v-for="band in TPS_BANDS"
-              :key="`tps-r-${band.lo}`"
-              type="button"
-              class="rf-band"
-              data-accent="tps"
-              :class="{ 'rf-band--active': isTpsRatingActive(band.lo) }"
-              @click="$emit('toggleList', 'tpsRatings', band.lo)"
-            >
-              <span class="rf-band__nums">{{ band.lo }}–{{ band.hi }}</span>
-              <span class="rf-band__rail" aria-hidden="true">
                 <span
-                  class="rf-band__fill"
-                  :style="{ width: `${(band.hi / 10) * 100}%` }"
-                ></span>
-              </span>
-            </button>
+                  v-for="i in 5"
+                  :key="`s-${i}`"
+                  class="rf-star__pip"
+                  :class="{ 'rf-star__pip--lit': i <= n }"
+                  >★</span
+                >
+              </button>
+            </div>
+            <div v-else class="rf-bands" role="group">
+              <button
+                v-for="band in TPS_BANDS"
+                :key="`tps-r-${band.lo}`"
+                type="button"
+                class="rf-band"
+                data-accent="tps"
+                :class="{
+                  'rf-band--active': isListActive('tpsRatings', band.lo),
+                }"
+                @click="$emit('toggleList', 'tpsRatings', band.lo)"
+              >
+                <span class="rf-band__nums">{{ band.lo }}–{{ band.hi }}</span>
+                <span class="rf-band__rail" aria-hidden="true">
+                  <span
+                    class="rf-band__fill"
+                    :style="{ width: `${(band.hi / 10) * 100}%` }"
+                  ></span>
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <!-- accolades row: merged awards + review-columns, matched against the
-             source's accolades[] array (3.2.0). -->
-        <div class="rf-row">
-          <span class="rf-row__label">{{
-            $t("review_filters.accolades")
-          }}</span>
-          <div class="rf-chips" role="group">
+          <!-- accolades row: merged awards + review-columns, matched against the
+               source's accolades[] array (3.2.0). -->
+          <div class="rf-row">
+            <span class="rf-row__label">{{
+              $t("review_filters.accolades")
+            }}</span>
+            <div class="rf-chips" role="group">
+              <button
+                v-for="kind in s.accoladeKinds"
+                :key="`${s.id}-acc-${kind}`"
+                type="button"
+                class="rf-chip"
+                :data-accent="s.id"
+                :class="{
+                  'rf-chip--active': isListActive(s.accoladesKey, kind),
+                }"
+                :title="$t(`critical_reception.accolade.${kind}`)"
+                @click="$emit('toggleList', s.accoladesKey, kind)"
+              >
+                {{ $t(`review_filters.accolade_short.${kind}`) }}
+              </button>
+            </div>
+          </div>
+
+          <!-- footer: pick + untagged -->
+          <div class="rf-footer">
             <button
-              v-for="kind in TPS_ACCOLADE_KINDS"
-              :key="`tps-acc-${kind}`"
               type="button"
-              class="rf-chip"
-              data-accent="tps"
-              :class="{ 'rf-chip--active': isTpsAccoladeActive(kind) }"
-              :title="$t(`critical_reception.accolade.${kind}`)"
-              @click="$emit('toggleList', 'tpsAccolades', kind)"
+              class="rf-mini"
+              :data-accent="s.id"
+              :class="{ 'rf-mini--active': !!params[s.favoriteKey] }"
+              @click="$emit('toggleBool', s.favoriteKey)"
             >
-              {{ $t(`review_filters.accolade_short.${kind}`) }}
+              <v-icon icon="mdi-sparkles" size="14" />
+              <span>{{ $t("critical_reception.favorite_pick") }}</span>
+            </button>
+            <button
+              type="button"
+              class="rf-mini"
+              :class="{ 'rf-mini--active': !!params[s.untaggedKey] }"
+              @click="$emit('toggleBool', s.untaggedKey)"
+            >
+              <v-icon
+                :icon="
+                  params[s.untaggedKey]
+                    ? 'mdi-checkbox-marked-outline'
+                    : 'mdi-checkbox-blank-outline'
+                "
+                size="14"
+              />
+              <span>{{ $t("critical_reception.untagged") }}</span>
             </button>
           </div>
-        </div>
-
-        <!-- footer: pick + untagged -->
-        <div class="rf-footer">
-          <button
-            type="button"
-            class="rf-mini"
-            data-accent="tps"
-            :class="{ 'rf-mini--active': !!params.tpsFavorite }"
-            @click="$emit('toggleBool', 'tpsFavorite')"
-          >
-            <v-icon icon="mdi-sparkles" size="14" />
-            <span>{{ $t("critical_reception.favorite_pick") }}</span>
-          </button>
-          <button
-            type="button"
-            class="rf-mini"
-            :class="{ 'rf-mini--active': !!params.tpsUntagged }"
-            @click="$emit('toggleBool', 'tpsUntagged')"
-          >
-            <v-icon
-              :icon="
-                params.tpsUntagged
-                  ? 'mdi-checkbox-marked-outline'
-                  : 'mdi-checkbox-blank-outline'
-              "
-              size="14"
-            />
-            <span>{{ $t("critical_reception.untagged") }}</span>
-          </button>
-        </div>
-      </section>
+        </section>
+      </template>
     </v-card>
   </v-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import {
+  DR_THRESHOLDS,
+  type AccoladeKind as FullAccoladeKind,
+} from "@/helpers/album_tags";
+import type {
+  DrBucket,
+  ReviewFilterParams,
+} from "@/composables/userPreferences";
 
-type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
 // Normalized accolade-kind selectors (3.2.0 merged shape). Awards prefix-match
 // every dated variant; the review-column kinds match exactly server-side.
-type AccoladeKind =
-  | "aoty"
-  | "record_of_the_month"
-  | "honorable_mention"
-  | "score_revised"
-  | "tymhm"
-  | "sitf"
-  | "ymio"
-  | "lit"
-  | "rfu";
+// Derived from the canonical AccoladeKind: "review" is the default column (not a
+// useful filter) and "unknown" is an opaque passthrough, so both are excluded.
+type AccoladeKind = Exclude<FullAccoladeKind, "review" | "unknown">;
 
-// Mirrors LoadDataParams' critical-reception slice.
-export interface ReviewFiltersParams {
-  drBuckets?: DrBucket[];
-  amgRatings?: number[];
-  amgFavorite?: boolean;
-  amgAccolades?: string[];
-  amgUntagged?: boolean;
-  tpsRatings?: number[];
-  tpsFavorite?: boolean;
-  tpsAccolades?: string[];
-  tpsUntagged?: boolean;
-  criticalReceptionMatch?: "all" | "any";
-}
+// Canonical critical-reception param slice (DrBucket + ReviewFilterParams come
+// from userPreferences.ts, the single source shared with LoadDataParams).
+type ReviewFiltersParams = ReviewFilterParams;
 
 interface Props {
   modelValue: boolean;
@@ -432,18 +358,27 @@ const onSetMatch = (mode: "all" | "any") => {
   if (matchMode.value !== mode) emit("setMatchMode", mode);
 };
 
-// DR tiers carry both their numeric threshold range (the actual filter shape)
-// and a 1–4 "level" used to drive the four-notch indicator on each tile.
-// Sourced from DR_THRESHOLDS in helpers/album_tags.ts to keep the two in sync.
+// DR tiers carry both their numeric threshold range (the actual filter shape,
+// display-only — the filter value is the bucket id) and a 1–4 "level" driving
+// the four-notch indicator. Ranges are derived from DR_THRESHOLDS in
+// helpers/album_tags.ts so the labels can never drift from the real buckets.
 const DR_BUCKETS: Array<{
   id: Exclude<DrBucket, "untagged">;
   range: string;
   level: 1 | 2 | 3 | 4;
 }> = [
-  { id: "excellent", range: "≥ 14", level: 4 },
-  { id: "good", range: "10 – 13", level: 3 },
-  { id: "fair", range: "7 – 9", level: 2 },
-  { id: "poor", range: "≤ 6", level: 1 },
+  { id: "excellent", range: `≥ ${DR_THRESHOLDS.excellent}`, level: 4 },
+  {
+    id: "good",
+    range: `${DR_THRESHOLDS.good} – ${DR_THRESHOLDS.excellent - 1}`,
+    level: 3,
+  },
+  {
+    id: "fair",
+    range: `${DR_THRESHOLDS.fair} – ${DR_THRESHOLDS.good - 1}`,
+    level: 2,
+  },
+  { id: "poor", range: `≤ ${DR_THRESHOLDS.fair - 1}`, level: 1 },
 ];
 
 // TPS ratings are stored as bucket selectors (1, 3, 5, 7, 9 — each covers
@@ -483,33 +418,64 @@ const AMG_ACCOLADE_KINDS: AccoladeKind[] = [
 ];
 const TPS_ACCOLADE_KINDS: AccoladeKind[] = AWARD_ACCOLADE_KINDS;
 
+// Generic active-state check for a list-valued filter key (ratings/accolades).
+type ListKey = "amgRatings" | "amgAccolades" | "tpsRatings" | "tpsAccolades";
+type BoolKey = "amgFavorite" | "amgUntagged" | "tpsFavorite" | "tpsUntagged";
+const isListActive = (key: ListKey, value: string | number) =>
+  ((props.params[key] ?? []) as Array<string | number>).includes(value);
+
 const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
-const isAmgRatingActive = (n: number) =>
-  (props.params.amgRatings ?? []).includes(n);
-const isAmgAccoladeActive = (k: AccoladeKind) =>
-  (props.params.amgAccolades ?? []).includes(k);
-const isTpsRatingActive = (n: number) =>
-  (props.params.tpsRatings ?? []).includes(n);
-const isTpsAccoladeActive = (k: AccoladeKind) =>
-  (props.params.tpsAccolades ?? []).includes(k);
+
+// AMG and TPS render the same heading / rating / accolades / footer structure;
+// only the accent, param keys, accolade list and the rating widget differ. Drive
+// both sections off one descriptor array so the wiring lives once. shown/visible
+// is gated per-source by the showAmg / showTps props.
+interface SourceDescriptor {
+  id: "amg" | "tps";
+  shown: boolean;
+  nameKey: string;
+  ratingsKey: ListKey;
+  accoladesKey: ListKey;
+  favoriteKey: BoolKey;
+  untaggedKey: BoolKey;
+  accoladeKinds: AccoladeKind[];
+}
+const SOURCES: SourceDescriptor[] = [
+  {
+    id: "amg",
+    shown: props.showAmg,
+    nameKey: "source.amg",
+    ratingsKey: "amgRatings",
+    accoladesKey: "amgAccolades",
+    favoriteKey: "amgFavorite",
+    untaggedKey: "amgUntagged",
+    accoladeKinds: AMG_ACCOLADE_KINDS,
+  },
+  {
+    id: "tps",
+    shown: props.showTps,
+    nameKey: "source.tps",
+    ratingsKey: "tpsRatings",
+    accoladesKey: "tpsAccolades",
+    favoriteKey: "tpsFavorite",
+    untaggedKey: "tpsUntagged",
+    accoladeKinds: TPS_ACCOLADE_KINDS,
+  },
+];
+
+const sourceActiveCount = (s: SourceDescriptor) =>
+  (props.params[s.ratingsKey] ?? []).length +
+  (props.params[s.accoladesKey] ?? []).length +
+  (props.params[s.favoriteKey] ? 1 : 0) +
+  (props.params[s.untaggedKey] ? 1 : 0);
+
+const visibleSources = computed(() => SOURCES.filter((s) => s.shown));
 
 const drActiveCount = computed(() => (props.params.drBuckets ?? []).length);
-const amgActiveCount = computed(
-  () =>
-    (props.params.amgRatings ?? []).length +
-    (props.params.amgAccolades ?? []).length +
-    (props.params.amgFavorite ? 1 : 0) +
-    (props.params.amgUntagged ? 1 : 0),
-);
-const tpsActiveCount = computed(
-  () =>
-    (props.params.tpsRatings ?? []).length +
-    (props.params.tpsAccolades ?? []).length +
-    (props.params.tpsFavorite ? 1 : 0) +
-    (props.params.tpsUntagged ? 1 : 0),
-);
 const activeCount = computed(
-  () => drActiveCount.value + amgActiveCount.value + tpsActiveCount.value,
+  () =>
+    drActiveCount.value +
+    SOURCES.reduce((sum, s) => sum + sourceActiveCount(s), 0),
 );
 
 const onClearAll = () => emit("clearAll");

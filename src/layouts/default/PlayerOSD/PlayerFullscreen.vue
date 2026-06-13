@@ -1083,16 +1083,10 @@ const onAlbumClick = async function () {
   } else {
     // Radio or non-library item - try to find in library first
     try {
-      // Call with positional parameters: (favorite, search, limit, offset, order_by, album_types, provider)
-      const results = await api.getLibraryAlbums(
-        undefined, // favorite
-        currentMedia.album, // search
-        5, // limit - get a few results to find best match
-        undefined,
-        undefined,
-        undefined,
-        undefined, // genre_ids
-      );
+      const results = await api.getLibraryAlbums({
+        search: currentMedia.album,
+        limit: 5, // get a few results to find best match
+      });
 
       if (results.length > 0) {
         let bestMatch = results[0];

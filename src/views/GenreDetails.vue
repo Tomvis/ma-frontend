@@ -397,16 +397,13 @@ const loadGenreArtists = async (params: LoadDataParams) => {
 
 const loadGenreAlbums = async (params: LoadDataParams) => {
   if (!itemDetails.value) return [];
-  return await api.getLibraryAlbums(
-    params.favoritesOnly || undefined,
-    params.search,
-    undefined,
-    undefined,
-    params.sortBy,
-    undefined,
-    params.provider?.length ? params.provider : undefined,
-    genreId(),
-  );
+  return await api.getLibraryAlbums({
+    favorite: params.favoritesOnly || undefined,
+    search: params.search,
+    order_by: params.sortBy,
+    provider: params.provider?.length ? params.provider : undefined,
+    genre: genreId(),
+  });
 };
 
 const loadGenreTracks = async (params: LoadDataParams) => {

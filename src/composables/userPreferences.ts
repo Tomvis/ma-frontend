@@ -9,16 +9,29 @@ import { store } from "@/plugins/store";
 // "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" | "tymhm" | "sitf" | "ymio" | "lit" | "rfu".
 export type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
 
-export interface ItemsListingPreferences {
-  viewMode?: string;
-  sortBy?: string;
-  favoriteFilter?: boolean;
-  libraryFilter?: boolean;
-  albumArtistsFilter?: boolean;
-  hideEmptyFilter?: boolean | null;
-  hideFullyPlayedFilter?: boolean;
-  albumType?: string[];
-  providerFilter?: string[];
+// Single source of truth for the review-filter (DR / AMG / TPS) preference keys.
+// Both ItemsListing.vue (param mutators, clear-all, restore) and ReviewFiltersPanel.vue
+// derive their key unions and param slice from these so adding a key is one edit.
+export const REVIEW_LIST_KEYS = [
+  "drBuckets",
+  "amgRatings",
+  "amgAccolades",
+  "tpsRatings",
+  "tpsAccolades",
+] as const;
+export const REVIEW_BOOL_KEYS = [
+  "amgFavorite",
+  "amgUntagged",
+  "tpsFavorite",
+  "tpsUntagged",
+] as const;
+export type ReviewListKey = (typeof REVIEW_LIST_KEYS)[number];
+export type ReviewBoolKey = (typeof REVIEW_BOOL_KEYS)[number];
+
+// The critical-reception slice of a listing's params/prefs. The canonical shape
+// for DR/AMG/TPS filters; LoadDataParams and ReviewFiltersPanel both Pick from
+// (or mirror) this so the three stay in lockstep.
+export interface ReviewFilterParams {
   drBuckets?: DrBucket[];
   amgRatings?: number[];
   amgFavorite?: boolean;
@@ -28,9 +41,22 @@ export interface ItemsListingPreferences {
   tpsFavorite?: boolean;
   tpsAccolades?: string[];
   tpsUntagged?: boolean;
-  // "any" makes the DR/AMG/TPS clauses combine with OR instead of AND. Stored
-  // per-listing so a saved "find anything acclaimed" view sticks across reloads.
   criticalReceptionMatch?: "all" | "any";
+}
+
+export interface ItemsListingPreferences extends ReviewFilterParams {
+  viewMode?: string;
+  sortBy?: string;
+  favoriteFilter?: boolean;
+  libraryFilter?: boolean;
+  albumArtistsFilter?: boolean;
+  hideEmptyFilter?: boolean | null;
+  hideFullyPlayedFilter?: boolean;
+  albumType?: string[];
+  providerFilter?: string[];
+  // "criticalReceptionMatch" ("any" makes the DR/AMG/TPS clauses combine with OR
+  // instead of AND) and the DR/AMG/TPS filter keys come from ReviewFilterParams.
+  // Stored per-listing so a saved "find anything acclaimed" view sticks across reloads.
   expand?: boolean;
   search?: string;
 }

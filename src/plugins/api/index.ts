@@ -531,13 +531,23 @@ export class MusicAssistantApi {
     });
   }
   public getLibraryAlbumsCount(
-    favorite_only: boolean = false,
-    album_types?: Array<AlbumType | string>,
-    critical_reception_filter?: CriticalReceptionFilter,
-    listen_later_only: boolean = false,
-    search?: string,
-    genre?: number | number[],
+    opts: {
+      favorite_only?: boolean;
+      album_types?: Array<AlbumType | string>;
+      critical_reception_filter?: CriticalReceptionFilter;
+      listen_later_only?: boolean;
+      search?: string;
+      genre?: number | number[];
+    } = {},
   ): Promise<number> {
+    const {
+      favorite_only = false,
+      album_types,
+      critical_reception_filter,
+      listen_later_only = false,
+      search,
+      genre,
+    } = opts;
     return this.sendCommand("music/albums/count", {
       favorite_only,
       album_types,
@@ -704,17 +714,31 @@ export class MusicAssistantApi {
    * @returns Promise resolving to array of albums
    */
   public getLibraryAlbums(
-    favorite?: boolean,
-    search?: string,
-    limit?: number,
-    offset?: number,
-    order_by?: string,
-    album_types?: Array<AlbumType | string>,
-    provider?: string | string[],
-    genre?: number | number[],
-    critical_reception_filter?: CriticalReceptionFilter,
-    listen_later?: boolean,
+    opts: {
+      favorite?: boolean;
+      search?: string;
+      limit?: number;
+      offset?: number;
+      order_by?: string;
+      album_types?: Array<AlbumType | string>;
+      provider?: string | string[];
+      genre?: number | number[];
+      critical_reception_filter?: CriticalReceptionFilter;
+      listen_later?: boolean;
+    } = {},
   ): Promise<Album[]> {
+    const {
+      favorite,
+      search,
+      limit,
+      offset,
+      order_by,
+      album_types,
+      provider,
+      genre,
+      critical_reception_filter,
+      listen_later,
+    } = opts;
     return this.sendCommand("music/albums/library_items", {
       favorite,
       search,

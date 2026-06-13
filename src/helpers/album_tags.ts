@@ -133,6 +133,13 @@ const EXACT_ACCOLADES: Record<string, { kind: AccoladeKind; display: string }> =
     Contrite: { kind: "score_revised", display: "Score Revised" },
   };
 
+// Score display convention: whole numbers get a trailing ".0" (so a 4 reads as
+// "4.0" next to a 4.5), fractional values render as-is. Shared by the detail
+// strip and the badge tooltips so they never drift apart.
+export function formatScore(n: number): string {
+  return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
+}
+
 export function formatDated(
   name: string,
   year?: number,
@@ -333,13 +340,6 @@ function buildDr<S extends "measured" | "amg">(
   return { value, quality: drQuality(value), source };
 }
 
-function buildPlainDr(
-  value: unknown,
-): { value: number; quality: DRQuality } | undefined {
-  if (!isPositiveFinite(value)) return undefined;
-  return { value, quality: drQuality(value) };
-}
-
 export function parseAlbumTags(
   cr: CriticalReception | undefined | null,
   albumDynamicRange?: number | null,
@@ -356,7 +356,7 @@ export function parseAlbumTags(
     measured &&
     amgRaw &&
     Math.round(amgRaw.value) !== Math.round(measured.value)
-      ? buildPlainDr(amgRaw.value)
+      ? { value: amgRaw.value, quality: amgRaw.quality }
       : undefined;
   const sources = cr?.sources ?? [];
   const amg = sources
@@ -372,10 +372,8 @@ export function parseAlbumTags(
     amgDr,
     amg,
     tps,
-    hasAny:
-      dr !== undefined ||
-      amgDr !== undefined ||
-      amg !== undefined ||
-      tps !== undefined,
+    // `amgDr` implies `measured` and `amgRaw` both exist, which makes `dr`
+    // defined — so it never adds to hasAny independently and is omitted here.
+    hasAny: dr !== undefined || amg !== undefined || tps !== undefined,
   };
 }

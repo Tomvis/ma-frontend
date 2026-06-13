@@ -1,12 +1,22 @@
 import { describe, it, expect } from "vitest";
 import {
   drQuality,
+  formatScore,
   parseAccolade,
   sortAccolades,
   parseAlbumTags,
   DR_THRESHOLDS,
   type ParsedAccolade,
 } from "./album_tags";
+
+describe("formatScore", () => {
+  it("pads whole numbers to one decimal and leaves fractions as-is", () => {
+    expect(formatScore(4)).toBe("4.0");
+    expect(formatScore(10)).toBe("10.0");
+    expect(formatScore(4.5)).toBe("4.5");
+    expect(formatScore(8.5)).toBe("8.5");
+  });
+});
 
 describe("drQuality", () => {
   it("classifies boundary values correctly", () => {

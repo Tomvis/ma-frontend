@@ -27,7 +27,10 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { ToolBarMenuItem } from "@/components/Toolbar.vue";
-import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
+import {
+  ALBUM_SORT_KEYS,
+  buildCriticalReceptionFilter,
+} from "@/helpers/criticalReception";
 import api from "@/plugins/api";
 import {
   EventType,
@@ -49,48 +52,32 @@ const { t } = useI18n();
 const { prime, remove } = useListenLater();
 const total = ref<number | undefined>(0);
 
-// Same sort surface as LibraryAlbums, plus listen-later–specific keys.
-// "listen_later_added_at_desc" is the default — newest pick first, the
+// Same sort surface as LibraryAlbums (ALBUM_SORT_KEYS), plus listen-later–specific
+// keys. "listen_later_added_at_desc" is the default — newest pick first, the
 // inbox-like ordering Roon uses.
 const sortKeys = [
   "listen_later_added_at_desc",
   "listen_later_added_at",
-  "name",
-  "name_desc",
-  "sort_name",
-  "sort_name_desc",
-  "year",
-  "year_desc",
-  "timestamp_added",
-  "timestamp_added_desc",
-  "last_played",
-  "last_played_desc",
-  "play_count",
-  "play_count_desc",
-  "artist_name",
-  "artist_name_desc",
-  "dr",
-  "dr_desc",
-  "amg_rating",
-  "amg_rating_desc",
-  "tps_rating",
-  "tps_rating_desc",
+  ...ALBUM_SORT_KEYS,
 ];
 
 const loadItems = async (params: LoadDataParams) => {
   trackedSetTotals(params);
-  const albums = await api.getLibraryAlbums(
-    params.favoritesOnly || undefined,
-    params.search,
-    params.limit,
-    params.offset,
-    params.sortBy || "listen_later_added_at_desc",
-    params.albumType,
-    params.provider && params.provider.length > 0 ? params.provider : undefined,
-    params.genreIds,
-    buildCriticalReceptionFilter(params),
-    true, // listen_later: this view shows saved-for-later items only
-  );
+  const albums = await api.getLibraryAlbums({
+    favorite: params.favoritesOnly || undefined,
+    search: params.search,
+    limit: params.limit,
+    offset: params.offset,
+    order_by: params.sortBy || "listen_later_added_at_desc",
+    album_types: params.albumType,
+    provider:
+      params.provider && params.provider.length > 0
+        ? params.provider
+        : undefined,
+    genre: params.genreIds,
+    critical_reception_filter: buildCriticalReceptionFilter(params),
+    listen_later: true, // this view shows saved-for-later items only
+  });
   for (const album of albums) prime(album as Album);
   return albums;
 };
@@ -102,14 +89,55 @@ const setTotals = async (params: LoadDataParams) => {
     total.value = undefined;
     return;
   }
-  total.value = await api.getLibraryAlbumsCount(
-    params.favoritesOnly || undefined,
-    params.albumType || undefined,
-    buildCriticalReceptionFilter(params),
-    true,
-    params.search || undefined,
-    params.genreIds,
-  );
+  total.value = await api.getLibraryAlbumsCount({
+    favorite_only: params.favoritesOnly || undefined,
+    album_types: params.albumType || undefined,
+    critical_reception_filter: buildCriticalReceptionFilter(params),
+    listen_later_only: true,
+    search: params.search || undefined,
+    genre: params.genreIds,
+  });
+};
+
+// Pull every saved album that matches the CURRENT filters in one page. Snapshots
+// lastParams (the filter set loadItems last ran with) so play-all / empty-all act
+// on exactly the rows the listing shows, not an arbitrary top-N of the unfiltered
+// pile. Shared by playAll and emptyAll so the marshalling lives in one place.
+const fetchAllFiltered = async (): Promise<Album[]> => {
+  const p = lastParams.value;
+  const albums = await api.getLibraryAlbums({
+    favorite: p?.favoritesOnly || undefined,
+    search: p?.search,
+    limit: Math.max(total.value ?? 1, 1),
+    offset: 0,
+    order_by: "listen_later_added_at_desc",
+    album_types: p?.albumType,
+    provider: p?.provider && p.provider.length > 0 ? p.provider : undefined,
+    genre: p?.genreIds,
+    critical_reception_filter: p ? buildCriticalReceptionFilter(p) : undefined,
+    listen_later: true,
+  });
+  return albums as Album[];
+};
+
+// Remove a batch of albums concurrently and report the outcome with one pair of
+// bulk toasts. Removals are independent server calls, so run them in parallel and
+// derive removed/failed from the settled statuses (1-1 with the prior per-item
+// try/catch counters). Never throws — failures are surfaced via the toast only.
+const removeAlbumsWithToasts = async (albums: Album[]) => {
+  const results = await Promise.allSettled(albums.map((a) => remove(a)));
+  let removed = 0;
+  let failed = 0;
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      removed++;
+    } else {
+      console.error(r.reason);
+      failed++;
+    }
+  }
+  if (removed) toast.success(t("listen_later.toast_bulk_removed", [removed]));
+  if (failed) toast.error(t("listen_later.toast_bulk_failed", [failed]));
 };
 
 // "Play all" / "Shuffle all" surfaced on the standard toolbar as extra menu
@@ -154,19 +182,7 @@ const primaryBulkAction = {
   // affordance and prevents fat-fingered mass deletion.
   confirmLabel: "listen_later.confirm_bulk_remove",
   handler: async (items: MediaItemTypeOrItemMapping[]) => {
-    let removed = 0;
-    let failed = 0;
-    for (const album of items) {
-      try {
-        await remove(album as Album);
-        removed++;
-      } catch (err) {
-        console.error(err);
-        failed++;
-      }
-    }
-    if (removed) toast.success(t("listen_later.toast_bulk_removed", [removed]));
-    if (failed) toast.error(t("listen_later.toast_bulk_failed", [failed]));
+    await removeAlbumsWithToasts(items as Album[]);
   },
 };
 
@@ -174,37 +190,10 @@ async function emptyAll() {
   if (!total.value) return;
   if (!confirm(t("listen_later.confirm_empty_all", [total.value]))) return;
   try {
-    // Pull every saved album that matches the CURRENT filters in one page, then
-    // drop them through the same remove() helper so the optimistic cache stays in
-    // sync. Mirror loadItems' filter args (snapshotted in lastParams) so we clear
-    // exactly the rows the count/confirm describe, not an arbitrary top-N of the
-    // unfiltered pile.
-    const p = lastParams.value;
-    const all = await api.getLibraryAlbums(
-      p?.favoritesOnly || undefined,
-      p?.search,
-      Math.max(total.value, 1),
-      0,
-      "listen_later_added_at_desc",
-      p?.albumType,
-      p?.provider && p.provider.length > 0 ? p.provider : undefined,
-      p?.genreIds,
-      p ? buildCriticalReceptionFilter(p) : undefined,
-      true,
-    );
-    let removed = 0;
-    let failed = 0;
-    for (const album of all) {
-      try {
-        await remove(album as Album);
-        removed++;
-      } catch (err) {
-        console.error(err);
-        failed++;
-      }
-    }
-    if (removed) toast.success(t("listen_later.toast_bulk_removed", [removed]));
-    if (failed) toast.error(t("listen_later.toast_bulk_failed", [failed]));
+    // Pull every saved album matching the current filters, then drop them through
+    // removeAlbumsWithToasts so the optimistic cache stays in sync.
+    const all = await fetchAllFiltered();
+    await removeAlbumsWithToasts(all);
   } catch (err) {
     console.error(err);
     toast.error(t("listen_later.toast_bulk_failed", [total.value]));
@@ -214,22 +203,10 @@ async function emptyAll() {
 async function playAll(shuffle: boolean) {
   if (!store.activePlayer) return;
   try {
-    // Pull a single page sized to the total — server resolves URIs to a queue.
-    // Mirror the active filters (lastParams) so "Play all" plays exactly the rows
-    // the user is looking at, not an arbitrary top-N of the unfiltered pile.
-    const p = lastParams.value;
-    const all = await api.getLibraryAlbums(
-      p?.favoritesOnly || undefined,
-      p?.search,
-      Math.max(total.value ?? 1, 1),
-      0,
-      "listen_later_added_at_desc",
-      p?.albumType,
-      p?.provider && p.provider.length > 0 ? p.provider : undefined,
-      p?.genreIds,
-      p ? buildCriticalReceptionFilter(p) : undefined,
-      true,
-    );
+    // Pull a single page of the filtered saved albums — server resolves URIs to a
+    // queue. fetchAllFiltered mirrors the active filters so "Play all" plays
+    // exactly the rows the user is looking at.
+    const all = await fetchAllFiltered();
     if (!all.length) return;
     await api.playMedia(
       all.map((a) => a.uri),
@@ -267,12 +244,26 @@ const listingRef = ref<{ refresh?: () => void } | null>(null);
 // Coalesce listen-later removals into a single reload. Bulk-remove fires many
 // MEDIA_ITEM_UPDATED events back-to-back; a per-event refresh would re-fetch
 // the page once for each, hammering the server during inbox-clearing churn.
+// The listing refresh re-runs loadItems → trackedSetTotals → setTotals, so it
+// also re-counts; the false branch relies on that instead of a direct setTotals.
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 const scheduleListingRefresh = () => {
   if (refreshTimer !== null) return;
   refreshTimer = setTimeout(() => {
     refreshTimer = null;
     listingRef.value?.refresh?.();
+  }, 250);
+};
+
+// A row flipped to listen_later=true elsewhere belongs in this view but isn't
+// fetched into the page on its own; it only bumps the count. Debounce that
+// recount on the same 250ms window so an inbound burst is a single count RPC.
+let recountTimer: ReturnType<typeof setTimeout> | null = null;
+const scheduleRecount = () => {
+  if (recountTimer !== null) return;
+  recountTimer = setTimeout(() => {
+    recountTimer = null;
+    if (lastParams.value) setTotals(lastParams.value);
   }, 250);
 };
 
@@ -286,13 +277,14 @@ onMounted(() => {
     (evt: EventMessage) => {
       const data = evt.data as Album | undefined;
       if (data && typeof data.listen_later === "boolean") {
-        // Re-run setTotals with the snapshotted filter set so active CR /
-        // album-type / favorites filters carry through to the new count.
-        if (lastParams.value) {
-          setTotals(lastParams.value);
-        }
         if (data.listen_later === false) {
+          // The coalesced listing refresh re-counts via trackedSetTotals, so no
+          // direct setTotals here — that would duplicate the count query.
           scheduleListingRefresh();
+        } else {
+          // Added to the inbox elsewhere: recount (debounced) with the active
+          // CR / album-type / favorites filters carried through lastParams.
+          scheduleRecount();
         }
       }
     },
@@ -302,6 +294,10 @@ onMounted(() => {
     if (refreshTimer !== null) {
       clearTimeout(refreshTimer);
       refreshTimer = null;
+    }
+    if (recountTimer !== null) {
+      clearTimeout(recountTimer);
+      recountTimer = null;
     }
   });
 });

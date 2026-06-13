@@ -3,7 +3,11 @@ import { useI18n } from "vue-i18n";
 import type { Album } from "@/plugins/api/interfaces";
 import { useAlbumTags } from "@/composables/useAlbumTags";
 import { useListenLater } from "@/composables/useListenLater";
-import type { AlbumTags } from "@/helpers/album_tags";
+import {
+  formatScore,
+  type AlbumTags,
+  type SourceTags,
+} from "@/helpers/album_tags";
 
 export interface AlbumBadgeLabels {
   tags: ComputedRef<AlbumTags>;
@@ -25,16 +29,9 @@ export function useAlbumBadgeLabels(
 ): AlbumBadgeLabels {
   const { t } = useI18n();
   const tags = useAlbumTags(albumRef);
-  const { isListenLater } = useListenLater();
+  const { isSaved } = useListenLater();
 
-  const savedForLater = computed(
-    () =>
-      albumRef.value?.listen_later === true ||
-      isListenLater(albumRef.value?.uri),
-  );
-
-  const formatScore = (n: number): string =>
-    Number.isInteger(n) ? n.toFixed(1) : `${n}`;
+  const savedForLater = computed(() => isSaved(albumRef.value));
 
   const drTitle = computed(() => {
     const dr = tags.value.dr;
@@ -47,34 +44,24 @@ export function useAlbumBadgeLabels(
     return `DR ${dr.value} — ${verdict}${suffix}`;
   });
 
-  const amgTitle = computed(() => {
-    const a = tags.value.amg;
-    if (!a) return "";
-    if (a.rating !== undefined) {
+  // One tooltip builder for both review sources: the score (with the source's own
+  // 5/10 scale) wins when present, else a "personal pick" label only when the
+  // source is actually flagged favorite — a rating-less label/author-only entry
+  // isn't a pick (matches CriticalReception.vue, which renders nothing then).
+  const sourceTitle = (src?: SourceTags): string => {
+    if (!src) return "";
+    if (src.rating !== undefined) {
       return t("critical_reception.score_with_max", {
-        score: formatScore(a.rating),
-        max: 5,
+        score: formatScore(src.rating),
+        max: src.scale,
       });
     }
-    // Only call it a "personal pick" when the source is actually flagged as a
-    // favorite; a rating-less label/author-only entry isn't a pick. Matches
-    // CriticalReception.vue, which renders nothing in that case.
-    if (a.favorite) return t("critical_reception.favorite_pick");
+    if (src.favorite) return t("critical_reception.favorite_pick");
     return "";
-  });
+  };
 
-  const tpsTitle = computed(() => {
-    const tp = tags.value.tps;
-    if (!tp) return "";
-    if (tp.rating !== undefined) {
-      return t("critical_reception.score_with_max", {
-        score: formatScore(tp.rating),
-        max: 10,
-      });
-    }
-    if (tp.favorite) return t("critical_reception.favorite_pick");
-    return "";
-  });
+  const amgTitle = computed(() => sourceTitle(tags.value.amg));
+  const tpsTitle = computed(() => sourceTitle(tags.value.tps));
 
   return { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle };
 }
