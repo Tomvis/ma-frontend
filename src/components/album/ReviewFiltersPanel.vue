@@ -432,7 +432,6 @@ const isDrActive = (b: DrBucket) => (props.params.drBuckets ?? []).includes(b);
 // is gated per-source by the showAmg / showTps props.
 interface SourceDescriptor {
   id: "amg" | "tps";
-  shown: boolean;
   nameKey: string;
   ratingsKey: ListKey;
   accoladesKey: ListKey;
@@ -443,7 +442,6 @@ interface SourceDescriptor {
 const SOURCES: SourceDescriptor[] = [
   {
     id: "amg",
-    shown: props.showAmg,
     nameKey: "source.amg",
     ratingsKey: "amgRatings",
     accoladesKey: "amgAccolades",
@@ -453,7 +451,6 @@ const SOURCES: SourceDescriptor[] = [
   },
   {
     id: "tps",
-    shown: props.showTps,
     nameKey: "source.tps",
     ratingsKey: "tpsRatings",
     accoladesKey: "tpsAccolades",
@@ -469,7 +466,13 @@ const sourceActiveCount = (s: SourceDescriptor) =>
   (props.params[s.favoriteKey] ? 1 : 0) +
   (props.params[s.untaggedKey] ? 1 : 0);
 
-const visibleSources = computed(() => SOURCES.filter((s) => s.shown));
+// Read the show-flags off props at filter time (not snapshotted into the
+// descriptors) so visibility stays reactive if a parent ever binds show-amg /
+// show-tps to a value that changes after mount.
+const sourceShown = (s: SourceDescriptor): boolean =>
+  s.id === "amg" ? props.showAmg : props.showTps;
+
+const visibleSources = computed(() => SOURCES.filter(sourceShown));
 
 const drActiveCount = computed(() => (props.params.drBuckets ?? []).length);
 const activeCount = computed(

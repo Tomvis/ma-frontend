@@ -163,7 +163,11 @@ export function useListenLater(): ListenLaterApi {
 
   const toggle = async (album: Album): Promise<boolean> => {
     if (!album?.uri) return false;
-    if (cache.saved.has(album.uri)) {
+    // Decide add-vs-remove off the same saved-state the icon shows (isSaved trusts
+    // the server flag and the cache), not the cache alone — otherwise an already-saved
+    // album whose URI was never primed into the cache would be re-added instead of
+    // removed on the first click.
+    if (isSaved(album)) {
       await remove(album);
       return false;
     }

@@ -464,6 +464,11 @@ export interface Props {
   path?: string;
   icon?: string | Component;
   restoreState?: boolean;
+  // Suppress the MEDIA_ITEM_ADDED "new content available" banner. Set for views
+  // whose membership is a server-side sub-filter the itemtype prefix can't express
+  // (e.g. Listen Later: a newly added album is listen_later=false and won't appear
+  // after a refresh, so the banner would be a false positive).
+  suppressAddedBanner?: boolean;
   onTitleClick?: () => void;
   refreshOnParentUpdate?: boolean;
   forcedViewMode?: "list" | "panel" | "panel_compact";
@@ -500,6 +505,7 @@ const props = withDefaults(defineProps<Props>(), {
   singleProviderFilter: false,
   requireProviderSelection: false,
   providerFilterOptions: undefined,
+  suppressAddedBanner: false,
   allowCollapse: false,
   allowKeyHooks: false,
   limit: 50,
@@ -1853,13 +1859,14 @@ if (props.restoreState) {
         applyMediaEventToItems(evt, snapshot.pagedItems, snapshot.allItems);
       },
     );
-    const unsubAdded = addedPrefix
-      ? api.subscribe(EventType.MEDIA_ITEM_ADDED, (evt: EventMessage) => {
-          if (evt.object_id?.startsWith(addedPrefix)) {
-            snapshot.newContentAvailable = true;
-          }
-        })
-      : undefined;
+    const unsubAdded =
+      addedPrefix && !props.suppressAddedBanner
+        ? api.subscribe(EventType.MEDIA_ITEM_ADDED, (evt: EventMessage) => {
+            if (evt.object_id?.startsWith(addedPrefix)) {
+              snapshot.newContentAvailable = true;
+            }
+          })
+        : undefined;
     setDetachedPrevStateUnsub(() => {
       unsubUpdated();
       unsubAdded?.();
@@ -2024,6 +2031,18 @@ onMounted(async () => {
       loadData(true, undefined, true);
     }
   } else {
+    if (props.restoreState) {
+      // We're a restoreState listing with a different key than the stored
+      // snapshot: our own unmount will overwrite prevState, so the previous
+      // listing's detached bridge can never be reclaimed. Tear it down now
+      // instead of leaking it (it would otherwise keep running
+      // applyMediaEventToItems on a stale snapshot for our whole lifetime).
+      // A non-restoreState intermediate listing intentionally leaves the
+      // orphan alone — it doesn't overwrite prevState, so the original
+      // listing still reclaims its (bridge-kept-fresh) snapshot on back-nav.
+      getDetachedPrevStateUnsub()?.();
+      setDetachedPrevStateUnsub(undefined);
+    }
     applyQueryGenreFilter();
     loadData(true);
   }
@@ -2055,7 +2074,7 @@ onMounted(async () => {
   // out of it. We deliberately don't insert in-place — sort/filter
   // context isn't known here, and during a sync we'd thrash the list.
   const addedPrefix = itemtypeAddedPrefix(props.itemtype);
-  if (addedPrefix) {
+  if (addedPrefix && !props.suppressAddedBanner) {
     const unsubAdded = api.subscribe(
       EventType.MEDIA_ITEM_ADDED,
       (evt: EventMessage) => {

@@ -587,7 +587,9 @@ export const getContextMenuItems = async function (
   const lidarrLoaded = Object.values(api.providers).some(
     (p) => p.domain === "lidarr" && p.available,
   );
-  if (lidarrLoaded) {
+  // Lidarr targets albums only — skip the providers walk + items scan entirely
+  // for selections with no album (e.g. track/artist/playlist menus).
+  if (lidarrLoaded && items.some((i) => i.media_type === MediaType.ALBUM)) {
     const streamingDomains = new Set(
       Object.values(api.providers)
         .filter((p) => p.is_streaming_provider)
@@ -771,7 +773,10 @@ export const getContextMenuItems = async function (
         label: "listen_later.add",
         labelArgs: [],
         action: async () => {
-          for (const a of toAdd) await ll.add(a);
+          // allSettled, not a sequential await loop: one failed item must not
+          // abort the rest of the batch nor skip clearSelection. Per-item server
+          // errors still surface via the global toast handler in api/index.ts.
+          await Promise.allSettled(toAdd.map((a) => ll.add(a)));
           eventbus.emit("clearSelection");
         },
         icon: "mdi-bookmark-plus-outline",
@@ -782,7 +787,10 @@ export const getContextMenuItems = async function (
         label: "listen_later.remove",
         labelArgs: [],
         action: async () => {
-          for (const a of toRemove) await ll.remove(a);
+          // allSettled, not a sequential await loop: one failed item must not
+          // abort the rest of the batch nor skip clearSelection. Per-item server
+          // errors still surface via the global toast handler in api/index.ts.
+          await Promise.allSettled(toRemove.map((a) => ll.remove(a)));
           eventbus.emit("clearSelection");
         },
         icon: "mdi-bookmark-check",

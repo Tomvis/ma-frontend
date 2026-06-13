@@ -60,10 +60,13 @@ const loadItems = async function (params: LoadDataParams) {
 
 const setTotals = async function (params: LoadDataParams) {
   const crFilter = buildCriticalReceptionFilter(params);
+  // albumType/provider are arrays: an empty [] is truthy, so guard on length —
+  // otherwise clearing a filter back to [] defeats the cached-count fast path
+  // (and would send album_types: [] to the server every reload).
   if (
     !params.favoritesOnly &&
-    !params.albumType &&
-    !params.provider &&
+    !params.albumType?.length &&
+    !params.provider?.length &&
     !params.search &&
     !params.genreIds &&
     !crFilter
@@ -79,7 +82,7 @@ const setTotals = async function (params: LoadDataParams) {
   }
   total.value = await api.getLibraryAlbumsCount({
     favorite_only: params.favoritesOnly || undefined,
-    album_types: params.albumType || undefined,
+    album_types: params.albumType?.length ? params.albumType : undefined,
     critical_reception_filter: crFilter,
     search: params.search || undefined,
     genre: params.genreIds,

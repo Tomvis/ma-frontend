@@ -13,6 +13,7 @@
     :show-genre-filter="true"
     :icon="BookmarkCheck"
     :restore-state="true"
+    :suppress-added-banner="true"
     :total="total"
     :show-album-type-filter="true"
     :show-provider-filter="true"
@@ -83,12 +84,9 @@ const loadItems = async (params: LoadDataParams) => {
 };
 
 const setTotals = async (params: LoadDataParams) => {
-  // Provider filter prevents an accurate server-side count — fall back to
-  // the result-length heuristic the way LibraryAlbums does.
-  if (params.provider && params.provider.length > 0) {
-    total.value = undefined;
-    return;
-  }
+  // The server count mirrors library_items' filters (provider included), so a
+  // provider-filtered view can still be counted accurately — forward provider
+  // rather than collapsing total to undefined and disabling play/empty-all.
   total.value = await api.getLibraryAlbumsCount({
     favorite_only: params.favoritesOnly || undefined,
     album_types: params.albumType || undefined,
@@ -96,6 +94,10 @@ const setTotals = async (params: LoadDataParams) => {
     listen_later_only: true,
     search: params.search || undefined,
     genre: params.genreIds,
+    provider:
+      params.provider && params.provider.length > 0
+        ? params.provider
+        : undefined,
   });
 };
 
@@ -201,20 +203,29 @@ async function emptyAll() {
 }
 
 async function playAll(shuffle: boolean) {
-  if (!store.activePlayer) return;
+  const player = store.activePlayer;
+  if (!player) return;
   try {
     // Pull a single page of the filtered saved albums — server resolves URIs to a
     // queue. fetchAllFiltered mirrors the active filters so "Play all" plays
     // exactly the rows the user is looking at.
     const all = await fetchAllFiltered();
     if (!all.length) return;
+    // Resolve the target queue the same way playMedia does, then set its shuffle
+    // state explicitly: play_media has no "shuffle" arg (sort_by="random" is a
+    // silent no-op server-side), so the queue's shuffle_enabled flag is what makes
+    // REPLACE shuffle the enqueued items.
+    const queueId =
+      player.active_source && player.active_source in api.queues
+        ? player.active_source
+        : player.player_id;
+    if (queueId) await api.queueCommandShuffle(queueId, shuffle);
     await api.playMedia(
       all.map((a) => a.uri),
       QueueOption.REPLACE,
       false,
       undefined,
-      undefined,
-      shuffle ? "random" : undefined,
+      queueId,
     );
     toast.success(
       shuffle

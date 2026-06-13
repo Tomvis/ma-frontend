@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { BookmarkCheck, BookmarkPlus } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
@@ -25,9 +25,11 @@ const tooltip = computed(() =>
   saved.value ? t("listen_later.remove") : t("listen_later.add"),
 );
 
-// Prime the cache once when the album mounts so first-click is consistent
-// with the server-known state.
-prime(props.album);
+// Prime the cache whenever the album changes so first-click stays consistent
+// with the server-known state. A watcher (not a one-shot setup call) is required
+// because this component instance is reused across album→album navigation
+// (the router-view and AlbumDetails are not re-keyed).
+watch(() => props.album, prime, { immediate: true });
 
 async function onClick(e: MouseEvent) {
   e.stopPropagation();

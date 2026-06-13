@@ -538,6 +538,7 @@ export class MusicAssistantApi {
       listen_later_only?: boolean;
       search?: string;
       genre?: number | number[];
+      provider?: string | string[];
     } = {},
   ): Promise<number> {
     const {
@@ -547,6 +548,7 @@ export class MusicAssistantApi {
       listen_later_only = false,
       search,
       genre,
+      provider,
     } = opts;
     return this.sendCommand("music/albums/count", {
       favorite_only,
@@ -554,6 +556,7 @@ export class MusicAssistantApi {
       listen_later_only,
       search,
       genre,
+      provider,
       ...(critical_reception_filter ?? {}),
     });
   }
