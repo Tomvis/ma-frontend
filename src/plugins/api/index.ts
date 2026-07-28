@@ -572,7 +572,7 @@ export class MusicAssistantApi {
       search,
       genre,
       provider,
-      ...(critical_reception_filter ?? {}),
+      ...critical_reception_filter,
     });
   }
   public getLibraryTracksCount(
@@ -767,7 +767,7 @@ export class MusicAssistantApi {
       provider,
       genre,
       listen_later,
-      ...(critical_reception_filter ?? {}),
+      ...critical_reception_filter,
     });
   }
 
