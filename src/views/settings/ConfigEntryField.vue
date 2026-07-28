@@ -12,26 +12,29 @@
     </div>
 
     <!-- label value -->
-    <v-alert
+    <LabelField
       v-else-if="confEntry.type == ConfigEntryType.LABEL"
-      variant="tonal"
-      type="info"
-      density="comfortable"
-      class="config-alert"
-    >
-      {{ getTranslatedLabel() }}
-    </v-alert>
+      :text="displayLabel()"
+    />
 
     <!-- alert value -->
-    <v-alert
+    <AlertField
       v-else-if="confEntry.type == ConfigEntryType.ALERT"
-      density="comfortable"
-      type="warning"
-      variant="tonal"
-      class="config-alert"
+      :text="displayLabel()"
+    />
+
+    <!-- image value (presentational, e.g. a pairing QR code) -->
+    <div
+      v-else-if="confEntry.type == ConfigEntryType.IMAGE"
+      class="config-image"
     >
-      {{ getTranslatedLabel() }}
-    </v-alert>
+      <img
+        v-if="imageSrc"
+        :src="imageSrc"
+        :alt="displayLabel()"
+        loading="lazy"
+      />
+    </div>
 
     <!-- action type -->
     <v-btn
@@ -44,7 +47,7 @@
       :disabled="isFieldDisabled"
       @click="$emit('action')"
     >
-      {{ getTranslatedActionLabel() }}
+      {{ displayActionLabel() }}
     </v-btn>
 
     <!-- DSP Config Button -->
@@ -79,7 +82,7 @@
     <v-checkbox
       v-else-if="confEntry.type == ConfigEntryType.BOOLEAN"
       :model-value="confEntry.value"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       color="primary"
       :disabled="isFieldDisabled"
       hide-details
@@ -98,7 +101,7 @@
       class="config-slider-wrapper"
     >
       <v-label class="config-slider-label">
-        {{ getTranslatedLabel() }}
+        {{ displayLabel() }}
       </v-label>
       <div class="config-slider-block">
         <v-slider
@@ -141,7 +144,7 @@
     <v-text-field
       v-else-if="confEntry.type == ConfigEntryType.SECURE_STRING"
       :model-value="confEntry.value"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :required="confEntry.required"
       :disabled="isFieldDisabled"
       :rules="[
@@ -169,12 +172,21 @@
     <v-select
       v-else-if="confEntry.options && confEntry.options.length > 0"
       :model-value="confEntry.value"
+      :menu-props="{ zIndex: 10000 }"
       :chips="confEntry.multi_value"
       :clearable="true"
       :multiple="confEntry.multi_value"
-      :items="translatedOptions"
+      :items="displayOptions"
+      :item-props="
+        (item) => ({
+          title: item.title,
+          value: item.value,
+          disabled: item.disabled,
+          subtitle: item.disabled ? item.disabled_reason : item.description,
+        })
+      "
       :disabled="isFieldDisabled"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :required="confEntry.required"
       :rules="[
         (v) =>
@@ -196,7 +208,7 @@
       :model-value="confEntry.value"
       :placeholder="confEntry.default_value?.toString()"
       :disabled="isFieldDisabled"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :required="confEntry.required"
       :rules="[
         (v) => !(!v && confEntry.required) || $t('settings.invalid_input'),
@@ -209,14 +221,13 @@
       @click:clear="onClear"
     />
 
-    <!-- icon 'picker' -->
-    <v-text-field
+    <!-- icon picker -->
+    <IconPicker
       v-else-if="confEntry.type == ConfigEntryType.ICON"
-      :model-value="confEntry.value"
+      :model-value="confEntry.value as string"
       :placeholder="confEntry.default_value?.toString()"
-      clearable
       :disabled="isFieldDisabled"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :prepend-inner-icon="confEntry.value as string"
       variant="outlined"
       density="comfortable"
@@ -230,11 +241,12 @@
         confEntry.type == ConfigEntryType.STRING && confEntry.multi_value
       "
       :model-value="confEntry.value as string[]"
+      :menu-props="{ zIndex: 10000 }"
       multiple
       chips
       :clearable="true"
       :disabled="isFieldDisabled"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :required="confEntry.required"
       :rules="[
         (v) => !(!v && confEntry.required) || $t('settings.invalid_input'),
@@ -252,7 +264,7 @@
       :placeholder="confEntry.default_value?.toString()"
       clearable
       :disabled="isFieldDisabled"
-      :label="getTranslatedLabel()"
+      :label="displayLabel()"
       :required="confEntry.required"
       :rules="[
         (v) => !(!v && confEntry.required) || $t('settings.invalid_input'),
@@ -281,6 +293,9 @@ import {
   ConfigValueType,
   SECURE_STRING_SUBSTITUTE,
 } from "@/plugins/api/interfaces";
+import IconPicker from "@/components/IconPicker.vue";
+import AlertField from "./fields/AlertField.vue";
+import LabelField from "./fields/LabelField.vue";
 import { ConfigEntryUI, isDspLinkEntry } from "@/helpers/config_entry_ui";
 import { $t } from "@/plugins/i18n";
 import { computed } from "vue";
@@ -295,6 +310,15 @@ const isFieldDisabled = computed(() => {
   return props.disabled || props.confEntry.read_only;
 });
 
+// Only surface an <img> when a source is actually available; otherwise the
+// element would render as a broken image (both value and default missing).
+const imageSrc = computed(
+  () =>
+    (props.confEntry.value ?? props.confEntry.default_value) as
+      | string
+      | undefined,
+);
+
 const emit = defineEmits<{
   (e: "togglePassword"): void;
   (e: "action"): void;
@@ -303,40 +327,13 @@ const emit = defineEmits<{
   (e: "update:value", value: ConfigValueType): void;
 }>();
 
-// Helper function to get the translated label for a config entry
-const getTranslatedLabel = () => {
-  // prefer translation_key over key (using key for translations is deprecated)
-  const key = props.confEntry.translation_key || props.confEntry.key;
-  const translationKey = `settings.${key}.label`;
-  const fallback = props.confEntry.label;
+// Labels arrive display-ready: server-provided entries are resolved server-side for the
+// connection locale, and frontend-only entries are translated where they are constructed.
+// This field just surfaces them, so there is no translation lookup here.
+const displayLabel = () => props.confEntry.label || props.confEntry.key;
 
-  // If translation_params are provided, pass them directly
-  if (
-    props.confEntry.translation_params &&
-    props.confEntry.translation_params.length > 0
-  ) {
-    return $t(translationKey, props.confEntry.translation_params) || fallback;
-  }
-
-  return $t(translationKey, fallback);
-};
-
-// Helper function to get the translated action label for a config entry
-const getTranslatedActionLabel = () => {
-  const key = props.confEntry.translation_key || props.confEntry.key;
-  const translationKey = `settings.${key}.label`;
-  const fallback = props.confEntry.action_label || props.confEntry.label;
-
-  // If translation_params are provided, pass them directly
-  if (
-    props.confEntry.translation_params &&
-    props.confEntry.translation_params.length > 0
-  ) {
-    return $t(translationKey, props.confEntry.translation_params) || fallback;
-  }
-
-  return $t(translationKey, fallback);
-};
+const displayActionLabel = () =>
+  props.confEntry.action_label || props.confEntry.label || props.confEntry.key;
 
 const onUpdateValue = (value: ConfigValueType) => {
   // When value is cleared (null/undefined/empty array), emit the default value instead
@@ -357,27 +354,17 @@ const onClear = () => {
   emit("update:value", null);
 };
 
-const translatedOptions = computed(() => {
+const displayOptions = computed(() => {
   if (!props.confEntry.options) return [];
   const options: ConfigValueOption[] = [];
   for (const orgOption of props.confEntry.options) {
-    let cleanVal = orgOption.value?.toString() || "";
-    let cleanTitle = orgOption.title?.toString() || "";
-    for (const specialChar of ["@", "$", "|"]) {
-      if (cleanVal.includes(specialChar)) {
-        cleanVal = cleanVal.replaceAll(specialChar, "");
-      }
-      if (cleanTitle.includes(specialChar)) {
-        cleanTitle = cleanTitle.toString().replaceAll(specialChar, "");
-      }
-    }
-    let title = $t(
-      `settings.${props.confEntry.key}.options.${cleanVal}`,
-      cleanTitle,
-    );
+    // option titles are resolved server-side for the connection locale; use them directly
     const option: ConfigValueOption = {
-      title: title,
+      title: orgOption.title?.toString() || orgOption.value?.toString() || "",
       value: orgOption.value,
+      disabled: orgOption.disabled,
+      disabled_reason: orgOption.disabled_reason,
+      description: orgOption.description,
     };
     if (option.value == props.confEntry.default_value) {
       option.title += ` [${$t("settings.default")}]`;
@@ -398,15 +385,23 @@ const translatedOptions = computed(() => {
   padding: 8px 0;
 }
 
+.config-image {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.config-image img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+}
+
 .divider-label {
   display: block;
   margin-top: 12px;
   font-weight: 600;
   font-size: 0.875rem;
-}
-
-.config-alert {
-  margin: 8px 0;
 }
 
 .action-btn {

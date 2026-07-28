@@ -35,14 +35,7 @@
                     :value="genre.item_id"
                     @select="selectGenre(genre)"
                   >
-                    {{
-                      getGenreDisplayName(
-                        genre.name,
-                        genre.translation_key,
-                        t,
-                        te,
-                      )
-                    }}
+                    {{ genre.name }}
                     <Check
                       v-if="selectedTargetId === genre.item_id"
                       class="ml-auto h-4 w-4"
@@ -92,18 +85,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { getGenreDisplayName } from "@/helpers/utils";
 import { api } from "@/plugins/api";
-import type { Genre } from "@/plugins/api/interfaces";
+import type { Genre, MediaType } from "@/plugins/api/interfaces";
 import { eventbus, type MergeGenreDialogEvent } from "@/plugins/eventbus";
 import { store } from "@/plugins/store";
-import { Check, ChevronsUpDown } from "lucide-vue-next";
+import { Check, ChevronsUpDown } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { toast } from "vue-sonner";
 
-const { t, te } = useI18n();
+const { t } = useI18n();
 const router = useRouter();
 
 const open = ref(false);
@@ -111,11 +103,16 @@ const popoverOpen = ref(false);
 const loading = ref(false);
 const genreIds = ref<string[]>([]);
 const genreNames = ref<string[]>([]);
+const sourceContentType = ref<MediaType | null>(null);
 const allGenres = ref<Genre[]>([]);
 const selectedTargetId = ref<string | null>(null);
 
 const availableGenres = computed(() =>
-  allGenres.value.filter((g) => !genreIds.value.includes(g.item_id)),
+  allGenres.value.filter(
+    (g) =>
+      !genreIds.value.includes(g.item_id) &&
+      (g.content_type ?? null) === sourceContentType.value,
+  ),
 );
 
 const selectedGenreName = computed(() => {
@@ -124,7 +121,7 @@ const selectedGenreName = computed(() => {
     (g) => g.item_id === selectedTargetId.value,
   );
   if (!genre) return "";
-  return getGenreDisplayName(genre.name, genre.translation_key, t, te);
+  return genre.name;
 });
 
 const selectGenre = (genre: Genre) => {
@@ -159,6 +156,7 @@ const handleMerge = async () => {
 const reset = () => {
   genreIds.value = [];
   genreNames.value = [];
+  sourceContentType.value = null;
   allGenres.value = [];
   selectedTargetId.value = null;
   loading.value = false;
@@ -174,6 +172,7 @@ onMounted(() => {
     reset();
     genreIds.value = evt.genreIds;
     genreNames.value = evt.genreNames;
+    sourceContentType.value = evt.genreContentTypes[0] ?? null;
     allGenres.value = await api.getLibraryGenres({ hide_empty: false });
     open.value = true;
   });

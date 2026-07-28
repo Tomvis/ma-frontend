@@ -6,6 +6,7 @@
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
     :sort-keys="sortKeys"
+    :update-available="updateAvailable"
     :title="$t('albums')"
     :allow-key-hooks="true"
     :show-search-button="true"
@@ -23,24 +24,41 @@
 
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
+import { onLibrarySyncCompleted } from "@/composables/useLibrarySync";
 import {
   ALBUM_SORT_KEYS,
   buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
+import { MediaType } from "@/plugins/api/interfaces";
 import { store } from "@/plugins/store";
-import { Disc3 } from "lucide-vue-next";
-import { ref } from "vue";
+import { Disc3 } from "@lucide/vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
 defineOptions({
   name: "Albums",
 });
 
+const updateAvailable = ref<boolean>(false);
 const total = ref(store.libraryAlbumsCount);
 
 const sortKeys = [...ALBUM_SORT_KEYS];
 
+onMounted(() => {
+  // The per-view MEDIA_ITEM_ADDED listener is intentionally gone: ItemsListing
+  // now bridges add/update/delete events itself (including across unmounts),
+  // so duplicating it here only produced redundant refresh prompts.
+  // Sync completion is a separate signal though — the server suppresses
+  // per-item events while a provider library sync runs — so keep upstream's
+  // sync hook to refresh once this media type finishes syncing.
+  const unsubSync = onLibrarySyncCompleted(MediaType.ALBUM, () => {
+    updateAvailable.value = true;
+  });
+  onBeforeUnmount(unsubSync);
+});
+
 const loadItems = async function (params: LoadDataParams) {
+  updateAvailable.value = false;
   setTotals(params);
   return await api.getLibraryAlbums({
     favorite: params.favoritesOnly || undefined,

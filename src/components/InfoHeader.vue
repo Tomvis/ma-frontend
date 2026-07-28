@@ -14,6 +14,7 @@
         width="100%"
         height="100%"
         cover
+        alt=""
         class="background-image"
         :src="fanartImage"
         :gradient="
@@ -83,6 +84,7 @@
           <img
             v-if="artistLogo"
             :src="artistLogo"
+            :alt="$t('tooltip.artwork')"
             width="auto"
             height="80"
             style="padding-left: 10px"
@@ -288,11 +290,7 @@
               icon="mdi-play-circle-outline"
               :text="truncateString($t('play'), 14)"
               :disabled="!item"
-              :loading="
-                store.activePlayerQueue &&
-                store.activePlayerQueue.extra_attributes
-                  ?.play_action_in_progress === true
-              "
+              :loading="playActionInProgress"
               :open-menu-on-click="!store.activePlayer"
               style="margin-right: 8px; margin-bottom: 4px"
               @click="playButtonClick"
@@ -325,6 +323,11 @@
               <!-- details can be reached out of library context, so always show
               the membership badge (bookshelf when in library, else source) -->
               <provider-icon :domain="getProviderIconDomain(item)" :size="25" />
+              <!-- audio analysis details (full track details only) -->
+              <AudioAnalysisMetadata
+                v-if="item.media_type == MediaType.TRACK"
+                :audio-metadata="(item as Track).audio_metadata"
+              />
               <!-- slot for extra action icons (e.g. smart playlist edit) -->
               <slot name="append-actions"></slot>
               <!-- merge genre button (admin only) -->
@@ -384,19 +387,20 @@
                 $vuetify.display.mobile ? 15 : 25,
               )"
               :key="genre.item_id"
+              v-hold="(e: Event) => onHold(e, genre)"
               color="blue-grey lighten-1"
               style="margin-right: 5px; margin-bottom: 5px"
               small
               outlined
               class="cursor-pointer"
               @click="handleMediaItemClick(genre, 0, 0)"
+              @click.capture="swallowClickAfterHold"
               @contextmenu.prevent="
                 (e: MouseEvent) => showGenreChipContextMenu(e, genre)
               "
+              @touchstart.passive="onTouchStart"
             >
-              {{
-                getGenreDisplayName(genre.name, genre.translation_key, t, te)
-              }}
+              {{ genre.name }}
             </v-chip>
           </div>
         </div>
@@ -410,6 +414,7 @@
         <!-- eslint-disable vue/no-v-html -->
         <div
           class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
+          style="max-height: 60vh; overflow-y: auto"
           v-html="fullDescription"
         ></div>
         <!-- eslint-enable vue/no-v-html -->
@@ -429,10 +434,22 @@
 
 <script setup lang="ts">
 import Toolbar from "@/components/Toolbar.vue";
+import AudioAnalysisMetadata from "@/components/AudioAnalysisMetadata.vue";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  getEventPosition,
+  useHoldToOpenMenu,
+} from "@/composables/useHoldToOpenMenu";
+import { useUserPreferences } from "@/composables/userPreferences";
 import { MarqueeTextSync } from "@/helpers/marquee_text_sync";
 import {
-  getGenreDescription,
-  getGenreDisplayName,
   getImageThumbForItem,
   handleMediaItemClick,
   handlePlayBtnClick,
@@ -440,10 +457,8 @@ import {
   parseBool,
   truncateString,
 } from "@/helpers/utils";
-import {
-  ContextMenuItem,
-  getContextMenuItems,
-} from "@/layouts/default/ItemContextMenu.vue";
+import type { ContextMenuItem } from "@/helpers/context_menu_item";
+import { getContextMenuItems } from "@/layouts/default/ItemContextMenu.vue";
 import { api } from "@/plugins/api";
 import { getProviderIconDomain } from "@/plugins/api/helpers";
 import type {
@@ -457,26 +472,16 @@ import { ImageType, MediaType, Track } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
 import { eventbus } from "@/plugins/eventbus";
 import { store } from "@/plugins/store";
+import { ArrowLeft, Merge, Trash2 } from "@lucide/vue";
 import { IconHeart, IconHeartFilled } from "@tabler/icons-vue";
-import { ArrowLeft, Merge, Trash2 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useDisplay } from "vuetify";
-import { useUserPreferences } from "@/composables/userPreferences";
 import MarqueeText from "./MarqueeText.vue";
 import MediaItemThumb from "./MediaItemThumb.vue";
 import MenuButton from "./MenuButton.vue";
 import ProviderIcon from "./ProviderIcon.vue";
 import ListenLaterButton from "./album/ListenLaterButton.vue";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 // properties
 export interface Props {
@@ -495,19 +500,10 @@ const imgGradient = new URL("../assets/info_gradient.jpg", import.meta.url)
 
 const marqueeSync = new MarqueeTextSync();
 const router = useRouter();
-const { t, te } = useI18n();
 const { getPreference } = useUserPreferences();
 
 const headerTitle = computed(() => {
   if (!compProps.item) return "";
-  if (compProps.item.media_type === MediaType.GENRE) {
-    return getGenreDisplayName(
-      compProps.item.name,
-      compProps.item.translation_key,
-      t,
-      te,
-    );
-  }
   return compProps.item.name;
 });
 
@@ -554,7 +550,7 @@ watch(shortcutsPreference, async () => {
   }
 });
 
-const showGenreChipContextMenu = (evt: MouseEvent, genre: Genre) => {
+const showGenreChipContextMenu = (evt: Event, genre: Genre) => {
   if (
     !compProps.item ||
     !isAdmin.value ||
@@ -579,12 +575,17 @@ const showGenreChipContextMenu = (evt: MouseEvent, genre: Genre) => {
       },
     },
   ];
+  const pos = getEventPosition(evt);
   eventbus.emit("contextmenu", {
     items: menuItems,
-    posX: evt.clientX,
-    posY: evt.clientY,
+    posX: pos.x,
+    posY: pos.y,
   });
 };
+
+const { onHold, onTouchStart, swallowClickAfterHold } = useHoldToOpenMenu(
+  showGenreChipContextMenu,
+);
 
 const albumClick = function (item: Album | ItemMapping) {
   // album entry clicked
@@ -628,6 +629,20 @@ const backButtonClick = function () {
   });
 };
 
+// Resolve the queue playMedia targets directly, since activePlayerQueue is
+// undefined while an external source is active.
+const playActionInProgress = computed(() => {
+  const player = store.activePlayer;
+  if (!player) return false;
+  const queueId =
+    player.active_source && player.active_source in api.queues
+      ? player.active_source
+      : player.player_id;
+  return (
+    api.queues[queueId]?.extra_attributes?.play_action_in_progress === true
+  );
+});
+
 const playButtonClick = function (forceMenu = false) {
   const playButton = document.getElementById("playbutton") as HTMLElement;
   handlePlayBtnClick(
@@ -644,13 +659,6 @@ const rawDescription = computed(() => {
   if (!compProps.item) return "";
   if (compProps.item.metadata && compProps.item.metadata.description) {
     return compProps.item.metadata.description;
-  } else if (compProps.item.media_type === MediaType.GENRE) {
-    return getGenreDescription(
-      compProps.item.name,
-      compProps.item.translation_key,
-      t,
-      te,
-    );
   } else if (compProps.item.metadata && compProps.item.metadata.copyright) {
     return compProps.item.metadata.copyright;
   } else if ("artists" in compProps.item) {
@@ -688,6 +696,7 @@ const mergeGenre = () => {
   eventbus.emit("mergeGenreDialog", {
     genreIds: [compProps.item.item_id],
     genreNames: [compProps.item.name],
+    genreContentTypes: [(compProps.item as Genre).content_type],
   });
 };
 

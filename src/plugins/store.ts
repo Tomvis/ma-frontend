@@ -9,6 +9,7 @@ import {
 } from "./api/interfaces";
 
 import { StoredState } from "@/components/ItemsListing.vue";
+import { isHomeAssistantIngressSession } from "@/helpers/ingress";
 import { isTouchscreenDevice, parseBool } from "@/helpers/utils";
 import api from "./api";
 
@@ -38,7 +39,8 @@ interface Store {
   activePlayerQueue?: PlayerQueue;
   curQueueItem?: QueueItem;
   globalSearchTerm?: string;
-  globalSearchType?: MediaType;
+  // media type filter for the global search; empty means all media types
+  globalSearchMediaTypes: MediaType[];
   prevState?: StoredState;
   prevRoute?: string;
   libraryArtistsCount?: number;
@@ -61,7 +63,7 @@ interface Store {
   enabledPlugins: Set<string>;
   isPartyGuest: boolean;
   companionPlayerId?: string;
-  homescreenEditMode: boolean;
+  navMenuEditMode: boolean;
 }
 
 export const store: Store = reactive({
@@ -103,7 +105,7 @@ export const store: Store = reactive({
     return undefined;
   }),
   globalSearchTerm: undefined,
-  globalSearchType: undefined,
+  globalSearchMediaTypes: [],
   prevState: undefined,
   prevRoute: undefined,
   libraryArtistsCount: undefined,
@@ -130,9 +132,11 @@ export const store: Store = reactive({
   }),
   currentUser: undefined,
   serverInfo: undefined,
-  isIngressSession: window.location.pathname.includes("/hassio_ingress/"),
+  isIngressSession: computed(() =>
+    isHomeAssistantIngressSession(api.serverInfo.value),
+  ),
   isOnboarding: false,
   enabledPlugins: new Set(),
   isPartyGuest: false,
-  homescreenEditMode: false,
+  navMenuEditMode: false,
 });

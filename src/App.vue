@@ -16,8 +16,10 @@
   <PlayerBrowserMediaControls
     v-if="
       webPlayer.audioSource === WebPlayerMode.CONTROLS_ONLY &&
-      webPlayer.interacted == true
+      webPlayer.interacted == true &&
+      !mediaSessionDisabled
     "
+    :key="webPlayer.tabMode"
   />
   <SendspinPlayer
     v-if="
@@ -33,18 +35,27 @@
 <script setup lang="ts">
 import { Toaster } from "@/components/ui/sonner";
 import { initGlobalShortcutsSync } from "@/composables/useShortcuts";
+import { useThemePreference } from "@/composables/useThemePreference";
+import { sanitizeDashboardViewerPath } from "@/helpers/dashboard_viewer_access";
+import {
+  createLocalConnectionIdentity,
+  createRemoteConnectionIdentity,
+} from "@/helpers/connection_identity";
+import { DASHBOARD_VIEWER_PATH_STORAGE_KEY } from "@/helpers/guest_session";
+import {
+  isMediaSessionDisabled,
+  resetMediaSession,
+} from "@/helpers/mediaSession";
 import { api, ConnectionState } from "@/plugins/api";
 import { CoreState, EventType, ProviderType } from "@/plugins/api/interfaces";
 import { toast } from "vue-sonner";
 import { getDeviceName } from "@/plugins/api/helpers";
 import authManager from "@/plugins/auth";
-import { i18n } from "@/plugins/i18n";
+import { i18n, resolveLocale } from "@/plugins/i18n";
 import { store } from "@/plugins/store";
-import { useColorMode } from "@vueuse/core";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import "vue-sonner/style.css";
-import { useTheme } from "vuetify";
 import SendspinPlayer from "./components/SendspinPlayer.vue";
 import PlayerBrowserMediaControls from "./layouts/default/PlayerOSD/PlayerBrowserMediaControls.vue";
 import { pruneStaleProviderFilters } from "./composables/userPreferences";
@@ -66,9 +77,20 @@ import {
 import Login from "./views/Login.vue";
 import { useUserPreferences } from "@/composables/userPreferences";
 
-const theme = useTheme();
 const router = useRouter();
-const mode = useColorMode();
+const route = useRoute();
+const { applyThemePreference: setTheme } = useThemePreference();
+const mediaSessionDisabled = computed(() =>
+  isMediaSessionDisabled(route, authManager.isGuestAccessSession()),
+);
+
+watch(
+  mediaSessionDisabled,
+  (disabled) => {
+    if (disabled) resetMediaSession();
+  },
+  { immediate: true },
+);
 
 const isConnected = ref(false);
 const loginComponent = ref<InstanceType<typeof Login> | null>(null);
@@ -87,38 +109,6 @@ const showMainApp = computed(() => {
   }
   return true;
 });
-
-const setTheme = function () {
-  // TODO: Remove localStorage fallback once migration period is over (theme moved to user preferences)
-  const themePref =
-    (store.currentUser?.preferences?.theme as string) ||
-    localStorage.getItem("frontend.settings.theme") ||
-    "auto";
-  let themeValue: "light" | "dark";
-
-  if (themePref == "dark") {
-    // forced dark mode
-    theme.change("dark");
-    themeValue = "dark";
-  } else if (themePref == "light") {
-    // forced light mode
-    theme.change("light");
-    themeValue = "light";
-  } else if (
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  ) {
-    // dark mode is enabled in browser
-    theme.change("dark");
-    themeValue = "dark";
-  } else {
-    // light mode is enabled in browser
-    theme.change("light");
-    themeValue = "light";
-  }
-
-  mode.value = themePref === "auto" ? "auto" : themeValue;
-};
 
 const interactedHandler = function () {
   webPlayer.setInteracted();
@@ -150,7 +140,10 @@ const handleRemoteAuthenticated = async (credentials: {
       authManager.setCurrentUser(credentials.user);
       api.state.value = ConnectionState.AUTHENTICATED;
     } else if (credentials.token && credentials.user) {
-      authManager.setToken(credentials.token);
+      authManager.setToken(
+        credentials.token,
+        getCurrentAuthConnectionIdentity(),
+      );
       authManager.setCurrentUser(credentials.user);
     } else if (credentials.username && credentials.password) {
       const result = await api.loginWithCredentials(
@@ -158,7 +151,7 @@ const handleRemoteAuthenticated = async (credentials: {
         credentials.password,
         getDeviceName(),
       );
-      authManager.setToken(result.token);
+      authManager.setToken(result.token, getCurrentAuthConnectionIdentity());
       user = result.user;
       if (user) {
         authManager.setCurrentUser(user);
@@ -172,6 +165,12 @@ const handleRemoteAuthenticated = async (credentials: {
     }
 
     // Update remote connection manager
+    if (
+      !authManager.isGuestAccessSession() &&
+      !authManager.isDashboardViewer()
+    ) {
+      remoteConnectionManager.rememberCurrentRemoteConnection();
+    }
     remoteConnectionManager.setAuthenticated(
       api.serverInfo.value?.server_id || undefined,
     );
@@ -190,11 +189,35 @@ const handleLocalConnect = async (serverAddress: string) => {
   }
   const { authManager } = await import("@/plugins/auth");
   authManager.setBaseUrl(serverAddress);
+  await httpProxyBridge.ensureReady();
+  await httpProxyBridge.setTransport(null);
   await api.initialize(serverAddress);
   isConnected.value = true;
 };
 
 let initializationCompleted = false;
+
+const refreshPluginEnabledState = async (domain: string) => {
+  try {
+    const providers = await api.getProviderConfigs(ProviderType.PLUGIN, domain);
+    if (providers.length > 0 && providers[0].enabled) {
+      store.enabledPlugins.add(domain);
+    } else {
+      store.enabledPlugins.delete(domain);
+    }
+  } catch (error) {
+    console.error("[App] Failed to check " + domain + " status:", error);
+    store.enabledPlugins.delete(domain);
+  }
+};
+
+const refreshPluginEnabledStates = async () => {
+  await Promise.all([
+    refreshPluginEnabledState("party"),
+    refreshPluginEnabledState("music_quiz"),
+    refreshPluginEnabledState("ai_radio"),
+  ]);
+};
 
 // TODO: Remove this migration code in v2.9 release
 // Added in: current version
@@ -208,7 +231,7 @@ async function migrateLocalStorageToUserPreferences() {
   }
 
   const { setPreference } = useUserPreferences();
-  const settingsToMigrate = ["theme", "language", "menu_items"];
+  const settingsToMigrate = ["theme", "language"];
 
   try {
     for (const key of settingsToMigrate) {
@@ -249,6 +272,13 @@ const completeInitialization = async () => {
   store.currentUser = userInfo;
   store.serverInfo = serverInfo;
 
+  const isGuestAccessSession = authManager.isGuestAccessSession();
+  const isDashboardViewer = authManager.isDashboardViewer();
+  const connectionIdentity = getCurrentAuthConnectionIdentity();
+  if (!isGuestAccessSession && !isDashboardViewer && connectionIdentity) {
+    authManager.bindPersistentToken(connectionIdentity);
+  }
+
   // Enable kiosk mode when running in Home Assistant ingress
   // COMMENTED OUT - HA INTEGRATION DISABLED
   // if (store.isIngressSession && serverInfo.homeassistant_addon) {
@@ -258,16 +288,16 @@ const completeInitialization = async () => {
 
   // TODO: Remove this migration code in v2.9 release
   // Migrate localStorage settings to user preferences (one-time migration)
-  await migrateLocalStorageToUserPreferences();
+  if (!isGuestAccessSession && !isDashboardViewer) {
+    await migrateLocalStorageToUserPreferences();
+  }
 
   if (api.baseUrl) {
     webPlayer.setBaseUrl(api.baseUrl);
   }
 
-  const isPartyGuest = authManager.isPartyGuest();
-
-  if (!isPartyGuest) {
-    // Full initialization for regular and non-party guest users
+  if (!isGuestAccessSession && !isDashboardViewer) {
+    // Full initialization for regular users
     await api.fetchState();
     // Drop persisted filters for providers that are no longer installed.
     await pruneStaleProviderFilters();
@@ -279,24 +309,16 @@ const completeInitialization = async () => {
     store.libraryPodcastsCount = await api.getLibraryPodcastsCount();
     store.libraryAudiobooksCount = await api.getLibraryAudiobooksCount();
     store.libraryGenresCount = await api.getLibraryGenresCount();
-  } else {
-    console.debug("[App] Party guest - skipping full state fetch");
-  }
 
-  // Check if party plugin is enabled
-  try {
-    const partyProviders = await api.getProviderConfigs(
-      ProviderType.PLUGIN,
-      "party",
-    );
-    if (partyProviders.length > 0 && partyProviders[0].enabled) {
-      store.enabledPlugins.add("party");
-    } else {
-      store.enabledPlugins.delete("party");
-    }
-  } catch (error) {
-    console.error("[App] Failed to check party status:", error);
-    store.enabledPlugins.delete("party");
+    // Keep plugin-backed UI entries in sync with enabled providers.
+    await refreshPluginEnabledStates();
+  } else if (isDashboardViewer) {
+    console.debug("[App] Dashboard viewer - fetching player/queue state only");
+    // Dashboards render live player/queue state, which regular guests don't need
+    await api.fetchState();
+  } else {
+    console.debug("[App] Guest user - skipping regular user initialization");
+    await api.fetchProviders();
   }
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -307,9 +329,13 @@ const completeInitialization = async () => {
   ) {
     store.isOnboarding = true;
     router.push("/settings");
-  } else if (isPartyGuest) {
-    // Party guests should always be redirected to the guest view
+  } else if (isGuestAccessSession) {
     router.push("/guest");
+  } else if (isDashboardViewer) {
+    const pinnedPath = sanitizeDashboardViewerPath(
+      sessionStorage.getItem(DASHBOARD_VIEWER_PATH_STORAGE_KEY),
+    );
+    router.replace(pinnedPath);
   }
   // Don't push to any route here - let the router handle navigation naturally
   // from the URL hash. The router config already redirects "/" to "/discover"
@@ -379,7 +405,10 @@ onMounted(async () => {
     localStorage.getItem("frontend.settings.language") ||
     "auto";
   if (langPref !== "auto") {
-    i18n.global.locale.value = langPref;
+    i18n.global.locale.value = resolveLocale(
+      langPref,
+      Array.from(i18n.global.availableLocales),
+    );
   }
   store.forceMobileLayout =
     localStorage.getItem("frontend.settings.force_mobile_layout") == "true";
@@ -397,8 +426,34 @@ onMounted(async () => {
           localStorage.getItem("frontend.settings.language") ||
           "auto";
         if (userLangPref !== "auto") {
-          i18n.global.locale.value = userLangPref;
+          i18n.global.locale.value = resolveLocale(
+            userLangPref,
+            Array.from(i18n.global.availableLocales),
+          );
         }
+      }
+    },
+  );
+
+  // Push UI locale changes to the server so server-provided strings (config labels, media/folder
+  // names, provider descriptions) re-localize. Initial/reconnect locale is sent from the api on
+  // ServerInfo; this catches later changes (language preference applied, manual switch).
+  watch(
+    () => i18n.global.locale.value,
+    async (locale) => {
+      // Only relevant for servers that localize server-provided strings; older servers can't
+      // re-localize, so there's nothing to push or re-fetch.
+      if (!api.supportsServerSideTranslations) return;
+      try {
+        await api.setLocale(locale as string);
+        if (
+          api.state.value === ConnectionState.AUTHENTICATED &&
+          !authManager.isGuestAccessSession()
+        ) {
+          await api.fetchState();
+        }
+      } catch {
+        // best-effort: a failed locale push / refresh shouldn't break the UI
       }
     },
   );
@@ -420,11 +475,7 @@ onMounted(async () => {
         initializationCompleted = false;
 
         const { authManager } = await import("@/plugins/auth");
-        // Check if we're in Ingress mode by examining the URL path
-        const isIngressMode =
-          window.location.pathname.includes("/hassio_ingress/");
-
-        if (isIngressMode) {
+        if (store.isIngressSession) {
           // In Ingress mode, authentication happens via HA proxy headers
           try {
             const user = await api.getCurrentUserInfo();
@@ -474,30 +525,34 @@ onMounted(async () => {
     await completeInitialization();
   }
 
-  // Subscribe to PROVIDERS_UPDATED to keep enabledPlugins in sync
+  // Subscribe to PROVIDERS_UPDATED to keep enabledPlugins in sync.
   api.subscribe(EventType.PROVIDERS_UPDATED, async () => {
-    try {
-      const partyProviders = await api.getProviderConfigs(
-        ProviderType.PLUGIN,
-        "party",
-      );
-      if (partyProviders.length > 0 && partyProviders[0].enabled) {
-        store.enabledPlugins.add("party");
-      } else {
-        store.enabledPlugins.delete("party");
-      }
-    } catch (error) {
-      console.error("[App] Failed to update party status:", error);
-    }
+    if (authManager.isGuestAccessSession() || authManager.isDashboardViewer())
+      return;
+
+    await refreshPluginEnabledStates();
   });
 
   // Re-prune when the provider set changes at runtime.
   api.subscribe(EventType.PROVIDERS_UPDATED, () => {
-    pruneStaleProviderFilters();
+    if (
+      !authManager.isGuestAccessSession() &&
+      !authManager.isDashboardViewer()
+    ) {
+      void pruneStaleProviderFilters();
+    }
   });
 });
 
 onUnmounted(() => {
   // unsubscribeFromHAProperties();
 });
+
+function getCurrentAuthConnectionIdentity() {
+  return api.isRemoteConnection.value
+    ? createRemoteConnectionIdentity(
+        remoteConnectionManager.currentRemoteId.value,
+      )
+    : createLocalConnectionIdentity(api.baseUrl);
+}
 </script>

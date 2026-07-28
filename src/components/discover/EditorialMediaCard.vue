@@ -82,7 +82,6 @@ import ProviderIcon from "@/components/ProviderIcon.vue";
 import {
   getArtistsString,
   getBrowseFolderName,
-  getGenreDisplayName,
   handleMediaItemClick,
   handleMenuBtnClick,
   handlePlayBtnClick,
@@ -96,7 +95,7 @@ import {
   MediaType,
   type Track,
 } from "@/plugins/api/interfaces";
-import { Play } from "lucide-vue-next";
+import { Play } from "@lucide/vue";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -130,7 +129,7 @@ const emit = defineEmits<{
   (e: "select", item: MediaItemType | ItemMapping, selected: boolean): void;
 }>();
 
-const { t, te } = useI18n();
+const { t } = useI18n();
 
 const art = computed(() => itemArtwork(props.item, 320));
 
@@ -155,12 +154,9 @@ const providerDomain = computed<string | undefined>(() => {
 const displayName = computed(() => {
   const it = props.item;
   if (it.media_type === MediaType.FOLDER) {
-    return getBrowseFolderName(it as BrowseFolder, t);
+    return getBrowseFolderName(it as BrowseFolder);
   }
-  let name =
-    it.media_type === MediaType.GENRE
-      ? getGenreDisplayName(it.name, it.translation_key, t, te)
-      : it.name;
+  let name = it.name;
   if ("version" in it && it.version) name += ` - ${it.version}`;
   return name;
 });
@@ -332,6 +328,22 @@ const onMenu = (e: MouseEvent) => {
 }
 .ed-card__select--on {
   background: rgba(0, 0, 0, 0.45);
+}
+/* subtle grey ring on the outside so the white unselected circle stays visible on light thumbs */
+.ed-card__select:not(.ed-card__select--on) .v-icon {
+  position: relative;
+}
+.ed-card__select:not(.ed-card__select--on) .v-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 83%;
+  height: 83%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(192, 192, 192, 0.85);
+  pointer-events: none;
 }
 .ed-card__play {
   position: absolute;

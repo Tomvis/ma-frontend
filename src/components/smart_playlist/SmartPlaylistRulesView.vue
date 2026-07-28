@@ -87,19 +87,6 @@
         </span>
       </div>
     </div>
-
-    <div
-      v-if="rules.dedup_hours"
-      class="text-xs text-muted-foreground flex items-center gap-1.5 pt-1"
-    >
-      <Timer class="h-3.5 w-3.5" />
-      <span>
-        {{ $t("smart_playlist.dedup_hours") }}
-        <span class="font-medium text-foreground ml-1">
-          {{ rules.dedup_hours }}h
-        </span>
-      </span>
-    </div>
   </div>
 </template>
 
@@ -107,18 +94,9 @@
 import { Badge } from "@/components/ui/badge";
 import type { SmartPlaylistRules } from "@/plugins/api/interfaces";
 import { $t } from "@/plugins/i18n";
-import {
-  Ban,
-  CalendarRange,
-  Disc3,
-  Heart,
-  Library,
-  Mic2,
-  Sparkles,
-  Tags,
-  Timer,
-} from "lucide-vue-next";
+import { Ban, Library, Sparkles } from "@lucide/vue";
 import { computed, type Component } from "vue";
+import { fieldIcon } from "./fieldIcon";
 
 interface RuleViewRow {
   key: string;
@@ -161,7 +139,8 @@ const hasAnyInclude = computed(() => {
     !!r.artist_ids?.length ||
     !!r.album_ids?.length ||
     !!r.album_types?.length ||
-    !!r.favorites_only
+    !!r.favorites_only ||
+    r.explicit !== undefined
   );
 });
 
@@ -173,7 +152,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
   if (genreNames.length) {
     rows.push({
       key: "genre-is",
-      icon: Tags,
+      icon: fieldIcon("genre"),
       label: $t("smart_playlist.field_genre_is"),
       exclude: false,
       tags: genreNames,
@@ -194,7 +173,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
   if (artistNames.length) {
     rows.push({
       key: "artist-is",
-      icon: Mic2,
+      icon: fieldIcon("artist"),
       label: $t("smart_playlist.field_artist_is"),
       exclude: false,
       tags: artistNames,
@@ -218,7 +197,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
   if (albumNames.length) {
     rows.push({
       key: "album-is",
-      icon: Disc3,
+      icon: fieldIcon("album"),
       label: $t("smart_playlist.field_album_is"),
       exclude: false,
       tags: albumNames,
@@ -238,7 +217,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
   if (r.favorites_only) {
     rows.push({
       key: "favorite",
-      icon: Heart,
+      icon: fieldIcon("favorite"),
       label: $t("smart_playlist.field_favorite"),
       exclude: false,
       value: $t("smart_playlist.favorites_yes"),
@@ -251,7 +230,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
   if (albumTypeNames.length) {
     rows.push({
       key: "album-type-is",
-      icon: Disc3,
+      icon: fieldIcon("album_type"),
       label: $t("smart_playlist.field_album_type_is"),
       exclude: false,
       tags: albumTypeNames,
@@ -270,6 +249,32 @@ const ruleRows = computed<RuleViewRow[]>(() => {
     });
   }
 
+  if (r.explicit === null) {
+    rows.push({
+      key: "explicit-allowed",
+      icon: fieldIcon("explicit"),
+      label: $t("smart_playlist.field_explicit"),
+      exclude: false,
+      value: $t("smart_playlist.explicit_allowed"),
+    });
+  } else if (r.explicit === true) {
+    rows.push({
+      key: "explicit-is",
+      icon: fieldIcon("explicit"),
+      label: $t("smart_playlist.field_explicit"),
+      exclude: false,
+      value: $t("smart_playlist.explicit_only"),
+    });
+  } else if (r.explicit === false) {
+    rows.push({
+      key: "explicit-not",
+      icon: fieldIcon("explicit"),
+      label: $t("smart_playlist.field_explicit"),
+      exclude: true,
+      value: $t("smart_playlist.explicit_not_allowed"),
+    });
+  }
+
   const yf = r.year_from;
   const yt = r.year_to;
   if (
@@ -282,7 +287,7 @@ const ruleRows = computed<RuleViewRow[]>(() => {
     else v = `≤ ${yt}`;
     rows.push({
       key: "year",
-      icon: CalendarRange,
+      icon: fieldIcon("year"),
       label: $t("smart_playlist.field_year"),
       exclude: false,
       value: v,

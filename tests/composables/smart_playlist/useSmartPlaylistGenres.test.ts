@@ -12,10 +12,6 @@ vi.mock("vue-i18n", () => ({
   useI18n: () => ({ t: (k: string) => k, te: () => false }),
 }));
 
-vi.mock("@/helpers/utils", () => ({
-  getGenreDisplayName: (name: string) => name,
-}));
-
 vi.mock("@/plugins/api", () => ({
   default: {
     getLibraryGenres: vi.fn().mockResolvedValue([
@@ -25,7 +21,7 @@ vi.mock("@/plugins/api", () => ({
   },
 }));
 
-import { useSmartPlaylistGenres } from "@/composables/useSmartPlaylistGenres";
+import { useSmartPlaylistGenres } from "@/composables/smart-playlist/useSmartPlaylistGenres";
 
 describe("useSmartPlaylistGenres", () => {
   it("loads the genre list on mount and exposes options", async () => {

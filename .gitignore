@@ -123,6 +123,7 @@ venv/*
 !.vscode/launch.json
 !.vscode/tasks.json
 .coverage
+/.worktrees
 
 # Claude Code runtime artifacts (tracked skills stay; runtime locks don't)
 .claude/scheduled_tasks.lock

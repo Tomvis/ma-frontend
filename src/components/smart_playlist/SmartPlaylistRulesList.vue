@@ -24,7 +24,6 @@
       <span>{{ $t("smart_playlist.match_following") }}</span>
     </div>
     <div
-      v-else
       class="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
     >
       <Info class="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
@@ -45,6 +44,8 @@
         @change-field="(field) => onChangeField(rule, field)"
         @change-operator="(op) => onChangeOperator(rule, op)"
         @change-year="(v) => onChangeYear(rule, v)"
+        @change-duration="(v) => onChangeDuration(rule, v)"
+        @change-last-played="(v) => onChangeLastPlayed(rule, v)"
         @add-value="(v) => onAddValue(rule, v)"
         @remove-value="(id) => onRemoveValue(rule, id)"
         @remove="emit('remove-rule', rule.uid)"
@@ -86,9 +87,13 @@
           <DropdownMenuItem
             v-for="field in availableFields"
             :key="field"
-            class="text-xs cursor-pointer"
+            class="text-xs cursor-pointer gap-2"
             @click="emit('add-rule', field)"
           >
+            <component
+              :is="fieldIcon(field)"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
             {{ fieldLabel(field) }}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -116,11 +121,12 @@ import type {
   RuleField,
   RuleOperator,
   RuleRow,
-} from "@/composables/useSmartPlaylistRulesForm";
+} from "@/composables/smart-playlist/useSmartPlaylistRulesForm";
 import type { Genre } from "@/plugins/api/interfaces";
 import { $t } from "@/plugins/i18n";
-import { Info, Plus } from "lucide-vue-next";
+import { Info, Plus } from "@lucide/vue";
 import { match } from "ts-pattern";
+import { fieldIcon } from "./fieldIcon";
 import SmartPlaylistRuleRow from "./SmartPlaylistRuleRow.vue";
 
 defineProps<{
@@ -147,7 +153,10 @@ function fieldLabel(field: RuleField): string {
     .with("artist", () => $t("artist"))
     .with("album", () => $t("album"))
     .with("favorite", () => $t("smart_playlist.field_favorite"))
+    .with("explicit", () => $t("smart_playlist.field_explicit"))
     .with("year", () => $t("smart_playlist.field_year"))
+    .with("duration", () => $t("smart_playlist.field_duration"))
+    .with("last_played", () => $t("smart_playlist.field_last_played"))
     .exhaustive();
 }
 
@@ -158,6 +167,10 @@ function onChangeField(rule: RuleRow, field: RuleField) {
     values: [],
     yearFrom: undefined,
     yearTo: undefined,
+    minDuration: undefined,
+    maxDuration: undefined,
+    lastPlayedBeforeValue: undefined,
+    lastPlayedBeforeUnit: undefined,
   });
 }
 
@@ -167,6 +180,20 @@ function onChangeOperator(rule: RuleRow, op: RuleOperator) {
 
 function onChangeYear(rule: RuleRow, v: { from?: number; to?: number }) {
   emit("update-rule", rule.uid, { yearFrom: v.from, yearTo: v.to });
+}
+
+function onChangeDuration(rule: RuleRow, v: { min?: number; max?: number }) {
+  emit("update-rule", rule.uid, { minDuration: v.min, maxDuration: v.max });
+}
+
+function onChangeLastPlayed(
+  rule: RuleRow,
+  v: { value?: number; unit?: string },
+) {
+  emit("update-rule", rule.uid, {
+    lastPlayedBeforeValue: v.value,
+    lastPlayedBeforeUnit: v.unit as "hours" | "days" | "weeks" | "months",
+  });
 }
 
 function onAddValue(rule: RuleRow, v: { id: number; name: string }) {

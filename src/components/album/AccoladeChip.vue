@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Trophy, ExternalLink, ChevronDown } from "lucide-vue-next";
+import { Trophy, ExternalLink, ChevronDown } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import { formatDated, type ParsedAccolade } from "@/helpers/album_tags";
 import type { ReviewLink } from "@/plugins/api/interfaces";

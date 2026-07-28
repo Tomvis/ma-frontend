@@ -2,9 +2,10 @@ import {
   formatAliasName,
   formatDuration,
   formatRelativeTime,
-  getGenreDisplayName,
+  groupMemberPickerVisible,
   hexToRgb,
   kebabize,
+  markdownToHtml,
   numberRange,
   paletteFromServer,
   parseBool,
@@ -12,8 +13,15 @@ import {
   sleep,
   truncateString,
 } from "@/helpers/utils";
-import type { MediaItemPalette } from "@/plugins/api/interfaces";
-import { describe, expect, it, vi } from "vitest";
+import {
+  IdentifierType,
+  type MediaItemPalette,
+  type Player,
+  PlayerType,
+} from "@/plugins/api/interfaces";
+import { store } from "@/plugins/store";
+import { webPlayer } from "@/plugins/web_player";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/plugins/api", () => ({
   api: {
@@ -23,7 +31,7 @@ vi.mock("@/plugins/api", () => ({
 }));
 
 vi.mock("@/plugins/store", () => ({
-  store: {},
+  store: { companionPlayerId: undefined },
 }));
 
 vi.mock("@/plugins/breakpoint", () => ({
@@ -47,6 +55,83 @@ vi.mock("@/layouts/default/ItemContextMenu.vue", () => ({
 vi.mock("@/plugins/api/helpers", () => ({
   itemIsAvailable: vi.fn(),
 }));
+
+function createPlayer(overrides: Partial<Player> = {}): Player {
+  return {
+    player_id: "player",
+    provider: "test",
+    type: PlayerType.PLAYER,
+    name: "Player",
+    available: true,
+    device_info: {
+      model: "Test",
+      manufacturer: "Test",
+      identifiers: {
+        [IdentifierType.MAC_ADDRESS]: "",
+        [IdentifierType.SERIAL_NUMBER]: "",
+        [IdentifierType.UUID]: "",
+        [IdentifierType.IP_ADDRESS]: "",
+        [IdentifierType.UNKNOWN]: "",
+      },
+    },
+    supported_features: [],
+    can_group_with: [],
+    enabled: true,
+    group_members: [],
+    static_group_members: [],
+    source_list: [],
+    sound_mode_list: [],
+    options: [],
+    group_volume: null,
+    group_volume_muted: null,
+    hide_in_ui: false,
+    icon: "speaker",
+    power_control: "power",
+    volume_control: "volume",
+    mute_control: "mute",
+    needs_setup: false,
+    output_protocols: [],
+    active_output_protocol: null,
+    ...overrides,
+  };
+}
+
+describe("groupMemberPickerVisible", () => {
+  beforeEach(() => {
+    store.companionPlayerId = undefined;
+    webPlayer.player_id = null;
+  });
+
+  it("shows the hidden web player owned by this browser", () => {
+    const player = createPlayer({
+      player_id: "local-web-player",
+      hide_in_ui: true,
+    });
+    webPlayer.player_id = player.player_id;
+
+    expect(groupMemberPickerVisible(player)).toBe(true);
+  });
+
+  it("shows the hidden companion player owned by this app", () => {
+    const player = createPlayer({
+      player_id: "local-companion-player",
+      hide_in_ui: true,
+    });
+    store.companionPlayerId = player.player_id;
+
+    expect(groupMemberPickerVisible(player)).toBe(true);
+  });
+
+  it("keeps unrelated hidden players out of the picker", () => {
+    const player = createPlayer({
+      player_id: "remote-web-player",
+      hide_in_ui: true,
+    });
+    webPlayer.player_id = "local-web-player";
+
+    expect(groupMemberPickerVisible(player)).toBe(false);
+  });
+});
 
 describe("formatDuration", () => {
   it("formats seconds correctly", () => {
@@ -256,45 +341,26 @@ describe("formatRelativeTime", () => {
   });
 });
 
-describe("getGenreDisplayName", () => {
-  const mockT = (key: string) => {
-    const translations: Record<string, string> = {
-      "genre_names.rock": "Rock",
-      "genre_names.hip_hop": "Hip Hop",
-      full_key: "Full Key Translation",
-    };
-    return translations[key] || key;
-  };
+describe("markdownToHtml", () => {
+  it("neutralizes an onerror image payload", () => {
+    const html = markdownToHtml('<img src=x onerror="alert(1)">');
+    expect(html).not.toContain("onerror");
+  });
 
-  const mockTe = (key: string) => {
-    const known = ["genre_names.rock", "genre_names.hip_hop", "full_key"];
-    return known.includes(key);
-  };
+  it("strips script tags", () => {
+    const html = markdownToHtml("<script>alert(1)</script>");
+    expect(html).not.toContain("<script>");
+  });
 
-  it("uses translation_key directly if it resolves", () => {
-    expect(getGenreDisplayName("rock", "full_key", mockT, mockTe)).toBe(
-      "Full Key Translation",
+  it("renders legitimate markdown", () => {
+    expect(markdownToHtml("**bold**")).toContain("<strong>bold</strong>");
+    expect(markdownToHtml("[link](https://example.com)")).toContain(
+      'href="https://example.com"',
     );
   });
 
-  it("uses translation_key with genre_names prefix", () => {
-    expect(getGenreDisplayName("rock", "rock", mockT, mockTe)).toBe("Rock");
-  });
-
-  it("generates key from name as fallback", () => {
-    expect(getGenreDisplayName("hip hop", undefined, mockT, mockTe)).toBe(
-      "Hip Hop",
-    );
-  });
-
-  it("returns original case when no translation found", () => {
-    expect(
-      getGenreDisplayName("my Custom Genre", undefined, mockT, mockTe),
-    ).toBe("my Custom Genre");
-  });
-
-  it("handles empty name", () => {
-    expect(getGenreDisplayName("", undefined, mockT, mockTe)).toBe("");
+  it("converts line breaks", () => {
+    expect(markdownToHtml("line1\nline2")).toContain("<br>");
   });
 });
 

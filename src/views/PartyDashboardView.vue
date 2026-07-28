@@ -53,6 +53,7 @@
             v-if="isFullscreen && !hideBackButton"
             variant="ghost-icon"
             size="icon-sm"
+            :aria-label="$t('tooltip.exit_fullscreen')"
             @click="goFullscreen(false)"
           >
             <Minimize2 :size="13" />
@@ -82,13 +83,16 @@
               v-if="partyInstanceId"
               variant="ghost-icon"
               size="icon-sm"
+              :aria-label="$t('tooltip.party_settings')"
               @click="goToSettings"
             >
               <Settings :size="13" />
             </Button>
+            <ShowDashboardButton dashboard="party" />
             <Button
               variant="ghost-icon"
               size="icon-sm"
+              :aria-label="$t('tooltip.enter_fullscreen')"
               @click="goFullscreen(true)"
             >
               <Maximize2 :size="13" />
@@ -242,8 +246,11 @@
       </template>
     </div>
     <div
-      class="absolute bottom-1 right-1 flex items-center gap-2 opacity-50 font-medium"
-      :style="{ color: chromeTextColor }"
+      class="absolute right-1 flex items-center gap-2 opacity-50 font-medium"
+      :style="{
+        color: chromeTextColor,
+        bottom: 'var(--party-player-bottom)',
+      }"
     >
       <span>{{ $t("providers.party.powered_by") }}</span>
       <img :src="maLogoSrc" alt="Music Assistant" class="h-5 w-auto" />
@@ -284,6 +291,7 @@
 </template>
 
 <script setup lang="ts">
+import ShowDashboardButton from "@/components/ShowDashboardButton.vue";
 import LyricsViewer from "@/components/LyricsViewer.vue";
 import PartyQR from "@/components/party/PartyQR.vue";
 import PartyTrackCard from "@/components/party/PartyTrackCard.vue";
@@ -298,7 +306,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useLyricsElapsedTime } from "@/composables/useLyricsElapsedTime";
+import { useLyricsElapsedTime } from "@/composables/lyrics/useLyricsElapsedTime";
 import { usePartyConfig } from "@/composables/usePartyConfig";
 import {
   ImageColorPalette,
@@ -315,7 +323,6 @@ import {
   Track,
 } from "@/plugins/api/interfaces";
 import { store } from "@/plugins/store";
-import Color from "color";
 import {
   Maximize2,
   Minimize2,
@@ -324,10 +331,11 @@ import {
   Speaker,
   WifiIcon,
   WifiOff,
-} from "lucide-vue-next";
+} from "@lucide/vue";
+import { useColorMode } from "@vueuse/core";
+import Color from "color";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useColorMode } from "@vueuse/core";
 
 const router = useRouter();
 const { config: partyConfig, fetchConfig } = usePartyConfig();
@@ -635,6 +643,9 @@ const albumArtUrl = computed(() => {
 });
 
 // Gradient background style (used when album art is disabled, or as fallback)
+// oxlint false positive: every code path returns (early `{}` + final object),
+// which ESLint's vue/return-in-computed-property correctly accepts.
+// oxlint-disable-next-line vue/return-in-computed-property
 const gradientBackgroundStyle = computed(() => {
   // When using album art, the .background-image element handles visuals
   if (useAlbumArtBackground.value && albumArtUrl.value) {
@@ -882,12 +893,20 @@ watch(
 <style scoped>
 .party-view {
   width: 100%;
-  height: 100dvh;
+  height: 100vh;
   overflow: hidden;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Keep the vh fallback in a separate rule: the minifier collapses duplicate
+   declarations, which would drop it and leave Android TV without a height. */
+@supports (height: 100dvh) {
+  .party-view {
+    height: 100dvh;
+  }
 }
 
 .background-image {
@@ -1087,7 +1106,7 @@ watch(
   max-width: 60vw;
   display: flex;
   justify-content: center;
-  padding-bottom: 1rem;
+  padding-bottom: calc(1rem + var(--party-player-bottom, 0px));
 }
 
 .karaoke-track-stack :deep(.track-artwork) {
@@ -1316,5 +1335,17 @@ watch(
   overflow: hidden !important;
   display: flex;
   flex-direction: column;
+  padding-bottom: 0 !important;
+  /* total bottom offset for overlays (here, "Powered by"): player bar + tailwind spacing-1 gap */
+  --party-player-bottom: 94px; /* 90px player bar (View.vue .content-section) + 4px (spacing-1) */
+}
+
+.content-section--mobile.party-view-active {
+  padding-bottom: 0 !important;
+  --party-player-bottom: 189px; /* 185px above Footer.vue gradient overlay + 4px (spacing-1) */
+}
+
+.content-section--frameless.party-view-active {
+  --party-player-bottom: 4px; /* no player bar; tw spacing-1 gap from screen edge */
 }
 </style>

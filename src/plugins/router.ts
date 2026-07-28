@@ -1,4 +1,9 @@
+import { getGuestNavigationRedirect } from "@/helpers/guest_access";
+import { getDashboardViewerNavigationRedirect } from "@/helpers/dashboard_viewer_access";
+import { DASHBOARD_VIEWER_PATH_STORAGE_KEY } from "@/helpers/guest_session";
+import { $t } from "@/plugins/i18n";
 import { watch } from "vue";
+import { toast } from "vue-sonner";
 import {
   createRouter,
   createWebHashHistory,
@@ -10,23 +15,38 @@ import { authManager } from "./auth";
 import { notifyHARouteChange } from "./homeassistant";
 import { store } from "./store";
 
-const routes: RouteRecordRaw[] = [
-  // Guest view uses minimal layout without navigation/player controls
-  // Guest authentication is handled by Login.vue via the ?join= query parameter
-  // which exchanges the short join code for a JWT before navigating here
+export const routes: RouteRecordRaw[] = [
   {
     path: "/guest",
-    // Guest users don't have access to the player.
-    meta: { disableWebPlayer: true },
-    component: () => import("@/layouts/PartyGuestLayout.vue"),
+    component: () => import("@/layouts/GuestLayout.vue"),
     children: [
       {
         path: "",
         name: "guest",
         component: () =>
+          import(/* webpackChunkName: "guest" */ "@/views/GuestEntryView.vue"),
+      },
+      {
+        path: "party",
+        name: "guest-party",
+        meta: { disableMediaSession: true },
+        component: () =>
           import(/* webpackChunkName: "guest" */ "@/views/PartyGuestView.vue"),
       },
+      {
+        path: "quiz",
+        name: "guest-quiz",
+        meta: { disableMediaSession: true },
+        component: () =>
+          import(
+            /* webpackChunkName: "music-quiz" */ "@/views/MusicQuizPlayerView.vue"
+          ),
+      },
     ],
+  },
+  {
+    path: "/music-quiz/play",
+    redirect: "/guest",
   },
   // Party display uses minimal layout (fullscreen for wall-mounted tablets)
   // Placed at top level so it renders without navigation/player controls
@@ -63,11 +83,29 @@ const routes: RouteRecordRaw[] = [
               );
             });
           }
+          // Dashboard viewers can't populate enabledPlugins (scoped like guests); trust the server, since the session only exists via an already-enabled dashboard.
+          if (authManager.isDashboardViewer()) return;
+
           // Only allow access if party plugin is enabled
           if (!store.enabledPlugins.has("party")) {
             return { name: "discover" };
           }
         },
+      },
+    ],
+  },
+  // Now-playing kiosk route for casting a player's fullscreen view; top-level like /party so it renders without nav/player chrome.
+  {
+    path: "/now-playing",
+    component: () => import("@/layouts/default/Default.vue"),
+    children: [
+      {
+        path: "",
+        name: "now-playing",
+        component: () =>
+          import(
+            /* webpackChunkName: "now-playing" */ "@/views/DashboardNowPlayingView.vue"
+          ),
       },
     ],
   },
@@ -92,6 +130,38 @@ const routes: RouteRecordRaw[] = [
         name: "discover",
         component: () =>
           import(/* webpackChunkName: "discover" */ "@/views/HomeView.vue"),
+      },
+      {
+        path: "/ai-radio",
+        name: "ai-radio",
+        component: () =>
+          import(/* webpackChunkName: "ai-radio" */ "@/views/AIRadioView.vue"),
+        beforeEnter: async () => {
+          if (api.state.value !== ConnectionState.INITIALIZED) {
+            // Wait for the connection, but never block navigation forever.
+            await new Promise<void>((resolve) => {
+              const timeout = setTimeout(() => {
+                unwatch();
+                resolve();
+              }, 10000);
+              const unwatch = watch(
+                () => api.state.value,
+                (newState) => {
+                  if (newState === ConnectionState.INITIALIZED) {
+                    clearTimeout(timeout);
+                    unwatch();
+                    resolve();
+                  }
+                },
+                { immediate: true },
+              );
+            });
+          }
+          if (!store.enabledPlugins.has("ai_radio")) {
+            toast.error($t("providers.ai_radio.toast.unavailable"));
+            return { name: "discover" };
+          }
+        },
       },
       {
         path: "/search",
@@ -311,6 +381,14 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: "/music-quiz",
+        name: "music-quiz",
+        component: () =>
+          import(
+            /* webpackChunkName: "music-quiz" */ "@/views/MusicQuizDashboardView.vue"
+          ),
+      },
+      {
         path: "/settings",
         name: "settings",
         component: () =>
@@ -407,11 +485,11 @@ const routes: RouteRecordRaw[] = [
             props: true,
           },
           {
-            path: "serverlogs",
-            name: "serverlogs",
+            path: "diagnostics",
+            name: "diagnostics",
             component: () =>
               import(
-                /* webpackChunkName: "serverlogs" */ "@/views/settings/ServerLogs.vue"
+                /* webpackChunkName: "diagnostics" */ "@/views/settings/Diagnostics.vue"
               ),
             props: true,
             meta: { requiresAdmin: true },
@@ -431,16 +509,6 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import(
                 /* webpackChunkName: "genremanagement" */ "@/views/settings/GenreManagement.vue"
-              ),
-            props: true,
-            meta: { requiresAdmin: true },
-          },
-          {
-            path: "addprovider/:domain",
-            name: "addproviderdetails",
-            component: () =>
-              import(
-                /* webpackChunkName: "addproviderdetails" */ "@/views/settings/AddProviderDetails.vue"
               ),
             props: true,
             meta: { requiresAdmin: true },
@@ -481,6 +549,16 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import(
                 /* webpackChunkName: "editdsp" */ "@/views/settings/EditPlayerDsp.vue"
+              ),
+            props: true,
+            meta: { requiresAdmin: true },
+          },
+          {
+            path: "editqueue/:queueId",
+            name: "editqueue",
+            component: () =>
+              import(
+                /* webpackChunkName: "editqueue" */ "@/views/settings/EditPlayerQueue.vue"
               ),
             props: true,
             meta: { requiresAdmin: true },
@@ -559,15 +637,30 @@ router.onError((error, to) => {
 });
 
 // Navigation guard for admin-only routes and guest mode restrictions
-router.beforeEach(async (to, _from, next) => {
-  const currentUser = store.currentUser;
+router.beforeEach(async (to) => {
+  const guestRedirect = getGuestNavigationRedirect(
+    authManager.isGuestAccessSession(),
+    to.path,
+  );
+  if (guestRedirect) {
+    return guestRedirect;
+  }
 
-  // If party guest is trying to navigate away from /guest, redirect back to guest
-  // We check JWT claims (via authManager) rather than role so regular guest users aren't affected
-  if (authManager.isPartyGuest() && to.path !== "/guest") {
-    console.debug("Party guest: preventing navigation to", to.path);
-    next({ name: "guest" });
-    return;
+  // Dashboard viewer sessions are pinned to their opened route and render kiosk-style (no nav/player chrome).
+  if (authManager.isDashboardViewer()) {
+    store.frameless = true;
+    const pinnedPath = sessionStorage.getItem(
+      DASHBOARD_VIEWER_PATH_STORAGE_KEY,
+    );
+    // Compare fullPath (not path) so a pinned route with a query string (e.g. /now-playing?player=...) isn't a mismatch on every nav.
+    const dashboardRedirect = getDashboardViewerNavigationRedirect(
+      true,
+      pinnedPath,
+      to.fullPath,
+    );
+    if (dashboardRedirect) {
+      return dashboardRedirect;
+    }
   }
 
   // Check admin-only routes - check all matched routes for requiresAdmin meta
@@ -604,12 +697,9 @@ router.beforeEach(async (to, _from, next) => {
 
     if (!currentUser || currentUser.role !== "admin") {
       console.warn("Admin access required for", to.path);
-      next({ name: "discover" });
-      return;
+      return { name: "discover" };
     }
   }
-
-  next();
 });
 
 router.afterEach((to, from) => {

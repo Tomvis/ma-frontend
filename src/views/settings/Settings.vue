@@ -298,7 +298,7 @@ import { requireServerVersion } from "@/plugins/api/helpers";
 import { ProviderType } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
 import { store } from "@/plugins/store";
-import { Settings } from "lucide-vue-next";
+import { Settings } from "@lucide/vue";
 import { match } from "ts-pattern";
 import { computed, provide, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -645,7 +645,11 @@ const activeTab = computed(() => {
   if (name === "profile") {
     return "profile";
   }
-  if (name.includes("player") || name === "addgroup") {
+  if (
+    name.includes("player") ||
+    name.includes("queue") ||
+    name === "addgroup"
+  ) {
     return "players";
   }
   if (
@@ -653,6 +657,7 @@ const activeTab = computed(() => {
     name.includes("core") ||
     name.includes("serverlog") ||
     name === "backgroundtasks" ||
+    name === "diagnostics" ||
     name === "genremanagement" ||
     name === "audioanalysissettings"
   ) {
@@ -683,29 +688,18 @@ const activeTab = computed(() => {
 
   if (name === "editprovider") {
     const instanceId = router.currentRoute.value.params.instanceId as string;
-    const provider = api.getProvider(instanceId);
-    if (provider) {
-      if (provider.type === ProviderType.MUSIC) return "music_providers";
-      if (provider.type === ProviderType.PLAYER) return "player_providers";
-      if (provider.type === ProviderType.METADATA) return "metadata_providers";
-      if (provider.type === ProviderType.PLUGIN) return "plugin_providers";
-      if (provider.type === ProviderType.AUDIO_ANALYSIS)
-        return "audio_analysis_providers";
-    }
+    // disabled instances are not loaded, so fall back to the manifest type
+    const providerType =
+      api.getProvider(instanceId)?.type ||
+      api.providerManifests[instanceId.split("--")[0]]?.type;
+    if (providerType === ProviderType.MUSIC) return "music_providers";
+    if (providerType === ProviderType.PLAYER) return "player_providers";
+    if (providerType === ProviderType.METADATA) return "metadata_providers";
+    if (providerType === ProviderType.PLUGIN) return "plugin_providers";
+    if (providerType === ProviderType.AUDIO_ANALYSIS)
+      return "audio_analysis_providers";
   }
 
-  if (name === "addproviderdetails") {
-    const domain = router.currentRoute.value.params.domain as string;
-    const manifest = api.providerManifests[domain];
-    if (manifest) {
-      if (manifest.type === ProviderType.MUSIC) return "music_providers";
-      if (manifest.type === ProviderType.PLAYER) return "player_providers";
-      if (manifest.type === ProviderType.METADATA) return "metadata_providers";
-      if (manifest.type === ProviderType.PLUGIN) return "plugin_providers";
-      if (manifest.type === ProviderType.AUDIO_ANALYSIS)
-        return "audio_analysis_providers";
-    }
-  }
   return "music_providers";
 });
 
@@ -817,12 +811,6 @@ const breadcrumbItems = computed(() => {
   }
 
   match(name)
-    .with("addproviderdetails", () => {
-      items.push({
-        title: t("settings.setup_provider", [route.params.domain || ""]),
-        disabled: true,
-      });
-    })
     .with("editprovider", () => {
       items.push({
         title: getProviderName(route.params.instanceId as string),
@@ -841,6 +829,9 @@ const breadcrumbItems = computed(() => {
     .with("editplayeroptions", () => {
       items.push({ title: t("settings.category.options"), disabled: true });
     })
+    .with("editqueue", () => {
+      items.push({ title: t("settings.queue_settings"), disabled: true });
+    })
     .with("editcore", () => {
       const domain = route.params.domain as string;
       const translated = t(`settings.core_module.${domain}.name`);
@@ -853,9 +844,9 @@ const breadcrumbItems = computed(() => {
         disabled: true,
       });
     })
-    .with("serverlogs", () => {
+    .with("diagnostics", () => {
       items.push({
-        title: t("settings.server_logging"),
+        title: t("settings.diagnostics"),
         disabled: true,
       });
     })
@@ -888,7 +879,7 @@ const documentationUrl = computed(() => {
   const route = router.currentRoute.value;
   const name = route.name?.toString() || "";
 
-  // Show documentation link for editcore, editprovider, and addproviderdetails routes
+  // Show documentation link for editcore and editprovider routes
   if (name === "editcore") {
     const domain = route.params.domain as string;
     if (domain && api.providerManifests[domain]) {
@@ -901,11 +892,6 @@ const documentationUrl = computed(() => {
       if (provider && api.providerManifests[provider.domain]) {
         return api.providerManifests[provider.domain].documentation || null;
       }
-    }
-  } else if (name === "addproviderdetails") {
-    const domain = route.params.domain as string;
-    if (domain && api.providerManifests[domain]) {
-      return api.providerManifests[domain].documentation || null;
     }
   }
 

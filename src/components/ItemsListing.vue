@@ -105,11 +105,15 @@
             <PanelviewItem
               :item="item"
               :is-selected="isSelected(item)"
-              :show-checkboxes="showCheckboxes"
+              :show-checkboxes="showCheckboxes && !isParentDirItem(item)"
               :show-actions="
-                ['tracks', 'albums', 'albumtracks', 'artists'].includes(
-                  itemtype,
-                )
+                [
+                  'tracks',
+                  'albums',
+                  'albumtracks',
+                  'artists',
+                  'genres',
+                ].includes(itemtype)
               "
               :show-track-number="showTrackNumber"
               :is-available="itemIsAvailable(item)"
@@ -133,7 +137,7 @@
             <PanelviewItemCompact
               :item="item"
               :is-selected="isSelected(item)"
-              :show-checkboxes="showCheckboxes"
+              :show-checkboxes="showCheckboxes && !isParentDirItem(item)"
               :is-available="itemIsAvailable(item)"
               :is-playing="isPlaying(item, itemtype)"
               :disable-play-button="isPlayActionInProgress"
@@ -163,11 +167,11 @@
               :show-track-number="showTrackNumber"
               :show-disc-number="showTrackNumber"
               :show-duration="showDuration"
-              :show-favorite="showFavoritesOnlyFilter"
+              :show-favorite="showFavorite ?? showFavoritesOnlyFilter"
               :show-menu="item.is_playable"
               :show-provider="showProvider"
               :show-album="showAlbum"
-              :show-checkboxes="showCheckboxes"
+              :show-checkboxes="showCheckboxes && !isParentDirItem(item)"
               :is-selected="isSelected(item)"
               :is-available="itemIsAvailable(item)"
               :is-playing="isPlaying(item, itemtype)"
@@ -245,11 +249,14 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable @typescript-eslint/no-unused-vars,vue/no-setup-props-destructure */
 import type { Component } from "vue";
 
 import Container from "@/components/Container.vue";
 import GenreIcon from "@/components/icons/GenreIcon.vue";
+import ListViewSkeleton from "@/components/skeletons/ListViewSkeleton.vue";
+import PanelViewSkeleton from "@/components/skeletons/PanelViewSkeleton.vue";
+import { SMART_PLAYLIST_PROVIDER_DOMAIN } from "@/components/smart_playlist/constants";
+import Toolbar, { ToolBarMenuItem } from "@/components/Toolbar.vue";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -257,10 +264,6 @@ import {
   EmptyDescription,
   EmptyMedia,
 } from "@/components/ui/empty";
-import { Eye, EyeClosed, FilterX, Layers, ListMusic } from "lucide-vue-next";
-import ListViewSkeleton from "@/components/skeletons/ListViewSkeleton.vue";
-import PanelViewSkeleton from "@/components/skeletons/PanelViewSkeleton.vue";
-import Toolbar, { ToolBarMenuItem } from "@/components/Toolbar.vue";
 import {
   useUserPreferences,
   REVIEW_LIST_KEYS,
@@ -271,7 +274,6 @@ import {
   type ItemsListingPreferences,
 } from "@/composables/userPreferences";
 import {
-  getGenreDisplayName,
   handleMenuBtnClick,
   panelViewItemResponsive,
   scrollElement,
@@ -295,9 +297,9 @@ import {
   type MediaItemType,
   type Track,
 } from "@/plugins/api/interfaces";
-import { SMART_PLAYLIST_PROVIDER_DOMAIN } from "@/components/smart_playlist/constants";
 import { eventbus } from "@/plugins/eventbus";
 import { store } from "@/plugins/store";
+import { Eye, EyeClosed, FilterX, Layers, ListMusic } from "@lucide/vue";
 import {
   computed,
   nextTick,
@@ -420,6 +422,7 @@ export interface Props {
   showProvider?: boolean;
   showAlbum?: boolean;
   showFavoritesOnlyFilter?: boolean;
+  showFavorite?: boolean;
   showDuration?: boolean;
   parentItem?: MediaItemType;
   showAlbumArtistsOnlyFilter?: boolean;
@@ -490,6 +493,7 @@ const props = withDefaults(defineProps<Props>(), {
   showProvider: Object.keys(api.providers).length > 1,
   showAlbum: true,
   showFavoritesOnlyFilter: true,
+  showFavorite: undefined,
   showDuration: true,
   parentItem: undefined,
   hideOnEmpty: false,
@@ -780,6 +784,12 @@ const isSelected = function (item: MediaItemTypeOrItemMapping) {
   return selectedItems.value.includes(item);
 };
 
+const isParentDirItem = function (item: MediaItemTypeOrItemMapping) {
+  // the parent directory ("..") link injected in browse listings
+  // must never be selectable as it breaks the action/context menu
+  return item.media_type == MediaType.FOLDER && item.name == "..";
+};
+
 const isPlaying = function (item: MediaItemType, itemtype: string): boolean {
   if (store.activePlayer?.playback_state != PlaybackState.PLAYING) return false;
   const current = store.curQueueItem?.media_item as
@@ -829,6 +839,7 @@ const onSelect = function (
   selected: boolean,
 ) {
   if (selected) {
+    if (isParentDirItem(item)) return;
     if (!selectedItems.value.includes(item)) selectedItems.value.push(item);
   } else {
     for (let i = 0; i < selectedItems.value.length; i++) {
@@ -1050,23 +1061,18 @@ const providerFilterSubItems = () =>
 
 const redirectSearch = function () {
   store.globalSearchTerm = params.value.search;
-  if (props.itemtype == "artists") {
-    store.globalSearchType = MediaType.ARTIST;
-  } else if (props.itemtype == "albums") {
-    store.globalSearchType = MediaType.ALBUM;
-  } else if (props.itemtype == "tracks") {
-    store.globalSearchType = MediaType.TRACK;
-  } else if (props.itemtype == "playlists") {
-    store.globalSearchType = MediaType.PLAYLIST;
-  } else if (props.itemtype == "audiobooks") {
-    store.globalSearchType = MediaType.AUDIOBOOK;
-  } else if (props.itemtype == "podcasts") {
-    store.globalSearchType = MediaType.PODCAST;
-  } else if (props.itemtype == "radios") {
-    store.globalSearchType = MediaType.RADIO;
-  } else if (props.itemtype == "genres") {
-    store.globalSearchType = MediaType.GENRE;
-  }
+  const mediaTypeByItemtype: Record<string, MediaType> = {
+    artists: MediaType.ARTIST,
+    albums: MediaType.ALBUM,
+    tracks: MediaType.TRACK,
+    playlists: MediaType.PLAYLIST,
+    audiobooks: MediaType.AUDIOBOOK,
+    podcasts: MediaType.PODCAST,
+    radios: MediaType.RADIO,
+    genres: MediaType.GENRE,
+  };
+  const mediaType = mediaTypeByItemtype[props.itemtype];
+  store.globalSearchMediaTypes = mediaType ? [mediaType] : [];
   router.push({ name: "search" });
 };
 
@@ -1098,7 +1104,7 @@ const loadAllItems = async function () {
 
 // computed properties
 const isSearchActive = computed(() => {
-  var searchActive = false;
+  let searchActive = false;
   if (params.value.search && params.value.search.length !== 0) {
     searchActive = true;
   }
@@ -1498,6 +1504,7 @@ const menuItems = computed(() => {
       action: onRefreshClicked,
       active: newContentAvailable.value,
       disabled: loading.value,
+      overflowAllowed: !["playlisttracks"].includes(props.itemtype),
     });
   }
 
@@ -1668,10 +1675,13 @@ const loadData = async function (
   tempHide.value = false;
 };
 
-// Get preferences as a computed ref that updates automatically
-const savedPrefs = getItemsListingPreferences(
-  props.path || props.itemtype,
-  props.itemtype,
+// Re-derive from the current props.path: browse reuses one ItemsListing
+// instance across folders, so a ref bound to the mount-time path would read
+// and reset the wrong folder's saved sort/view settings.
+const savedPrefs = computed(
+  () =>
+    getItemsListingPreferences(props.path || props.itemtype, props.itemtype)
+      .value,
 );
 
 const restoreSettings = async function () {
@@ -1798,11 +1808,23 @@ const restoreSettings = async function () {
 
 // lifecycle hooks
 const keyListener = function (e: KeyboardEvent) {
-  if (store.dialogActive) return;
+  if (store.dialogActive || store.showPlayersMenu) return;
   if (loading.value) return;
   if (e.key === "Escape") closeSearch();
   // Let searchInput handle this.
   if (searchHasFocus.value) return;
+
+  // ignore keystrokes typed into another editable element (e.g. the search box
+  // in the player drawer) so we don't steal focus to our own search input.
+  const target = e.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
 
   if (e.key === "a" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
@@ -1893,6 +1915,10 @@ watch(
 watch(
   () => props.path,
   (newVal) => {
+    // always leave selection mode: the selection belongs to the previous
+    // folder, and the target may not offer the toggle to turn it off
+    selectedItems.value = [];
+    showCheckboxes.value = false;
     if (loading.value == true) return;
     // completely reset if the path changes
     pagedItems.value = [];
@@ -1977,7 +2003,7 @@ const loadGenreOptions = async () => {
       });
       for (const genre of page) {
         all.push({
-          label: getGenreDisplayName(genre.name, genre.translation_key, t, te),
+          label: genre.name,
           value: Number(genre.item_id),
         });
       }
@@ -2122,10 +2148,8 @@ const getSortName = function (
   preferSortName = false,
 ) {
   if (!item) return "";
-  if ("translation_key" in item && item.translation_key && item.name)
-    return t(item.translation_key, [item.name]);
-  if ("translation_key" in item && item.translation_key)
-    return t(item.translation_key);
+  // names (incl. translated folder/media names) are resolved server-side, so we sort
+  // by item.name, falling back to sort_name when explicitly preferred.
   if (preferSortName && "sort_name" in item && item.sort_name)
     return item.sort_name;
   return item.name;
@@ -2303,7 +2327,7 @@ const selectAll = async function () {
 
   if (confirmed) {
     await loadAllItems();
-    selectedItems.value = pagedItems.value;
+    selectedItems.value = pagedItems.value.filter((x) => !isParentDirItem(x));
     showCheckboxes.value = true;
   }
 };

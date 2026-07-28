@@ -6,24 +6,60 @@
     <div
       v-else-if="qrCodeUrl"
       class="qr-display"
-      :style="{ '--qr-size': qrSize + 'px' }"
+      :style="{
+        '--qr-size': qrSize + 'px',
+        '--qr-color': props.qrDark,
+      }"
     >
-      <div class="qr-link" @click="copyUrlToClipboard">
-        <canvas ref="qrCanvas"></canvas>
+      <button
+        type="button"
+        class="qr-link"
+        :aria-label="$t('providers.party.copy_link')"
+        @click="copyUrlToClipboard"
+      >
+        <svg
+          class="qr-code"
+          :viewBox="`0 0 ${qrExtent} ${qrExtent}`"
+          :width="qrSize"
+          :height="qrSize"
+          shape-rendering="crispEdges"
+          aria-hidden="true"
+        >
+          <path :d="qrModulesPath" :fill="qrDark" />
+        </svg>
         <Transition name="copy-toast">
-          <div v-if="copyFeedback" class="copy-bubble">
-            <Check :size="16" />
+          <div
+            v-if="copyFeedback"
+            class="copy-bubble"
+            :class="{ 'copy-bubble--error': !copySucceeded }"
+          >
+            <Check v-if="copySucceeded" :size="16" />
+            <AlertCircle v-else :size="16" />
             {{ copyFeedback }}
           </div>
         </Transition>
-      </div>
+      </button>
       <p
         v-if="qrText"
         :style="{ width: qrSize + 'px', textAlign: 'center' }"
-        class=""
+        class="qr-text"
       >
         {{ qrText }}
       </p>
+      <InvitationShareActions
+        ref="shareActions"
+        class="qr-actions"
+        variant="ghost-outline"
+        :join-link="qrCodeUrl"
+        :title="shareTitle"
+        :description="shareDescription"
+        :copy-label="$t('providers.party.copy_link')"
+        :copied-label="$t('providers.party.link_copy_success')"
+        :more-options-label="$t('providers.party.more_share_options')"
+        :share-label="$t('providers.party.share_invitation')"
+        :share-failed-message="$t('providers.party.share_failed')"
+        @copied="handleCopyResult"
+      />
     </div>
     <div v-else class="qr-error">
       <AlertCircle :size="64" />
@@ -34,24 +70,22 @@
 </template>
 
 <script setup lang="ts">
+import InvitationShareActions from "@/components/InvitationShareActions.vue";
 import { Spinner } from "@/components/ui/spinner";
 import { usePartyConfig } from "@/composables/usePartyConfig";
-import { copyToClipboard } from "@/helpers/utils";
 import api from "@/plugins/api";
 import { EventType } from "@/plugins/api/interfaces";
 import { $t } from "@/plugins/i18n";
-import { AlertCircle, Check } from "lucide-vue-next";
+import { AlertCircle, Check } from "@lucide/vue";
 import QRCode from "qrcode";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 const props = withDefaults(
   defineProps<{
     qrDark?: string;
-    qrLight?: string;
   }>(),
   {
     qrDark: "#FFFFFF",
-    qrLight: "#00000000",
   },
 );
 
@@ -60,66 +94,137 @@ const emit = defineEmits<{ available: [value: boolean] }>();
 const { config: partyConfig } = usePartyConfig();
 
 const qrText = computed(
-  () => partyConfig.value?.qr_text ?? "Scan the QR code to join the party!",
+  () =>
+    partyConfig.value?.qr_text?.trim() || $t("providers.party.qr_default_text"),
+);
+const shareTitle = computed(() => {
+  const partyName = partyConfig.value?.party_name?.trim();
+  return partyName
+    ? $t("providers.party.share_named_title", [partyName])
+    : $t("providers.party.share_title");
+});
+const shareDescription = computed(
+  () =>
+    partyConfig.value?.qr_text?.trim() ||
+    $t("providers.party.share_description"),
 );
 
-const qrCanvas = ref<HTMLCanvasElement | null>(null);
 const qrContainer = ref<HTMLElement | null>(null);
+const shareActions = ref<InstanceType<typeof InvitationShareActions> | null>(
+  null,
+);
 const qrCodeUrl = ref<string>("");
 const guestAccessEnabled = ref<boolean>(false);
 const loading = ref(true);
 const qrSize = ref(320);
 const copyFeedback = ref<string>("");
+const copySucceeded = ref(false);
+let copyFeedbackTimeout: ReturnType<typeof setTimeout> | undefined;
 let resizeObserver: ResizeObserver | null = null;
+let unsubProviders: (() => void) | undefined;
+let unsubCoreState: (() => void) | undefined;
+let unmounted = false;
 
-const calculateQRSize = () => {
-  if (!qrContainer.value) return 320;
-  const containerWidth = qrContainer.value.clientWidth;
-  const containerHeight = qrContainer.value.clientHeight;
-  // Use the smaller dimension, leave room for padding and instructions
-  const availableSize = Math.min(containerWidth, containerHeight) - 120;
-  // Clamp between 160 and 1024 for usability (supports 4K displays)
-  return Math.max(160, Math.min(1024, availableSize));
-};
+// Quiet zone around the symbol, in modules.
+const QR_MARGIN = 2;
 
-const copyUrlToClipboard = async () => {
-  if (!qrCodeUrl.value) return;
-  const success = await copyToClipboard(qrCodeUrl.value);
+const qrModules = computed(() =>
+  qrCodeUrl.value ? QRCode.create(qrCodeUrl.value).modules : null,
+);
+
+const qrExtent = computed(() =>
+  qrModules.value ? qrModules.value.size + QR_MARGIN * 2 : 1,
+);
+
+// One 1x1 module square per dark bit; the viewBox scales it to any size, so
+// resizing and recolouring stay pure attribute updates.
+const qrModulesPath = computed(() => {
+  const modules = qrModules.value;
+  if (!modules) return "";
+  const { size, data } = modules;
+  let path = "";
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (data[y * size + x]) {
+        path += `M${x + QR_MARGIN} ${y + QR_MARGIN}h1v1h-1z`;
+      }
+    }
+  }
+  return path;
+});
+
+function copyUrlToClipboard() {
+  void shareActions.value?.copyLink();
+}
+
+function handleCopyResult(success: boolean) {
+  copySucceeded.value = success;
   copyFeedback.value = success
     ? $t("providers.party.link_copy_success")
     : $t("providers.party.link_copy_fail");
-  setTimeout(() => {
+  if (copyFeedbackTimeout) clearTimeout(copyFeedbackTimeout);
+  copyFeedbackTimeout = setTimeout(() => {
     copyFeedback.value = "";
   }, 2000);
-};
+}
 
-const renderQRToCanvas = async () => {
-  if (!qrCanvas.value || !qrCodeUrl.value) return;
-  qrSize.value = calculateQRSize();
-  await QRCode.toCanvas(qrCanvas.value, qrCodeUrl.value, {
-    width: qrSize.value,
-    margin: 2,
-    color: {
-      dark: props.qrDark,
-      light: props.qrLight,
-    },
+onMounted(async () => {
+  await generateQRCode();
+  if (unmounted) return;
+
+  // Set up ResizeObserver to regenerate QR code when container size changes
+  if (qrContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      qrSize.value = calculateQRSize();
+    });
+    resizeObserver.observe(qrContainer.value);
+  }
+
+  // Subscribe to PROVIDERS_UPDATED to detect when party provider is
+  // loaded/unloaded. Config refresh is handled by the composable automatically.
+  unsubProviders = api.subscribe(EventType.PROVIDERS_UPDATED, async () => {
+    const hasParty = Object.values(api.providers).some(
+      (p) => p.domain === "party",
+    );
+    if (hasParty) {
+      await generateQRCode();
+    } else {
+      guestAccessEnabled.value = false;
+      qrCodeUrl.value = "";
+      emit("available", false);
+    }
   });
-};
-
-// Render QR code when canvas mounts (after v-if switches to the qr-display branch)
-watch(qrCanvas, (canvas) => {
-  if (canvas) renderQRToCanvas();
+  // Subscribe to CORE_STATE_UPDATED to detect when remote access is toggled,
+  // which changes the party join URL between local and remote.
+  unsubCoreState = api.subscribe(EventType.CORE_STATE_UPDATED, async () => {
+    const hasParty = Object.values(api.providers).some(
+      (p) => p.domain === "party",
+    );
+    if (hasParty) {
+      await generateQRCode();
+    }
+  });
 });
 
-// Re-render when colors change (e.g., empty-state vs album-art mode)
-watch(
-  () => [props.qrDark, props.qrLight],
-  () => {
-    if (qrCanvas.value && qrCodeUrl.value) renderQRToCanvas();
-  },
-);
+onBeforeUnmount(() => {
+  unmounted = true;
+  if (copyFeedbackTimeout) clearTimeout(copyFeedbackTimeout);
+  resizeObserver?.disconnect();
+  unsubProviders?.();
+  unsubCoreState?.();
+});
 
-const generateQRCode = async () => {
+function calculateQRSize() {
+  if (!qrContainer.value) return 320;
+  const containerWidth = qrContainer.value.clientWidth;
+  const containerHeight = qrContainer.value.clientHeight;
+  // Use the smaller dimension, leaving room for the text and sharing controls.
+  const availableSize = Math.min(containerWidth, containerHeight) - 180;
+  // Clamp between 160 and 1024 for usability (supports 4K displays)
+  return Math.max(160, Math.min(1024, availableSize));
+}
+
+async function generateQRCode() {
   loading.value = true;
   try {
     const url = (await api.sendCommand("party/url")) as string | null;
@@ -131,13 +236,8 @@ const generateQRCode = async () => {
       return;
     }
 
-    // Set URL — the watch on qrCanvas handles initial mount rendering
+    // Setting the URL is enough — the symbol is derived from it.
     qrCodeUrl.value = url;
-
-    // If canvas is already mounted (e.g., re-generating after config change), render now
-    if (qrCanvas.value) {
-      await renderQRToCanvas();
-    }
   } catch (error) {
     console.error("Failed to generate QR code:", error);
     guestAccessEnabled.value = false;
@@ -146,64 +246,7 @@ const generateQRCode = async () => {
     loading.value = false;
     emit("available", guestAccessEnabled.value);
   }
-};
-
-onMounted(async () => {
-  await generateQRCode();
-
-  // Set up ResizeObserver to regenerate QR code when container size changes
-  if (qrContainer.value) {
-    resizeObserver = new ResizeObserver(() => {
-      if (qrCodeUrl.value && qrCanvas.value) {
-        const newSize = calculateQRSize();
-        if (newSize !== qrSize.value) {
-          renderQRToCanvas();
-        }
-      }
-    });
-    resizeObserver.observe(qrContainer.value);
-  }
-
-  // Subscribe to PROVIDERS_UPDATED to detect when party provider is
-  // loaded/unloaded. Config refresh is handled by the composable automatically.
-  const unsubProviders = api.subscribe(
-    EventType.PROVIDERS_UPDATED,
-    async () => {
-      const hasParty = Object.values(api.providers).some(
-        (p) => p.domain === "party",
-      );
-      if (hasParty) {
-        await generateQRCode();
-      } else {
-        guestAccessEnabled.value = false;
-        qrCodeUrl.value = "";
-        emit("available", false);
-      }
-    },
-  );
-  onBeforeUnmount(unsubProviders);
-
-  // Subscribe to CORE_STATE_UPDATED to detect when remote access is toggled,
-  // which changes the party join URL between local and remote.
-  const unsubCoreState = api.subscribe(
-    EventType.CORE_STATE_UPDATED,
-    async () => {
-      const hasParty = Object.values(api.providers).some(
-        (p) => p.domain === "party",
-      );
-      if (hasParty) {
-        await generateQRCode();
-      }
-    },
-  );
-  onBeforeUnmount(unsubCoreState);
-});
-
-onBeforeUnmount(() => {
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-  }
-});
+}
 </script>
 
 <style scoped>
@@ -220,6 +263,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.5rem;
   padding: 1rem;
   padding-bottom: 0.5rem;
 }
@@ -227,6 +271,10 @@ onBeforeUnmount(() => {
 .qr-link {
   position: relative;
   display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
   transition:
     transform 0.2s ease,
@@ -236,6 +284,30 @@ onBeforeUnmount(() => {
 .qr-link:hover {
   transform: scale(1.05);
   opacity: 0.9;
+}
+
+.qr-link:focus-visible {
+  outline: 3px solid var(--qr-color);
+  outline-offset: 4px;
+}
+
+.qr-text {
+  margin: 0;
+}
+
+.qr-actions {
+  margin-top: 0.25rem;
+}
+
+.qr-actions :deep([data-slot="button"]) {
+  border-color: var(--qr-color);
+  background: rgba(127, 127, 127, 0.12);
+  color: var(--qr-color);
+}
+
+.qr-actions :deep([data-slot="button"]:hover) {
+  background: rgba(127, 127, 127, 0.28);
+  color: var(--qr-color);
 }
 
 .copy-bubble {
@@ -257,6 +329,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
+.copy-bubble--error {
+  background: #991b1b;
+}
+
 .copy-toast-enter-active {
   transition: all 0.2s ease-out;
 }
@@ -275,7 +351,7 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%) scale(0.8);
 }
 
-.qr-display canvas {
+.qr-display .qr-code {
   display: block;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);

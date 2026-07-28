@@ -5,11 +5,7 @@
     >
       <DialogHeader class="gap-3 px-8 pt-8 pb-4 text-left">
         <DialogTitle class="truncate pr-8">
-          {{
-            task
-              ? getBackgroundTaskName(task, t, te)
-              : t("background_tasks.details_title")
-          }}
+          {{ task ? task.name : t("background_tasks.details_title") }}
         </DialogTitle>
       </DialogHeader>
 
@@ -207,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { Copy, Download, Pencil } from "lucide-vue-next";
+import { Copy, Download, Pencil } from "@lucide/vue";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -226,8 +222,7 @@ import {
   formatBackgroundTaskFailureSummary,
   formatBackgroundTaskSchedule,
   formatBackgroundTaskStatus,
-} from "@/composables/useBackgroundTaskDisplay";
-import { getBackgroundTaskName } from "@/helpers/backgroundTasks";
+} from "@/composables/background-tasks/useBackgroundTaskDisplay";
 import {
   type BackgroundTask,
   TaskStatus,

@@ -38,8 +38,8 @@
 </template>
 
 <script setup lang="ts">
+import { Palette } from "@lucide/vue";
 import { useColorMode } from "@vueuse/core";
-import { Palette } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
@@ -50,17 +50,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { DEFAULT_MENU_ITEMS, DEVICE_SETTING_KEYS } from "@/constants";
+import { useUserPreferences } from "@/composables/userPreferences";
+import { DEVICE_SETTING_KEYS } from "@/constants";
 import {
   ConfigEntry,
   ConfigEntryType,
   ConfigValueType,
 } from "@/plugins/api/interfaces";
 import { companionMode } from "@/plugins/companion";
-import { store } from "@/plugins/store";
+import { eventbus } from "@/plugins/eventbus";
 import { $t, i18n } from "@/plugins/i18n";
+import { store } from "@/plugins/store";
 import EditConfig from "./EditConfig.vue";
-import { useUserPreferences } from "@/composables/userPreferences";
 
 // global refs
 const router = useRouter();
@@ -70,12 +71,7 @@ const mode = useColorMode();
 
 onMounted(() => {
   // TODO: Remove localStorage fallbacks below once migration period is over
-  // (theme, language, menu_items moved from localStorage to user preferences)
-  const storedMenuConf = localStorage.getItem("frontend.settings.menu_items");
-  const enabledMenuItems: string[] = storedMenuConf
-    ? storedMenuConf.split(",")
-    : DEFAULT_MENU_ITEMS;
-
+  // (theme and language moved from localStorage to user preferences)
   const storedTheme = localStorage.getItem("frontend.settings.theme") || "auto";
   mode.value = storedTheme as "light" | "dark" | "auto";
 
@@ -114,33 +110,17 @@ onMounted(() => {
         localStorage.getItem("frontend.settings.language"),
     },
     {
-      key: "menu_items",
-      type: ConfigEntryType.STRING,
-      label: "menu_items",
-      default_value: DEFAULT_MENU_ITEMS,
+      // Menu items are managed in the sidebar's edit mode; this button is the
+      // muscle-memory path for users who look for the old setting here.
+      key: "customize_menu",
+      type: ConfigEntryType.ACTION,
+      label: "customize_menu",
+      action: "customize_menu",
+      default_value: null,
       required: false,
-      options: [
-        { title: $t("discover"), value: "discover" },
-        { title: $t("search"), value: "search" },
-        ...(store.enabledPlugins.has("party")
-          ? [{ title: $t("party_mode"), value: "party" }]
-          : []),
-        { title: $t("artists"), value: "artists" },
-        { title: $t("albums"), value: "albums" },
-        { title: $t("tracks"), value: "tracks" },
-        { title: $t("playlists"), value: "playlists" },
-        { title: $t("audiobooks"), value: "audiobooks" },
-        { title: $t("podcasts"), value: "podcasts" },
-        { title: $t("radios"), value: "radios" },
-        { title: $t("genres"), value: "genres" },
-        { title: $t("browse"), value: "browse" },
-        { title: $t("settings.settings"), value: "settings" },
-      ],
-      multi_value: true,
+      multi_value: false,
       category: "preferences",
-      value:
-        (store.currentUser?.preferences?.menu_items as string[] | string) ||
-        enabledMenuItems,
+      value: null,
     },
     {
       key: "enable_browser_controls",
@@ -166,6 +146,16 @@ onMounted(() => {
       value:
         localStorage.getItem("frontend.settings.force_mobile_layout") ===
         "true",
+    },
+    {
+      key: "show_waveform",
+      type: ConfigEntryType.BOOLEAN,
+      label: "show_waveform",
+      default_value: true,
+      required: false,
+      multi_value: false,
+      category: "display_settings",
+      value: (store.currentUser?.preferences?.show_waveform as boolean) ?? true,
     },
     {
       key: "mobile_sidebar_side",
@@ -199,6 +189,30 @@ onMounted(() => {
     });
   }
 
+  // These are frontend-only settings, so the frontend owns their translations (server-provided
+  // entries are localized server-side and arrive pre-resolved). ConfigEntryField renders the
+  // label/option titles directly, so resolve the frontend-owned ones here from the settings.* keys.
+  for (const entry of configEntries) {
+    // fall back to the in-code label/category if a locale is missing the string, so we never
+    // surface a raw i18n key in the UI.
+    entry.label = $t(`settings.${entry.key}.label`, entry.label);
+    if (entry.category) {
+      // frontend-only entries carry their translated category heading directly (server entries
+      // get category_label resolved server-side); EditConfig just reads category_label.
+      entry.category_label = $t(
+        `settings.category.${entry.category}`,
+        entry.category,
+      );
+    }
+    const desc = $t(`settings.${entry.key}.description`);
+    if (desc !== `settings.${entry.key}.description`) entry.description = desc;
+    if (entry.options) {
+      entry.options = entry.options.map((opt) => ({
+        ...opt,
+        title: $t(`settings.${entry.key}.options.${opt.value}`, opt.title),
+      }));
+    }
+  }
   config.value = configEntries;
 });
 
@@ -213,6 +227,8 @@ const saveValues = async function (values: Record<string, ConfigValueType>) {
     for (const key in values) {
       const entry = config.value.find((e) => e.key === key);
       if (!entry) continue;
+      // Action-only entries carry no persistable value
+      if (entry.type === ConfigEntryType.ACTION) continue;
 
       if (DEVICE_SETTING_KEYS.has(key)) {
         // Save to localStorage (per-device settings)
@@ -249,10 +265,16 @@ const onSubmit = function (values: Record<string, ConfigValueType>) {
 };
 
 const onAction = async function (
-  _action: string,
+  action: string,
   _values: Record<string, ConfigValueType>,
   _immediateApply: boolean,
-) {};
+) {
+  if (action === "customize_menu") {
+    // Put the navigation menu in edit mode, right next to this settings page.
+    store.navMenuEditMode = true;
+    if (store.mobileLayout) eventbus.emit("mobile-sidebar-open");
+  }
+};
 
 const onImmediateApply = function (values: Record<string, ConfigValueType>) {
   for (const key in values) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { toRef } from "vue";
-import { BookmarkCheck, Star } from "lucide-vue-next";
+import { BookmarkCheck, Star } from "@lucide/vue";
 import type { Album } from "@/plugins/api/interfaces";
 import { useAlbumBadgeLabels } from "@/composables/useAlbumBadgeLabels";
 

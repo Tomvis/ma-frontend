@@ -2,13 +2,14 @@ import { api } from "@/plugins/api";
 import {
   Artist,
   BrowseFolder,
+  type ConfigEntry,
+  ConfigEntryType,
   ImageType,
   ItemMapping,
   MediaItemImage,
   MediaItemType,
   MediaItemTypeOrItemMapping,
   MediaType,
-  PlaybackState,
   Player,
   PlayerConfig,
   PlayerType,
@@ -16,6 +17,7 @@ import {
   QueueItem,
 } from "@/plugins/api/interfaces";
 import { getBreakpointValue } from "@/plugins/breakpoint";
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 
 import {
@@ -23,11 +25,13 @@ import {
   showPlayMenuForMediaItem,
 } from "@/layouts/default/ItemContextMenu.vue";
 import { itemIsAvailable } from "@/plugins/api/helpers";
+import type { MediaItemPalette } from "@/plugins/api/interfaces";
 import router from "@/plugins/router";
 import { store } from "@/plugins/store";
+import { $t } from "@/plugins/i18n";
+import { toast } from "vue-sonner";
 import { webPlayer } from "@/plugins/web_player";
-import { Volume, Volume1, Volume2, VolumeX } from "lucide-vue-next";
-import type { MediaItemPalette } from "@/plugins/api/interfaces";
+import { Volume, Volume1, Volume2, VolumeX } from "@lucide/vue";
 
 export const openLinkInNewTab = function (url: string) {
   if (!url) return url;
@@ -42,6 +46,36 @@ export const openLinkInNewTab = function (url: string) {
     url = url.replace("://music-assistant.io", "://beta.music-assistant.io");
   }
   window.open(url, "_blank");
+};
+
+export const openActionUrlEntries = (entries: ConfigEntry[]): ConfigEntry[] => {
+  // Open URL-type entries returned by a config invoke_action response (one-shot)
+  // via an anchor click, which browsers treat more leniently than window.open
+  // when the triggering user gesture has just expired. Only web URLs are
+  // opened, and all URL entries are dropped from the rendered form.
+  const urls: string[] = [];
+  for (const entry of entries) {
+    if (entry.type !== ConfigEntryType.URL) continue;
+    const target = entry.value ?? entry.default_value;
+    if (typeof target !== "string") continue;
+    try {
+      if (["http:", "https:"].includes(new URL(target).protocol)) {
+        urls.push(target);
+      }
+    } catch {
+      // not a parseable url: drop silently
+    }
+  }
+  for (const url of urls) {
+    const a = document.createElement("a");
+    a.setAttribute("href", url);
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  return entries.filter((e) => e.type !== ConfigEntryType.URL);
 };
 
 export const parseBool = (val: string | boolean | undefined | null) => {
@@ -149,55 +183,6 @@ export const toSentenceCase = function (str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
-const genreKeyFromName = function (name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-};
-
-export const getGenreDisplayName = function (
-  name: string,
-  translationKey: string | undefined,
-  t: (key: string) => string,
-  te: (key: string) => boolean,
-): string {
-  // First try the translation key as-is (in case backend sends full key like 'genre_names.afrobeats')
-  if (translationKey && te(translationKey)) return t(translationKey);
-
-  // Then try with genre_names prefix (in case backend sends just the key name like 'afrobeats')
-  if (translationKey) {
-    const keyWithPrefix = `genre_names.${translationKey}`;
-    if (te(keyWithPrefix)) return t(keyWithPrefix);
-  }
-
-  // Fallback: generate key from name
-  const key = `genre_names.${genreKeyFromName(name)}`;
-  if (te(key)) return t(key);
-
-  // No translation found - apply sentence case for user-created/promoted genres
-  return name;
-};
-
-export const getGenreDescription = function (
-  name: string,
-  translationKey: string | undefined,
-  t: (key: string) => string,
-  te: (key: string) => boolean,
-): string {
-  // First try the translation key with genre_descriptions prefix
-  if (translationKey) {
-    const keyWithPrefix = `genre_descriptions.${translationKey}`;
-    if (te(keyWithPrefix)) return t(keyWithPrefix);
-  }
-
-  // Fallback: generate key from name
-  const key = `genre_descriptions.${genreKeyFromName(name)}`;
-  if (te(key)) return t(key);
-
-  return "";
-};
-
 export const getArtistsString = function (
   artists: Array<Artist | ItemMapping>,
   size?: number,
@@ -217,21 +202,11 @@ export const getArtistsString = function (
     .join(" | ");
 };
 
-export const getBrowseFolderName = function (
-  browseItem: BrowseFolder,
-  t: (key: string) => string,
-) {
-  let browseTitle = "";
-  if (browseItem?.name && browseItem?.translation_key) {
-    browseTitle = `${browseItem.name}: ${t(browseItem?.translation_key)}`;
-  } else if (browseItem?.name) {
-    browseTitle = browseItem.name;
-  } else if (browseItem?.translation_key) {
-    browseTitle = t(browseItem?.translation_key);
-  } else {
-    browseTitle = browseItem.path || "";
-  }
-  return browseTitle;
+export const getBrowseFolderName = function (browseItem: BrowseFolder) {
+  // The server now provides the display name and (when a resolver is active) strips
+  // translation_key from the wire, so the client can no longer localize it itself: use the
+  // server-provided name directly, falling back to the path for unnamed folders.
+  return browseItem?.name || browseItem?.path || "";
 };
 
 export const getPlayerName = function (player: Player, truncate = 26) {
@@ -679,7 +654,10 @@ export const markdownToHtml = function (text: string): string {
     .replaceAll(/\\n/g, "<br />")
     .replaceAll("\n", "<br />")
     .replaceAll(" \\", "<br />");
-  return marked(text) as string;
+  // Metadata can carry attacker-controlled HTML that reaches v-html; SANITIZE_NAMED_PROPS also blocks DOM clobbering
+  return DOMPurify.sanitize(marked(text) as string, {
+    SANITIZE_NAMED_PROPS: true,
+  });
 };
 
 /**
@@ -753,6 +731,7 @@ export const isBuiltinPlayer = function (player: Player): boolean {
 export const playerVisible = function (
   player: Player,
   allowGroupChilds = false,
+  allowNeedsSetup = false,
 ): boolean {
   // perform some basic checks if we may use/show the player
   if (!player.enabled) return false;
@@ -760,7 +739,11 @@ export const playerVisible = function (
     return false;
   }
   if (player.active_group && !allowGroupChilds) return false;
-  if (!player.available) {
+  // A player that needs setup is serialized as unavailable. Only surface it
+  // (dimmed, with a "Setup required" affordance) where a click launches its
+  // setup flow (opt-in via allowNeedsSetup); elsewhere a click would select or
+  // play the player, so an unusable needs_setup player must stay hidden.
+  if (!player.available && !(player.needs_setup && allowNeedsSetup)) {
     return false;
   }
   if (isBuiltinPlayer(player)) {
@@ -782,12 +765,12 @@ export const playerVisible = function (
   return true;
 };
 
-// Whether a player can be offered in the group/sync member picker. Honours
-// hide_in_ui, except for light/visualizer players which are hidden from the
-// normal player view but exist to be grouped (e.g. Hue lights synced to audio).
+// Keep hidden players out of group pickers unless they represent this device or
+// are player types intended to be grouped with audio players.
 export const groupMemberPickerVisible = function (player: Player): boolean {
   return (
     !player.hide_in_ui ||
+    isBuiltinPlayer(player) ||
     player.type === PlayerType.LIGHT ||
     player.type === PlayerType.VISUALIZER
   );
@@ -802,6 +785,12 @@ export const handlePlayBtnClick = function (
   forceMenu?: boolean,
   sortBy?: string,
 ) {
+  // a failed play action must never be silent: without feedback the play
+  // button appears dead (e.g. while the connection is re-establishing)
+  const onPlayError = (err: Error) => {
+    console.error("Play action failed:", err);
+    toast.error($t("play_failed"));
+  };
   // we show the play menu for the item once (if playerTip has not been dismissed)
   if (!forceMenu && store.activePlayer?.available) {
     if (
@@ -811,15 +800,9 @@ export const handlePlayBtnClick = function (
       store.activePlayerQueue
     ) {
       // special case: playing a track from a playlist/album - play from here
-      api.playMedia(
-        parentItem.uri,
-        undefined,
-        false,
-        item.item_id,
-        undefined,
-        sortBy,
-      );
-
+      api
+        .playMedia(parentItem.uri, undefined, item.item_id, undefined, sortBy)
+        .catch(onPlayError);
       return;
     }
     // else: play the item directly
@@ -829,10 +812,10 @@ export const handlePlayBtnClick = function (
     // would cause the server to re-sort album/playlist tracks alphabetically,
     // making playback start at a "random" track. sortBy is only meaningful in
     // the "play from here" branch above.
-    api.playMedia(item).then(() => {});
+    api.playMedia(item).catch(onPlayError);
     return;
   }
-  showPlayMenuForMediaItem(item, parentItem, posX, posY);
+  showPlayMenuForMediaItem(item, parentItem, posX, posY).catch(onPlayError);
 };
 
 /* Handle media item click */
@@ -926,8 +909,9 @@ export const isHiddenSendspinWebPlayer = function (
 export const getVolumeIconComponent = function (
   player: Player,
   displayVolume?: number,
+  muted = player.volume_muted ?? false,
 ) {
-  if (player.volume_muted) {
+  if (muted) {
     return VolumeX;
   }
 

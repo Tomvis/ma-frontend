@@ -78,7 +78,7 @@ export interface EditorialShelfExpose {
 <script setup lang="ts">
 import ProviderIcon from "@/components/ProviderIcon.vue";
 import { getBreakpointValue } from "@/plugins/breakpoint";
-import { ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 interface Props {
@@ -288,6 +288,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--ed-gap, 14px);
+  position: relative;
   overflow-x: auto;
   overflow-y: visible;
   overscroll-behavior-x: contain;

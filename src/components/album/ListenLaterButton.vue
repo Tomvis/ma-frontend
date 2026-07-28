@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { BookmarkCheck, BookmarkPlus } from "lucide-vue-next";
+import { BookmarkCheck, BookmarkPlus } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "vue-sonner";
 import type { Album } from "@/plugins/api/interfaces";

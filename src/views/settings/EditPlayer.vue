@@ -11,7 +11,11 @@
       <v-card v-if="config" class="header-card mb-4" elevation="0">
         <div class="header-content">
           <div class="header-icon">
-            <v-icon size="32" color="primary">mdi-speaker</v-icon>
+            <PlayerIcon
+              :icon="api.players[config.player_id]?.icon"
+              :size="32"
+              class="text-primary"
+            />
           </div>
           <div class="header-info">
             <div class="header-title-row">
@@ -161,6 +165,14 @@
     >
       <div class="disabled-banner">
         <span>{{ $t("settings.player_needs_setup") }}</span>
+        <v-btn
+          size="small"
+          color="warning"
+          variant="flat"
+          @click="startPlayerSetup"
+        >
+          {{ $t("settings.start_setup") }}
+        </v-btn>
       </div>
     </v-alert>
 
@@ -182,7 +194,7 @@
       v-if="config"
       :disabled="!config?.enabled"
       :config-entries="config_entries"
-      :default-expanded-protocol="nativeProtocolCategory"
+      :output-protocols="api.players[config.player_id]?.output_protocols || []"
       @submit="onSubmit"
       @action="onAction"
       @immediate-apply="onImmediateApply"
@@ -230,6 +242,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useRouter } from "vue-router";
+import { toast } from "vue-sonner";
 import { api } from "@/plugins/api";
 import {
   ConfigEntryType,
@@ -243,15 +256,20 @@ import {
 } from "@/plugins/api/interfaces";
 import EditConfig from "./EditConfig.vue";
 import ProviderIcon from "@/components/ProviderIcon.vue";
+import PlayerIcon from "@/components/PlayerIcon.vue";
 import { watch } from "vue";
 
-import { nanoid } from "nanoid";
-import { ConfigEntryUI, UI_ENTRY_TYPE } from "@/helpers/config_entry_ui";
-import { openLinkInNewTab } from "@/helpers/utils";
+import {
+  ConfigEntryUI,
+  UI_ENTRY_TYPE,
+  isInjected,
+} from "@/helpers/config_entry_ui";
+import { openActionUrlEntries, openLinkInNewTab } from "@/helpers/utils";
+import { eventbus } from "@/plugins/eventbus";
+import { $t } from "@/plugins/i18n";
 // global refs
 const router = useRouter();
 const config = ref<PlayerConfig>();
-const sessionId = nanoid(11);
 const loading = ref(false);
 const showRenameDialog = ref(false);
 const editName = ref<string | null>(null);
@@ -282,13 +300,6 @@ const unsub = api.subscribe(
 );
 onBeforeUnmount(unsub);
 
-// Compute the native protocol category to auto-expand its accordion panel
-const nativeProtocolCategory = computed(() => {
-  if (!config.value) return undefined;
-  const domain = api.getProviderManifest(config.value.provider)?.domain;
-  return domain ? `protocol_${domain}` : undefined;
-});
-
 // computed properties
 const config_entries = computed(() => {
   if (!config.value) return [];
@@ -315,7 +326,7 @@ const config_entries = computed(() => {
     entries.push({
       key: "dsp_note_multi_device_group",
       type: ConfigEntryType.LABEL,
-      label: "You can configure the DSP for each player individually.",
+      label: $t("settings.dsp_note_multi_device_group.label"),
       default_value: null,
       required: false,
       category: "dsp",
@@ -328,8 +339,7 @@ const config_entries = computed(() => {
     entries.push({
       key: "dsp_note_multi_device_group_unsupported",
       type: ConfigEntryType.LABEL,
-      label:
-        "This group type does not support DSP when playing to multiple devices.",
+      label: $t("settings.dsp_note_multi_device_group_unsupported.label"),
       default_value: null,
       required: false,
       category: "dsp",
@@ -347,6 +357,16 @@ const config_entries = computed(() => {
       category: "options",
       injected: true,
     });
+  }
+  // Frontend-injected entries need their category heading translated here
+  // (server-provided entries get category_label resolved server-side).
+  for (const entry of entries) {
+    if (isInjected(entry) && entry.category) {
+      entry.category_label = $t(
+        `settings.category.${entry.category}`,
+        entry.category,
+      );
+    }
   }
   return entries;
 });
@@ -396,6 +416,14 @@ const enablePlayer = function () {
     });
 };
 
+const startPlayerSetup = function () {
+  if (!props.playerId) return;
+  eventbus.emit("setupFlowDialog", {
+    kind: "player",
+    playerId: props.playerId,
+  });
+};
+
 const onSubmit = async function (values: Record<string, ConfigValueType>) {
   values["enabled"] = config.value!.enabled;
   loading.value = true;
@@ -431,22 +459,14 @@ const onImmediateApply = async function (
 
 const onAction = async function (
   action: string,
-  values: Record<string, ConfigValueType>,
+  _values: Record<string, ConfigValueType>,
   immediateApply: boolean,
 ) {
   loading.value = true;
-  // append existing ConfigEntry values to allow
-  // values be passed between flow steps
-  for (const entry of Object.values(config.value!.values)) {
-    if (entry.value !== undefined && values[entry.key] == undefined) {
-      values[entry.key] = entry.value;
-    }
-  }
-  // ensure the session id is passed along (for auth actions)
-  values["session_id"] = sessionId;
   api
-    .getPlayerConfigEntries(config.value!.player_id, action, values)
+    .invokePlayerConfigAction(config.value!.player_id, action)
     .then(async (entries) => {
+      entries = openActionUrlEntries(entries);
       config.value!.values = {};
       for (const entry of entries) {
         config.value!.values[entry.key] = entry;
@@ -469,8 +489,7 @@ const onAction = async function (
       }
     })
     .catch((err) => {
-      // TODO: make this a bit more fancy someday
-      alert(err);
+      toast.error(String(err));
     })
     .finally(() => {
       loading.value = false;

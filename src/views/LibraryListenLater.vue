@@ -42,7 +42,7 @@ import {
 } from "@/plugins/api/interfaces";
 import { useListenLater } from "@/composables/useListenLater";
 import { store } from "@/plugins/store";
-import { BookmarkCheck } from "lucide-vue-next";
+import { BookmarkCheck } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { toast } from "vue-sonner";
 import { useI18n } from "vue-i18n";
@@ -220,10 +220,11 @@ async function playAll(shuffle: boolean) {
         ? player.active_source
         : player.player_id;
     if (queueId) await api.queueCommandShuffle(queueId, shuffle);
+    // NOTE: upstream dropped the `radio_mode` positional arg from playMedia;
+    // the args are now (media, option, start_item, queue_id, sort_by).
     await api.playMedia(
       all.map((a) => a.uri),
       QueueOption.REPLACE,
-      false,
       undefined,
       queueId,
     );

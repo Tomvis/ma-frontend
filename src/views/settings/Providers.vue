@@ -9,10 +9,9 @@
 
   <div class="pl-5 font-weight-medium">
     {{
-      $t("settings.providers_total", [
-        getAllFilteredProviders().length,
-        getAllFilteredProviders().length > 1 ? "s" : "",
-      ])
+      $t("settings.providers_total", getAllFilteredProviders().length, {
+        named: { count: getAllFilteredProviders().length },
+      })
     }}
   </div>
   <Container
@@ -28,7 +27,7 @@
         :class="{
           'provider-disabled': !item.enabled,
         }"
-        @click="editProvider(item.instance_id)"
+        @click="openProvider(item)"
         @menu="(evt) => onMenu(evt, item)"
       >
         <template #prepend>
@@ -47,21 +46,24 @@
 
         <template #subtitle>
           <div class="provider-meta">
-            <!-- Provider error warning -->
+            <!-- Provider error / attention -->
             <div
-              v-if="item.enabled && item.last_error"
+              v-if="isErrorStatus(item.status)"
               class="provider-error-inline"
             >
-              <v-icon icon="mdi-alert-circle" size="16" color="error" />
-              <span class="provider-error-text">{{
-                $t("settings.provider_requires_attention")
-              }}</span>
+              <v-icon
+                :icon="statusIcon(item.status)"
+                size="16"
+                :color="statusColor(item.status)"
+              />
+              <span class="provider-error-text">{{ getErrorText(item) }}</span>
               <v-btn
+                v-if="canReconfigure(item)"
                 size="x-small"
                 color="error"
                 variant="tonal"
                 class="ml-2"
-                @click.stop="editProvider(item.instance_id)"
+                @click.stop="reconfigureProvider(item.instance_id)"
               >
                 {{ $t("settings.reconfigure") }}
               </v-btn>
@@ -88,25 +90,15 @@
               :title="$t('settings.sync_running')"
             />
             <v-icon
-              v-if="!item.enabled"
-              icon="mdi-cancel"
+              v-if="statusIcon(item.status)"
+              :icon="statusIcon(item.status)"
               size="20"
-              color="grey"
-              :title="$t('settings.provider_disabled')"
-            />
-            <v-icon
-              v-else-if="item.last_error"
-              icon="mdi-alert-circle"
-              size="20"
-              color="red"
-              :title="item.last_error"
-            />
-            <v-icon
-              v-else-if="!api.providers[item.instance_id]?.available"
-              icon="mdi-timer-sand"
-              size="20"
-              color="grey"
-              :title="$t('settings.not_loaded')"
+              :color="statusColor(item.status)"
+              :title="
+                isErrorStatus(item.status)
+                  ? getErrorText(item)
+                  : statusLabel(item.status)
+              "
             />
             <v-chip
               v-if="
@@ -143,7 +135,7 @@
           class="flex-fill rounded-lg provider-card d-flex flex-column"
           :class="{ 'player-provider-card': item.type === ProviderType.PLAYER }"
           min-height="200px"
-          @click="editProvider(item.instance_id)"
+          @click="openProvider(item)"
         >
           <template #prepend>
             <provider-icon
@@ -165,37 +157,22 @@
               <v-icon color="grey"> mdi-sync </v-icon>
             </v-btn>
 
-            <!-- provider disabled -->
+            <!-- provider status (disabled / loading / error / etc) -->
             <v-btn
-              v-if="!item.enabled"
+              v-if="statusIcon(item.status)"
               variant="text"
               size="small"
               icon
-              :title="$t('settings.provider_disabled')"
+              :title="
+                isErrorStatus(item.status)
+                  ? getErrorText(item)
+                  : statusLabel(item.status)
+              "
             >
-              <v-icon color="grey"> mdi-cancel </v-icon>
-            </v-btn>
-
-            <!-- provider has errors -->
-            <v-btn
-              v-else-if="item.enabled && item.last_error"
-              variant="text"
-              size="small"
-              icon
-              :title="item.last_error"
-            >
-              <v-icon color="red"> mdi-alert-circle </v-icon>
-            </v-btn>
-
-            <!-- loading (provider not yet available) -->
-            <v-btn
-              v-else-if="!api.providers[item.instance_id]?.available"
-              variant="text"
-              size="small"
-              icon
-              :title="$t('settings.not_loaded')"
-            >
-              <v-icon icon="mdi-timer-sand" />
+              <v-icon
+                :icon="statusIcon(item.status)"
+                :color="statusColor(item.status)"
+              />
             </v-btn>
 
             <v-chip
@@ -230,25 +207,30 @@
 
           <!-- Provider error warning for card view -->
           <v-card-text
-            v-if="item.enabled && item.last_error"
+            v-if="isErrorStatus(item.status)"
             class="provider-error-card py-2"
           >
             <div class="provider-error-inline">
-              <v-icon icon="mdi-alert-circle" size="16" color="error" />
+              <v-icon
+                :icon="statusIcon(item.status)"
+                size="16"
+                :color="statusColor(item.status)"
+              />
               <span class="provider-error-text">{{
-                $t("settings.provider_requires_attention")
+                statusLabel(item.status)
               }}</span>
             </div>
             <div class="provider-error-detail mt-1">
-              {{ item.last_error }}
+              {{ getErrorText(item) }}
             </div>
             <v-btn
+              v-if="canReconfigure(item)"
               size="small"
               color="error"
               variant="tonal"
               class="mt-2"
               block
-              @click.stop="editProvider(item.instance_id)"
+              @click.stop="reconfigureProvider(item.instance_id)"
             >
               {{ $t("settings.reconfigure") }}
             </v-btn>
@@ -286,7 +268,12 @@ import ListItem from "@/components/ListItem.vue";
 import ProviderFilters from "@/components/ProviderFilters.vue";
 import ProviderIcon from "@/components/ProviderIcon.vue";
 import { Button } from "@/components/ui/button";
-import { useBackgroundTasks } from "@/composables/useBackgroundTasks";
+import { useBackgroundTasks } from "@/composables/background-tasks/useBackgroundTasks";
+import type { ContextMenuItem } from "@/helpers/context_menu_item";
+import {
+  canReconfigureProvider,
+  providerRequiresReconfiguration,
+} from "@/helpers/provider_config";
 import { openLinkInNewTab } from "@/helpers/utils";
 import { api } from "@/plugins/api";
 import {
@@ -294,14 +281,16 @@ import {
   ProviderConfig,
   ProviderFeature,
   ProviderStage,
+  ProviderStatus,
   ProviderType,
 } from "@/plugins/api/interfaces";
 import { eventbus } from "@/plugins/eventbus";
 import { $t } from "@/plugins/i18n";
-import { Plus } from "lucide-vue-next";
+import { Plus } from "@lucide/vue";
 import { match } from "ts-pattern";
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { toast } from "vue-sonner";
 import AddProviderDialog from "./AddProviderDialog.vue";
 
 // global refs
@@ -369,8 +358,40 @@ const removeProvider = function (providerInstanceId: string) {
   );
 };
 
-const editProvider = function (providerInstanceId: string) {
+const openProviderOptions = function (providerInstanceId: string) {
   router.push(`/settings/editprovider/${providerInstanceId}`);
+};
+
+const reconfigureProvider = function (providerInstanceId: string) {
+  eventbus.emit("setupFlowDialog", {
+    kind: "reconfigure",
+    instanceId: providerInstanceId,
+    onFlowEnded: () => {
+      void loadItems();
+    },
+  });
+};
+
+const openProvider = function (provider: ProviderConfig) {
+  if (
+    providerRequiresReconfiguration(
+      provider.status,
+      api.providerManifests[provider.domain]?.has_setup_flow,
+      provider.enabled,
+    )
+  ) {
+    reconfigureProvider(provider.instance_id);
+    return;
+  }
+  openProviderOptions(provider.instance_id);
+};
+
+const canReconfigure = function (provider: ProviderConfig) {
+  return canReconfigureProvider(
+    provider.status,
+    api.providerManifests[provider.domain]?.has_setup_flow,
+    provider.enabled,
+  );
 };
 
 const shouldShowStageBadge = function (stage?: ProviderStage) {
@@ -403,7 +424,7 @@ const reloadProvider = function (providerInstanceId: string) {
     .sendCommand("config/providers/reload", {
       instance_id: providerInstanceId,
     })
-    .catch((err) => alert(err));
+    .catch((err) => toast.error(String(err)));
 };
 
 const onMenu = function (evt: Event, item: ProviderConfig) {
@@ -414,12 +435,12 @@ const onMenu = function (evt: Event, item: ProviderConfig) {
     return;
   }
   const providerInstance = api.getProvider(item.instance_id);
-  const menuItems = [
+  const menuItems: ContextMenuItem[] = [
     {
-      label: "settings.configure",
+      label: "settings.options",
       labelArgs: [],
       action: () => {
-        editProvider(item.instance_id);
+        openProviderOptions(item.instance_id);
       },
       icon: "mdi-cog",
     },
@@ -468,6 +489,17 @@ const onMenu = function (evt: Event, item: ProviderConfig) {
       icon: "mdi-refresh",
     },
   ];
+
+  if (canReconfigure(item)) {
+    menuItems.unshift({
+      label: "settings.reconfigure",
+      labelArgs: [],
+      action: () => {
+        reconfigureProvider(item.instance_id);
+      },
+      icon: "mdi-cog-refresh",
+    });
+  }
 
   if (item.type === ProviderType.PLAYER && providerInstance) {
     menuItems.push({
@@ -556,6 +588,56 @@ const getStageColor = function (stage?: string) {
     .otherwise(() => "green");
 };
 
+// status indicator helpers: a loaded (healthy) provider shows no indicator
+const statusIcon = function (status?: ProviderStatus) {
+  return match(status)
+    .with(ProviderStatus.DISABLED, () => "mdi-cancel")
+    .with(ProviderStatus.LOADING, () => "mdi-timer-sand")
+    .with(ProviderStatus.AUTH_REQUIRED, () => "mdi-key-alert")
+    .with(ProviderStatus.INCOMPATIBLE, () => "mdi-alert-octagon-outline")
+    .with(ProviderStatus.ERROR, () => "mdi-alert-circle")
+    .otherwise(() => "");
+};
+
+const statusColor = function (status?: ProviderStatus) {
+  return match(status)
+    .with(
+      ProviderStatus.AUTH_REQUIRED,
+      ProviderStatus.INCOMPATIBLE,
+      () => "warning",
+    )
+    .with(ProviderStatus.ERROR, () => "error")
+    .otherwise(() => "grey");
+};
+
+const statusLabel = function (status?: ProviderStatus) {
+  return match(status)
+    .with(ProviderStatus.DISABLED, () => $t("settings.provider_disabled"))
+    .with(ProviderStatus.LOADING, () => $t("settings.not_loaded"))
+    .with(ProviderStatus.AUTH_REQUIRED, () =>
+      $t("settings.provider_status_auth_required"),
+    )
+    .with(ProviderStatus.INCOMPATIBLE, () =>
+      $t("settings.provider_status_incompatible"),
+    )
+    .with(ProviderStatus.ERROR, () => $t("settings.provider_status_error"))
+    .otherwise(() => "");
+};
+
+// an error status carries a (user-relevant) reason in last_error
+const isErrorStatus = function (status?: ProviderStatus) {
+  return (
+    status === ProviderStatus.AUTH_REQUIRED ||
+    status === ProviderStatus.INCOMPATIBLE ||
+    status === ProviderStatus.ERROR
+  );
+};
+
+const getErrorText = function (item: ProviderConfig) {
+  // the server localizes last_error.message for the connection's locale
+  return item.last_error?.message ?? "";
+};
+
 const getProviderTypeTitle = function (type: ProviderType) {
   return match(type)
     .with(ProviderType.MUSIC, () => $t("settings.music"))
@@ -586,10 +668,10 @@ const getAllFilteredProviders = function () {
     filtered = filtered.filter((item) => item.type === ProviderType.MUSIC);
   }
 
-  // Sort: providers with errors first, then alphabetically
+  // Sort: providers needing attention (error/auth/incompatible) first, then alphabetically
   return filtered.sort((a, b) => {
-    const aHasError = a.enabled && a.last_error ? 1 : 0;
-    const bHasError = b.enabled && b.last_error ? 1 : 0;
+    const aHasError = isErrorStatus(a.status) ? 1 : 0;
+    const bHasError = isErrorStatus(b.status) ? 1 : 0;
     if (aHasError !== bHasError) {
       return bHasError - aHasError; // Errors first
     }

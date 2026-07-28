@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, toRef } from "vue";
-import { Star, StarHalf, Sparkles } from "lucide-vue-next";
+import { Star, StarHalf, Sparkles } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import type { Album, ReviewLink } from "@/plugins/api/interfaces";
 import { useAlbumTags } from "@/composables/useAlbumTags";

@@ -11,7 +11,7 @@
     <div class="card-content">
       <div class="card-header">
         <div class="player-icon-wrapper">
-          <v-icon :icon="player?.icon || 'mdi-speaker'" :size="24" />
+          <PlayerIcon :icon="player?.icon" :size="24" />
         </div>
         <div class="player-info">
           <div class="player-name">{{ playerName }}</div>
@@ -37,6 +37,16 @@
             $t("settings.player_needs_setup")
           }}</span>
         </div>
+        <v-btn
+          size="small"
+          color="warning"
+          variant="flat"
+          block
+          class="mt-2"
+          @click.stop="handleSetup"
+        >
+          {{ $t("settings.start_setup") }}
+        </v-btn>
       </div>
 
       <div class="card-footer">
@@ -92,6 +102,7 @@
 
 <script setup lang="ts">
 import ProviderIcon from "@/components/ProviderIcon.vue";
+import PlayerIcon from "@/components/PlayerIcon.vue";
 import { api } from "@/plugins/api";
 import { PlayerConfig } from "@/plugins/api/interfaces";
 import { $t } from "@/plugins/i18n";
@@ -104,6 +115,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "click", playerConfig: PlayerConfig): void;
   (e: "menu", event: Event, playerConfig: PlayerConfig): void;
+  (e: "setup", playerConfig: PlayerConfig): void;
 }>();
 
 const player = computed(() => api.players[props.playerConfig.player_id]);
@@ -144,6 +156,10 @@ const handleClick = () => {
 
 const handleMenu = (event: Event) => {
   emit("menu", event, props.playerConfig);
+};
+
+const handleSetup = () => {
+  emit("setup", props.playerConfig);
 };
 </script>
 
