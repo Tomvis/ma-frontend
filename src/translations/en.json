@@ -418,6 +418,10 @@
             "label": "Force mobile layout",
             "description": "Force the mobile layout (with the menu-navigation at the bottom), even on larger screens."
         },
+        "show_toolbar_icons": {
+            "label": "Show toolbar action icons",
+            "description": "Show action icons (sort, filters, view options) inline in the listing toolbar on wider screens. When disabled, they are always grouped under the overflow (three-dots) menu."
+        },
         "providers_description": "Manage your music sources, player providers and plugins",
         "players_description": "Configure and manage your audio output devices",
         "frontend_description": "Customize the user interface theme and appearance",

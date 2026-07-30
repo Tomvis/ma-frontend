@@ -29,7 +29,7 @@
         :icon="ArrowLeft"
         style="position: absolute; z-index: 999999"
         :menu-items="menuItems"
-        :enforce-overflow-menu="true"
+        :enforce-overflow-menu="!showToolbarIcons"
         :icon-action="backButtonClick"
       >
         <template v-if="$slots['toolbar-append']" #append>
@@ -501,6 +501,10 @@ const imgGradient = new URL("../assets/info_gradient.jpg", import.meta.url)
 const marqueeSync = new MarqueeTextSync();
 const router = useRouter();
 const { getPreference } = useUserPreferences();
+
+// Inline toolbar icons on wide screens unless the user opted into the
+// always-collapsed (overflow-menu) toolbar. Mirrors ItemsListing.vue.
+const showToolbarIcons = getPreference<boolean>("show_toolbar_icons", true);
 
 const headerTitle = computed(() => {
   if (!compProps.item) return "";

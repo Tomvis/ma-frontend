@@ -9,7 +9,7 @@
       :count="params.search ? pagedItems.length : total || allItems.length"
       color="transparent"
       :menu-items="menuItems"
-      :enforce-overflow-menu="true"
+      :enforce-overflow-menu="!showToolbarIcons"
       :menu-active="hasActiveFilters"
       @title-clicked="toggleExpand"
     >
@@ -279,6 +279,7 @@ import {
   scrollElement,
 } from "@/helpers/utils";
 import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
+import { resolveSortPreference } from "@/helpers/listingSort";
 import { api } from "@/plugins/api";
 import { itemIsAvailable } from "@/plugins/api/helpers";
 import {
@@ -537,8 +538,12 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter();
 const route = useRoute();
 const { t, te } = useI18n();
-const { getItemsListingPreferences, setItemsListingPreference, setPreference } =
-  useUserPreferences();
+const {
+  getItemsListingPreferences,
+  setItemsListingPreference,
+  setPreference,
+  getPreference,
+} = useUserPreferences();
 
 // local refs
 const params = ref<LoadDataParams>({
@@ -896,6 +901,9 @@ const changeSort = function (sort_key?: string) {
     "sortBy",
     params.value.sortBy,
   );
+  // Remember this as the global default so untouched listings of the same item
+  // type (e.g. other artists' albums) inherit it instead of resetting to name.
+  setPreference(globalSortKey, params.value.sortBy);
   loadData(undefined, undefined, true);
 };
 
@@ -1684,6 +1692,19 @@ const savedPrefs = computed(
       .value,
 );
 
+// Global "last used" sort for this item type. Listings with a per-instance path
+// (e.g. one artist's albums) store their own sortBy in savedPrefs as an explicit
+// override; instances the user hasn't touched fall back to this shared default so
+// "sort albums by year" sticks when moving between artists. Keyed by itemtype so
+// album sorts never leak into track listings.
+const globalSortKey = `itemsListingSort.${props.itemtype}`;
+const globalSortDefault = getPreference<string>(globalSortKey);
+
+// When enabled (default), toolbar actions render inline on wide screens and only
+// collapse into the overflow (3-dot) menu when the toolbar is too narrow. When
+// disabled, they are always collapsed (the upstream "decluttered" look).
+const showToolbarIcons = getPreference<boolean>("show_toolbar_icons", true);
+
 const restoreSettings = async function () {
   // restore settings for this path/itemtype
   const prefs = savedPrefs.value;
@@ -1706,12 +1727,13 @@ const restoreSettings = async function () {
     viewMode.value = "list";
   }
 
-  // get stored/default sortBy for this itemtype
-  if (prefs.sortBy && props.sortKeys.includes(prefs.sortBy)) {
-    params.value.sortBy = prefs.sortBy;
-  } else {
-    params.value.sortBy = props.sortKeys[0];
-  }
+  // sortBy: per-listing override (prefs.sortBy) > global default for the item
+  // type (globalSortDefault) > first declared sort key.
+  params.value.sortBy = resolveSortPreference(
+    prefs.sortBy,
+    globalSortDefault.value,
+    props.sortKeys,
+  );
 
   // get stored/default favoriteOnlyFilter for this itemtype
   if (props.showFavoritesOnlyFilter !== false && prefs.favoriteFilter) {
