@@ -166,7 +166,9 @@ function createErrorResult(
   if (!command.message_id) throw new Error("Command has no message ID");
   return {
     message_id: command.message_id,
-    error_code: "test_error",
+    // the server sends the numeric code off the MusicAssistantError subclass,
+    // falling back to 999 for exceptions that declare none
+    error_code: 999,
     details,
   };
 }

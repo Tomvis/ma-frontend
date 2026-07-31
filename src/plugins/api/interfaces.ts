@@ -515,7 +515,9 @@ export interface SuccessResultMessage extends ResultMessageBase {
 export interface ErrorResultMessage extends ResultMessageBase {
   // Message sent when a Command has been successfully executed.
 
-  error_code: string;
+  // Numeric code from the server's MusicAssistantError subclass (999 when the
+  // exception declares none) - not a string, despite what this used to claim.
+  error_code: number;
   details?: string;
 }
 
