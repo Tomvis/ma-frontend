@@ -797,12 +797,14 @@ export const getContextMenuItems = async function (
   );
   if (albumItems.length > 0) {
     const ll = useListenLater();
-    // Source of truth is the album object from the server, not the local
-    // cache — the cache may not yet have been primed for these URIs. Two
+    // Use the composable's isSaved (server flag OR optimistic URI cache) rather
+    // than the raw `listen_later` field: a streaming-provider Album never carries
+    // the flag, so keying off it alone offered "Add" for an album that is already
+    // saved and the call failed server-side with AlreadyInListenLaterError. Two
     // independent gated pushes (add first, then remove) cover all-saved,
     // none-saved and mixed states with one copy of each entry.
-    const toAdd = albumItems.filter((a) => !a.listen_later);
-    const toRemove = albumItems.filter((a) => a.listen_later);
+    const toAdd = albumItems.filter((a) => !ll.isSaved(a));
+    const toRemove = albumItems.filter((a) => ll.isSaved(a));
 
     if (toAdd.length > 0) {
       contextMenuItems.push({

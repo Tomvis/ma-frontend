@@ -7,6 +7,7 @@ import { useAlbumTags } from "@/composables/useAlbumTags";
 import AccoladeChip from "@/components/album/AccoladeChip.vue";
 import {
   formatScore,
+  formatDr,
   type ParsedAccolade,
   type AuthorWithRole,
   type SourceTags,
@@ -129,7 +130,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 
         <div class="rs-main rs-main--dr">
           <span class="rs-dr-value" :data-quality="tags.dr.quality">
-            {{ tags.dr.value }}
+            {{ formatDr(tags.dr.value) }}
           </span>
           <div class="rs-dr-side">
             <div class="rs-dr-verdict" :data-quality="tags.dr.quality">
@@ -138,7 +139,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
             <div
               class="rs-meter"
               role="img"
-              :aria-label="`DR ${tags.dr.value} of 20 — ${drVerdict}`"
+              :aria-label="`DR ${formatDr(tags.dr.value)} of 20 — ${drVerdict}`"
             >
               <div
                 class="rs-meter-marker"
@@ -157,7 +158,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
           :title="$t('critical_reception.amg_dr_divergence_hint')"
         >
           {{ $t("critical_reception.amg_dr") }}
-          <strong>{{ tags.amgDr.value }}</strong>
+          <strong>{{ formatDr(tags.amgDr.value) }}</strong>
         </div>
       </div>
 

@@ -9,8 +9,15 @@ interface Props {
 }
 const props = defineProps<Props>();
 const albumRef = toRef(props, "album");
-const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
-  useAlbumBadgeLabels(albumRef);
+const {
+  tags,
+  savedForLater,
+  formatScore,
+  formatDr,
+  drTitle,
+  amgTitle,
+  tpsTitle,
+} = useAlbumBadgeLabels(albumRef);
 </script>
 
 <template>
@@ -25,7 +32,7 @@ const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
       role="img"
     >
       <span class="badge-label">DR</span>
-      <span class="badge-value">{{ tags.dr.value }}</span>
+      <span class="badge-value">{{ formatDr(tags.dr.value) }}</span>
     </div>
     <!-- spacer keeps the source-badge stack aligned to the right
          even when there's no DR badge but we still want a corner marker -->

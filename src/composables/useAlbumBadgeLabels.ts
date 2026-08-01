@@ -4,6 +4,7 @@ import type { Album } from "@/plugins/api/interfaces";
 import { useAlbumTags } from "@/composables/useAlbumTags";
 import { useListenLater } from "@/composables/useListenLater";
 import {
+  formatDr,
   formatScore,
   type AlbumTags,
   type SourceTags,
@@ -13,6 +14,7 @@ export interface AlbumBadgeLabels {
   tags: ComputedRef<AlbumTags>;
   savedForLater: ComputedRef<boolean>;
   formatScore: (n: number) => string;
+  formatDr: (n: number) => string;
   drTitle: ComputedRef<string>;
   amgTitle: ComputedRef<string>;
   tpsTitle: ComputedRef<string>;
@@ -41,7 +43,7 @@ export function useAlbumBadgeLabels(
     // signal that in the tooltip so the badge isn't claiming to be a measurement.
     const suffix =
       dr.source === "amg" ? ` · ${t("critical_reception.amg_dr")}` : "";
-    return `DR ${dr.value} — ${verdict}${suffix}`;
+    return `DR ${formatDr(dr.value)} — ${verdict}${suffix}`;
   });
 
   // One tooltip builder for both review sources: the score (with the source's own
@@ -63,5 +65,13 @@ export function useAlbumBadgeLabels(
   const amgTitle = computed(() => sourceTitle(tags.value.amg));
   const tpsTitle = computed(() => sourceTitle(tags.value.tps));
 
-  return { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle };
+  return {
+    tags,
+    savedForLater,
+    formatScore,
+    formatDr,
+    drTitle,
+    amgTitle,
+    tpsTitle,
+  };
 }

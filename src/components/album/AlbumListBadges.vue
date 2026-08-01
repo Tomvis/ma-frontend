@@ -9,8 +9,15 @@ interface Props {
 }
 const props = defineProps<Props>();
 const albumRef = toRef(props, "album");
-const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
-  useAlbumBadgeLabels(albumRef);
+const {
+  tags,
+  savedForLater,
+  formatScore,
+  formatDr,
+  drTitle,
+  amgTitle,
+  tpsTitle,
+} = useAlbumBadgeLabels(albumRef);
 </script>
 
 <template>
@@ -34,7 +41,7 @@ const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
       role="img"
     >
       <span class="chip__label">DR</span>
-      <span class="chip__value">{{ tags.dr.value }}</span>
+      <span class="chip__value">{{ formatDr(tags.dr.value) }}</span>
     </div>
     <div
       v-if="tags.amg"

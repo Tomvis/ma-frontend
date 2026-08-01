@@ -285,7 +285,10 @@ import {
   type ReviewBoolKey,
   type ReviewFilterParams,
 } from "@/helpers/criticalReception";
-import { resolveSortPreference } from "@/helpers/listingSort";
+import {
+  listingSortPreferenceKey,
+  resolveSortPreference,
+} from "@/helpers/listingSort";
 import { api } from "@/plugins/api";
 import { itemIsAvailable } from "@/plugins/api/helpers";
 import {
@@ -882,8 +885,8 @@ const changeSort = function (sort_key?: string) {
   if (sort_key !== undefined) {
     params.value.sortBy = sort_key;
   }
-  // Remember this as the global default too, so untouched listings of the same
-  // item type (e.g. other artists' albums) inherit it instead of resetting to
+  // Remember this as the shared default too, so untouched instances of this
+  // listing (e.g. other artists' albums) inherit it instead of resetting to
   // name. Both keys go in one write — each one PUTs the whole preferences blob.
   setPreferences({
     ...itemsListingPreferenceEntry(
@@ -1124,7 +1127,12 @@ const hasActiveFilters = computed(() => {
     // hide-empty genres filter: true (hide empty) and null (defaults only)
     // both narrow the result; false/undefined means "show all"
     p.hideEmptyFilter === true ||
-    p.hideEmptyFilter === null,
+    p.hideEmptyFilter === null ||
+    // DR/AMG/TPS review filters narrow the result exactly like the others; leaving
+    // them out made a review-filtered empty result look like an empty library
+    // (wrong empty state, no active-filter dot, and `hideOnEmpty` hid the whole
+    // listing along with the only control that could clear the filter).
+    hasAnyReviewFilter.value,
   );
 });
 
@@ -1675,12 +1683,14 @@ const savedPrefs = computed(
       .value,
 );
 
-// Global "last used" sort for this item type. Listings with a per-instance path
+// Shared "last used" sort for this listing. Listings with a per-instance path
 // (e.g. one artist's albums) store their own sortBy in savedPrefs as an explicit
 // override; instances the user hasn't touched fall back to this shared default so
-// "sort albums by year" sticks when moving between artists. Keyed by itemtype so
-// album sorts never leak into track listings.
-const globalSortKey = `itemsListingSort.${props.itemtype}`;
+// "sort albums by year" sticks when moving between artists. The key is scoped to
+// the itemtype *and* this listing's declared default, so album sorts never leak
+// into track listings and never override a sibling listing that documents a
+// different default (Listen Later vs library Albums).
+const globalSortKey = listingSortPreferenceKey(props.itemtype, props.sortKeys);
 const globalSortDefault = getPreference<string>(globalSortKey);
 
 // When enabled (default), toolbar actions render inline on wide screens and only
@@ -1710,8 +1720,8 @@ const restoreSettings = async function () {
     viewMode.value = "list";
   }
 
-  // sortBy: per-listing override (prefs.sortBy) > global default for the item
-  // type (globalSortDefault) > first declared sort key.
+  // sortBy: per-listing override (prefs.sortBy) > shared default for this
+  // listing (globalSortDefault) > first declared sort key.
   params.value.sortBy = resolveSortPreference(
     prefs.sortBy,
     globalSortDefault.value,

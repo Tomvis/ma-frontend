@@ -140,6 +140,15 @@ export function formatScore(n: number): string {
   return Number.isInteger(n) ? n.toFixed(1) : `${n}`;
 }
 
+// DR display convention (mirrors the mobile app's formatDr): drop the decimal when
+// the value is whole ("12"), otherwise show a single decimal. Album DR arrives as a
+// float — a measured mean or a raw file tag — so rendering it verbatim can print
+// "11.666666666666666" into a fixed-width chip.
+export function formatDr(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
+}
+
 export function formatDated(
   name: string,
   year?: number,
