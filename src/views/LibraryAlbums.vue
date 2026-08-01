@@ -27,6 +27,7 @@ import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import { onLibrarySyncCompleted } from "@/composables/useLibrarySync";
 import {
   ALBUM_SORT_KEYS,
+  albumFiltersFromParams,
   buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
@@ -59,20 +60,14 @@ onMounted(() => {
 
 const loadItems = async function (params: LoadDataParams) {
   updateAvailable.value = false;
-  setTotals(params);
+  // Only count on the first page: the total belongs to the filter set, and any
+  // filter change resets offset to 0, so recounting per scrolled page is waste.
+  if (!params.offset) setTotals(params);
   return await api.getLibraryAlbums({
-    favorite: params.favoritesOnly || undefined,
-    search: params.search,
+    ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
     order_by: params.sortBy,
-    album_types: params.albumType,
-    provider:
-      params.provider && params.provider.length > 0
-        ? params.provider
-        : undefined,
-    genre: params.genreIds,
-    critical_reception_filter: buildCriticalReceptionFilter(params),
   });
 };
 

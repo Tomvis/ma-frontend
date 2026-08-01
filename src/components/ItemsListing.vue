@@ -329,27 +329,18 @@ import {
 // (e.g. "albumtracks", "artistalbums") return undefined here on purpose
 // — new library rows don't automatically belong inside a parent-scoped
 // view, so adding to those views would be a false positive.
-const itemtypeAddedPrefix = (itemtype: string): string | undefined => {
-  switch (itemtype) {
-    case "albums":
-      return "library://album/";
-    case "artists":
-      return "library://artist/";
-    case "tracks":
-      return "library://track/";
-    case "playlists":
-      return "library://playlist/";
-    case "audiobooks":
-      return "library://audiobook/";
-    case "podcasts":
-      return "library://podcast/";
-    case "radios":
-      return "library://radio/";
-    case "genres":
-      return "library://genre/";
-  }
-  return undefined;
+const ITEMTYPE_ADDED_PREFIX: Record<string, string> = {
+  albums: "library://album/",
+  artists: "library://artist/",
+  tracks: "library://track/",
+  playlists: "library://playlist/",
+  audiobooks: "library://audiobook/",
+  podcasts: "library://podcast/",
+  radios: "library://radio/",
+  genres: "library://genre/",
 };
+const itemtypeAddedPrefix = (itemtype: string): string | undefined =>
+  ITEMTYPE_ADDED_PREFIX[itemtype];
 
 // Apply a MEDIA_ITEM_{UPDATED,DELETED,PLAYED} event in-place to the given
 // item arrays. Used both by the live in-component listener (against
@@ -541,7 +532,9 @@ const { t, te } = useI18n();
 const {
   getItemsListingPreferences,
   setItemsListingPreference,
+  itemsListingPreferenceEntry,
   setPreference,
+  setPreferences,
   getPreference,
 } = useUserPreferences();
 
@@ -895,15 +888,18 @@ const changeSort = function (sort_key?: string) {
   if (sort_key !== undefined) {
     params.value.sortBy = sort_key;
   }
-  setItemsListingPreference(
-    props.path || props.itemtype,
-    props.itemtype,
-    "sortBy",
-    params.value.sortBy,
-  );
-  // Remember this as the global default so untouched listings of the same item
-  // type (e.g. other artists' albums) inherit it instead of resetting to name.
-  setPreference(globalSortKey, params.value.sortBy);
+  // Remember this as the global default too, so untouched listings of the same
+  // item type (e.g. other artists' albums) inherit it instead of resetting to
+  // name. Both keys go in one write — each one PUTs the whole preferences blob.
+  setPreferences({
+    ...itemsListingPreferenceEntry(
+      props.path || props.itemtype,
+      props.itemtype,
+      "sortBy",
+      params.value.sortBy,
+    ),
+    [globalSortKey]: params.value.sortBy,
+  });
   loadData(undefined, undefined, true);
 };
 
@@ -1866,6 +1862,19 @@ if (props.allowKeyHooks) {
   });
 }
 
+// Subscribe to MEDIA_ITEM_ADDED for this listing's item type, invoking onAdded
+// only for events whose object_id belongs to it. Returns undefined when this
+// listing doesn't surface the banner at all, so callers treat it as optional.
+// Shared by the live listener and the detached restore-state snapshot listener
+// so both apply exactly the same prefix and suppression rules.
+const subscribeAdded = (onAdded: () => void): (() => void) | undefined => {
+  const addedPrefix = itemtypeAddedPrefix(props.itemtype);
+  if (!addedPrefix || props.suppressAddedBanner) return undefined;
+  return api.subscribe(EventType.MEDIA_ITEM_ADDED, (evt: EventMessage) => {
+    if (evt.object_id?.startsWith(addedPrefix)) onAdded();
+  });
+};
+
 if (props.restoreState) {
   // handle restore state
   onBeforeUnmount(() => {
@@ -1892,7 +1901,6 @@ if (props.restoreState) {
     // snapshot (not store.prevState) means a later overwrite can't divert
     // updates into the wrong arrays — the orphan listener is simply torn
     // down by the next unmount.
-    const addedPrefix = itemtypeAddedPrefix(props.itemtype);
     const unsubUpdated = api.subscribe_multi(
       [
         EventType.MEDIA_ITEM_UPDATED,
@@ -1903,14 +1911,9 @@ if (props.restoreState) {
         applyMediaEventToItems(evt, snapshot.pagedItems, snapshot.allItems);
       },
     );
-    const unsubAdded =
-      addedPrefix && !props.suppressAddedBanner
-        ? api.subscribe(EventType.MEDIA_ITEM_ADDED, (evt: EventMessage) => {
-            if (evt.object_id?.startsWith(addedPrefix)) {
-              snapshot.newContentAvailable = true;
-            }
-          })
-        : undefined;
+    const unsubAdded = subscribeAdded(() => {
+      snapshot.newContentAvailable = true;
+    });
     setDetachedPrevStateUnsub(() => {
       unsubUpdated();
       unsubAdded?.();
@@ -2103,40 +2106,30 @@ onMounted(async () => {
     showCheckboxes.value = false;
   });
 
-  // signal if/when items get played/updated/removed
-  _unsubscribeMediaEvents = api.subscribe_multi(
-    [
-      EventType.MEDIA_ITEM_UPDATED,
-      EventType.MEDIA_ITEM_DELETED,
-      EventType.MEDIA_ITEM_PLAYED,
-    ],
-    (evt: EventMessage) => {
-      applyMediaEventToItems(evt, pagedItems.value, allItems.value);
-    },
-  );
-
-  // Surface MEDIA_ITEM_ADDED via the "new content available" banner
-  // (handled by parent views previously, but with a buggy / inconsistent
-  // URI-prefix check). Doing it here applies a single correct filter to
-  // every top-level library listing and keeps detail-page sub-listings
-  // out of it. We deliberately don't insert in-place — sort/filter
-  // context isn't known here, and during a sync we'd thrash the list.
-  const addedPrefix = itemtypeAddedPrefix(props.itemtype);
-  if (addedPrefix && !props.suppressAddedBanner) {
-    const unsubAdded = api.subscribe(
-      EventType.MEDIA_ITEM_ADDED,
+  // signal if/when items get played/updated/removed, plus MEDIA_ITEM_ADDED via
+  // the "new content available" banner (handled by parent views previously, but
+  // with a buggy / inconsistent URI-prefix check). Doing it here applies a
+  // single correct filter to every top-level library listing and keeps
+  // detail-page sub-listings out of it. We deliberately don't insert in-place —
+  // sort/filter context isn't known here, and during a sync we'd thrash the list.
+  const unsubs = [
+    api.subscribe_multi(
+      [
+        EventType.MEDIA_ITEM_UPDATED,
+        EventType.MEDIA_ITEM_DELETED,
+        EventType.MEDIA_ITEM_PLAYED,
+      ],
       (evt: EventMessage) => {
-        if (evt.object_id?.startsWith(addedPrefix)) {
-          newContentAvailable.value = true;
-        }
+        applyMediaEventToItems(evt, pagedItems.value, allItems.value);
       },
-    );
-    const prevUnsub = _unsubscribeMediaEvents;
-    _unsubscribeMediaEvents = () => {
-      prevUnsub?.();
-      unsubAdded();
-    };
-  }
+    ),
+    subscribeAdded(() => {
+      newContentAvailable.value = true;
+    }),
+  ];
+  _unsubscribeMediaEvents = () => {
+    for (const unsub of unsubs) unsub?.();
+  };
 });
 
 watch(

@@ -69,6 +69,19 @@ export async function setUserPreference(
   key: string,
   value: unknown,
 ): Promise<void> {
+  await setUserPreferences({ [key]: value });
+}
+
+/**
+ * Standalone helper — set several preference keys in a single round-trip.
+ *
+ * Every write PUTs the entire preferences blob, which grows with each listing
+ * the user has ever touched, so callers changing more than one key at a time
+ * should batch them here rather than issuing sequential single-key writes.
+ */
+export async function setUserPreferences(
+  entries: Record<string, unknown>,
+): Promise<void> {
   if (!store.currentUser) {
     console.warn("Cannot set preference: no user logged in");
     return;
@@ -78,11 +91,11 @@ export async function setUserPreference(
     store.currentUser.preferences = {};
   }
 
-  const plainValue = JSON.parse(JSON.stringify(value));
+  const plainEntries = JSON.parse(JSON.stringify(entries));
 
   const updatedPreferences = {
     ...store.currentUser.preferences,
-    [key]: plainValue,
+    ...plainEntries,
   };
 
   store.currentUser.preferences = updatedPreferences;
@@ -154,24 +167,35 @@ export function useUserPreferences() {
     key: keyof ItemsListingPreferences,
     value: ItemsListingPreferences[keyof ItemsListingPreferences],
   ): Promise<void> {
-    const storKey = `${path}.${itemtype}`;
-    const prefKey = `itemsListing.${storKey}`;
+    await setUserPreferences(
+      itemsListingPreferenceEntry(path, itemtype, key, value),
+    );
+  }
 
+  /**
+   * Build the single preferences entry an ItemsListing write produces, without
+   * persisting it — so a caller updating a listing preference *and* another key
+   * can batch both into one setPreferences call.
+   */
+  function itemsListingPreferenceEntry(
+    path: string,
+    itemtype: string,
+    key: keyof ItemsListingPreferences,
+    value: ItemsListingPreferences[keyof ItemsListingPreferences],
+  ): Record<string, unknown> {
+    const prefKey = `itemsListing.${path}.${itemtype}`;
     const currentPrefs = getItemsListingPreferences(path, itemtype);
-    const updatedPrefs = {
-      ...currentPrefs.value,
-      [key]: value,
-    };
-
-    await setPreference(prefKey, updatedPrefs);
+    return { [prefKey]: { ...currentPrefs.value, [key]: value } };
   }
 
   return {
     currentUser,
     getPreference,
     setPreference,
+    setPreferences: setUserPreferences,
     getItemsListingPreferences,
     setItemsListingPreference,
+    itemsListingPreferenceEntry,
   };
 }
 

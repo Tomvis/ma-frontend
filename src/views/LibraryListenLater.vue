@@ -30,6 +30,7 @@ import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { ToolBarMenuItem } from "@/components/Toolbar.vue";
 import {
   ALBUM_SORT_KEYS,
+  albumFiltersFromParams,
   buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
@@ -65,18 +66,10 @@ const sortKeys = [
 const loadItems = async (params: LoadDataParams) => {
   trackedSetTotals(params);
   const albums = await api.getLibraryAlbums({
-    favorite: params.favoritesOnly || undefined,
-    search: params.search,
+    ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
     order_by: params.sortBy || "listen_later_added_at_desc",
-    album_types: params.albumType,
-    provider:
-      params.provider && params.provider.length > 0
-        ? params.provider
-        : undefined,
-    genre: params.genreIds,
-    critical_reception_filter: buildCriticalReceptionFilter(params),
     listen_later: true, // this view shows saved-for-later items only
   });
   for (const album of albums) prime(album as Album);
@@ -108,15 +101,10 @@ const setTotals = async (params: LoadDataParams) => {
 const fetchAllFiltered = async (): Promise<Album[]> => {
   const p = lastParams.value;
   const albums = await api.getLibraryAlbums({
-    favorite: p?.favoritesOnly || undefined,
-    search: p?.search,
+    ...albumFiltersFromParams(p ?? {}),
     limit: Math.max(total.value ?? 1, 1),
     offset: 0,
     order_by: "listen_later_added_at_desc",
-    album_types: p?.albumType,
-    provider: p?.provider && p.provider.length > 0 ? p.provider : undefined,
-    genre: p?.genreIds,
-    critical_reception_filter: p ? buildCriticalReceptionFilter(p) : undefined,
     listen_later: true,
   });
   return albums as Album[];
@@ -246,6 +234,10 @@ const lastParams = ref<LoadDataParams | undefined>(undefined);
 
 const trackedSetTotals = async (params: LoadDataParams) => {
   lastParams.value = params;
+  // The total is a property of the filter set, and any filter change resets
+  // offset to 0 — so re-counting on every scrolled page is a wasted RPC.
+  // The debounced recount calls setTotals directly and is unaffected.
+  if (params.offset) return;
   await setTotals(params);
 };
 
@@ -253,31 +245,42 @@ const trackedSetTotals = async (params: LoadDataParams) => {
 // when a listen-later flip means a row no longer belongs in this view.
 const listingRef = ref<{ refresh?: () => void } | null>(null);
 
+// Leading-edge-suppressed coalescer: the first call arms the timer and further
+// calls inside that window are dropped, so a burst collapses into exactly one
+// trailing run. Deliberately not @vueuse's useDebounceFn, which pushes the
+// deadline out on every call and so never settles during a sustained burst.
+const coalesce = (fn: () => void, ms = 250) => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Object.assign(
+    () => {
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        fn();
+      }, ms);
+    },
+    {
+      cancel: () => {
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+      },
+    },
+  );
+};
+
 // Coalesce listen-later removals into a single reload. Bulk-remove fires many
 // MEDIA_ITEM_UPDATED events back-to-back; a per-event refresh would re-fetch
 // the page once for each, hammering the server during inbox-clearing churn.
 // The listing refresh re-runs loadItems → trackedSetTotals → setTotals, so it
 // also re-counts; the false branch relies on that instead of a direct setTotals.
-let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-const scheduleListingRefresh = () => {
-  if (refreshTimer !== null) return;
-  refreshTimer = setTimeout(() => {
-    refreshTimer = null;
-    listingRef.value?.refresh?.();
-  }, 250);
-};
+const scheduleListingRefresh = coalesce(() => listingRef.value?.refresh?.());
 
 // A row flipped to listen_later=true elsewhere belongs in this view but isn't
 // fetched into the page on its own; it only bumps the count. Debounce that
 // recount on the same 250ms window so an inbound burst is a single count RPC.
-let recountTimer: ReturnType<typeof setTimeout> | null = null;
-const scheduleRecount = () => {
-  if (recountTimer !== null) return;
-  recountTimer = setTimeout(() => {
-    recountTimer = null;
-    if (lastParams.value) setTotals(lastParams.value);
-  }, 250);
-};
+const scheduleRecount = coalesce(() => {
+  if (lastParams.value) setTotals(lastParams.value);
+});
 
 onMounted(() => {
   // Refresh count + drop now-stale rows when the listen-later flag flips
@@ -303,14 +306,8 @@ onMounted(() => {
   );
   onBeforeUnmount(() => {
     unsub();
-    if (refreshTimer !== null) {
-      clearTimeout(refreshTimer);
-      refreshTimer = null;
-    }
-    if (recountTimer !== null) {
-      clearTimeout(recountTimer);
-      recountTimer = null;
-    }
+    scheduleListingRefresh.cancel();
+    scheduleRecount.cancel();
   });
 });
 </script>

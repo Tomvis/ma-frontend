@@ -1,4 +1,4 @@
-import { reactive, computed, type ComputedRef } from "vue";
+import { reactive } from "vue";
 import api from "@/plugins/api";
 import {
   EventType,
@@ -52,9 +52,12 @@ function syncFromServer(album: Album) {
   }
 }
 
+function isListenLater(uri: string | undefined): boolean {
+  if (!uri) return false;
+  return cache.saved.has(uri);
+}
+
 export interface ListenLaterApi {
-  count: ComputedRef<number>;
-  isListenLater: (uri: string | undefined) => boolean;
   // Saved-state for a whole album: trusts the server flag, falling back to the
   // optimistic cache keyed by URI. The single source of truth for "is this album
   // in the Listen Later pile?" across the button and the badge components.
@@ -72,13 +75,6 @@ export interface ListenLaterApi {
 
 export function useListenLater(): ListenLaterApi {
   ensureSubscription();
-
-  const count = computed(() => cache.saved.size);
-
-  const isListenLater = (uri: string | undefined): boolean => {
-    if (!uri) return false;
-    return cache.saved.has(uri);
-  };
 
   const isSaved = (album: Album | undefined): boolean =>
     album?.listen_later === true || isListenLater(album?.uri);
@@ -175,5 +171,5 @@ export function useListenLater(): ListenLaterApi {
     return true;
   };
 
-  return { count, isListenLater, isSaved, prime, toggle, add, remove };
+  return { isSaved, prime, toggle, add, remove };
 }
