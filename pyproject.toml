@@ -1,7 +1,7 @@
 [project]
 name         = "music-assistant-frontend"
 # The version is set by GH action on release
-version = "2.17.248"
+version = "2.17.252"
 license      = {text = "Apache-2.0"}
 description  = "The Music Assistant frontend"
 readme       = "README.md"
