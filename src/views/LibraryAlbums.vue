@@ -25,8 +25,9 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import { onLibrarySyncCompleted } from "@/composables/useLibrarySync";
+import { ALBUM_SORT_KEYS } from "@/helpers/albumSort";
 import {
-  ALBUM_SORT_KEYS,
+  albumCountArgsFromParams,
   albumFiltersFromParams,
   buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
@@ -93,12 +94,8 @@ const setTotals = async function (params: LoadDataParams) {
     total.value = undefined;
     return;
   }
-  total.value = await api.getLibraryAlbumsCount({
-    favorite_only: params.favoritesOnly || undefined,
-    album_types: params.albumType?.length ? params.albumType : undefined,
-    critical_reception_filter: crFilter,
-    search: params.search || undefined,
-    genre: params.genreIds,
-  });
+  total.value = await api.getLibraryAlbumsCount(
+    albumCountArgsFromParams(params),
+  );
 };
 </script>

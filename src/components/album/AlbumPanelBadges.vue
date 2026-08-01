@@ -47,15 +47,10 @@ const { tags, savedForLater, formatScore, drTitle, amgTitle, tpsTitle } =
         :aria-label="`AMG: ${amgTitle}`"
         role="img"
       >
-        <Star
-          v-if="tags.amg.rating === undefined"
-          :size="9"
-          class="fill-current"
-        />
-        <template v-else>
-          <Star :size="9" class="fill-current" />
-          <span class="badge-value">{{ formatScore(tags.amg.rating) }}</span>
-        </template>
+        <Star :size="9" class="fill-current" />
+        <span v-if="tags.amg.rating !== undefined" class="badge-value">{{
+          formatScore(tags.amg.rating)
+        }}</span>
       </div>
       <div
         v-if="tags.tps"

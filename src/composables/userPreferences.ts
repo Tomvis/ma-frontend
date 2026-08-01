@@ -1,48 +1,18 @@
 import { computed, ComputedRef } from "vue";
 import { api } from "@/plugins/api";
 import { store } from "@/plugins/store";
+// The critical-reception filter vocabulary (DrBucket / REVIEW_*_KEYS /
+// ReviewFilterParams) lives with the feature in @/helpers/criticalReception;
+// this module only needs its param slice as a type, which is erased at build.
+import type { ReviewFilterParams } from "@/helpers/criticalReception";
 
-// Critical-reception filter shapes shared with ItemsListing.vue.
-// `dr_buckets` values match DRQuality from `@/helpers/album_tags` plus "untagged".
-// `*_ratings` are integer bucket selectors (AMG: 1..5; TPS: 1,3,5,7,9 covering bands of 2).
-// `*_accolades` are normalized accolade kinds matched against the merged accolades[]:
-// "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" | "tymhm" | "sitf" | "ymio" | "lit" | "rfu".
-export type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
-
-// Single source of truth for the review-filter (DR / AMG / TPS) preference keys.
-// Both ItemsListing.vue (param mutators, clear-all, restore) and ReviewFiltersPanel.vue
-// derive their key unions and param slice from these so adding a key is one edit.
-export const REVIEW_LIST_KEYS = [
-  "drBuckets",
-  "amgRatings",
-  "amgAccolades",
-  "tpsRatings",
-  "tpsAccolades",
-] as const;
-export const REVIEW_BOOL_KEYS = [
-  "amgFavorite",
-  "amgUntagged",
-  "tpsFavorite",
-  "tpsUntagged",
-] as const;
-export type ReviewListKey = (typeof REVIEW_LIST_KEYS)[number];
-export type ReviewBoolKey = (typeof REVIEW_BOOL_KEYS)[number];
-
-// The critical-reception slice of a listing's params/prefs. The canonical shape
-// for DR/AMG/TPS filters; LoadDataParams and ReviewFiltersPanel both Pick from
-// (or mirror) this so the three stay in lockstep.
-export interface ReviewFilterParams {
-  drBuckets?: DrBucket[];
-  amgRatings?: number[];
-  amgFavorite?: boolean;
-  amgAccolades?: string[];
-  amgUntagged?: boolean;
-  tpsRatings?: number[];
-  tpsFavorite?: boolean;
-  tpsAccolades?: string[];
-  tpsUntagged?: boolean;
-  criticalReceptionMatch?: "all" | "any";
-}
+/**
+ * The preferences key an ItemsListing stores its per-listing settings under.
+ * Single source of the `itemsListing.<path>.<itemtype>` namespace so a rename
+ * cannot leave a reader and a writer disagreeing.
+ */
+export const itemsListingPreferenceKey = (path: string, itemtype: string) =>
+  `itemsListing.${path}.${itemtype}`;
 
 export interface ItemsListingPreferences extends ReviewFilterParams {
   viewMode?: string;
@@ -148,12 +118,12 @@ export function useUserPreferences() {
     path: string,
     itemtype: string,
   ): ComputedRef<ItemsListingPreferences> {
-    const storKey = `${path}.${itemtype}`;
+    const storKey = itemsListingPreferenceKey(path, itemtype);
     return computed(() => {
       if (!store.currentUser?.preferences) {
         return {};
       }
-      const value = store.currentUser.preferences[`itemsListing.${storKey}`];
+      const value = store.currentUser.preferences[storKey];
       return (value as ItemsListingPreferences) || {};
     });
   }
@@ -183,7 +153,7 @@ export function useUserPreferences() {
     key: keyof ItemsListingPreferences,
     value: ItemsListingPreferences[keyof ItemsListingPreferences],
   ): Record<string, unknown> {
-    const prefKey = `itemsListing.${path}.${itemtype}`;
+    const prefKey = itemsListingPreferenceKey(path, itemtype);
     const currentPrefs = getItemsListingPreferences(path, itemtype);
     return { [prefKey]: { ...currentPrefs.value, [key]: value } };
   }

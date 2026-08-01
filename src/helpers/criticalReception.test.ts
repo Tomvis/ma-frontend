@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
-import type { LoadDataParams } from "@/components/ItemsListing.vue";
-import { buildCriticalReceptionFilter } from "./criticalReception";
+import {
+  buildCriticalReceptionFilter,
+  type AlbumListingFilterParams,
+} from "./criticalReception";
 
-const params = (over: Partial<LoadDataParams>): LoadDataParams =>
-  over as LoadDataParams;
+const params = (
+  over: Partial<AlbumListingFilterParams>,
+): AlbumListingFilterParams => over as AlbumListingFilterParams;
 
 describe("buildCriticalReceptionFilter", () => {
   it("returns undefined when no critical-reception filter is active", () => {

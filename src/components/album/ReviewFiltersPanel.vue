@@ -302,8 +302,10 @@ import {
 } from "@/helpers/album_tags";
 import type {
   DrBucket,
+  ReviewBoolKey,
   ReviewFilterParams,
-} from "@/composables/userPreferences";
+  ReviewListKey,
+} from "@/helpers/criticalReception";
 
 // Normalized accolade-kind selectors (3.2.0 merged shape). Awards prefix-match
 // every dated variant; the review-column kinds match exactly server-side.
@@ -312,7 +314,7 @@ import type {
 type AccoladeKind = Exclude<FullAccoladeKind, "review" | "unknown">;
 
 // Canonical critical-reception param slice (DrBucket + ReviewFilterParams come
-// from userPreferences.ts, the single source shared with LoadDataParams).
+// from helpers/criticalReception.ts, the single source shared with LoadDataParams).
 type ReviewFiltersParams = ReviewFilterParams;
 
 interface Props {
@@ -331,20 +333,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "update:modelValue", v: boolean): void;
-  (
-    e: "toggleList",
-    key:
-      | "drBuckets"
-      | "amgRatings"
-      | "amgAccolades"
-      | "tpsRatings"
-      | "tpsAccolades",
-    value: string | number,
-  ): void;
-  (
-    e: "toggleBool",
-    key: "amgFavorite" | "amgUntagged" | "tpsFavorite" | "tpsUntagged",
-  ): void;
+  (e: "toggleList", key: ReviewListKey, value: string | number): void;
+  (e: "toggleBool", key: ReviewBoolKey): void;
   (e: "setMatchMode", mode: "all" | "any"): void;
   (e: "clearAll"): void;
 }>();

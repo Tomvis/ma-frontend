@@ -28,10 +28,10 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { ToolBarMenuItem } from "@/components/Toolbar.vue";
+import { ALBUM_SORT_KEYS } from "@/helpers/albumSort";
 import {
-  ALBUM_SORT_KEYS,
+  albumCountArgsFromParams,
   albumFiltersFromParams,
-  buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
 import {
@@ -81,16 +81,9 @@ const setTotals = async (params: LoadDataParams) => {
   // provider-filtered view can still be counted accurately — forward provider
   // rather than collapsing total to undefined and disabling play/empty-all.
   total.value = await api.getLibraryAlbumsCount({
-    favorite_only: params.favoritesOnly || undefined,
-    album_types: params.albumType || undefined,
-    critical_reception_filter: buildCriticalReceptionFilter(params),
+    ...albumCountArgsFromParams(params),
     listen_later_only: true,
-    search: params.search || undefined,
-    genre: params.genreIds,
-    provider:
-      params.provider && params.provider.length > 0
-        ? params.provider
-        : undefined,
+    provider: params.provider?.length ? params.provider : undefined,
   });
 };
 
@@ -203,10 +196,7 @@ async function playAll(shuffle: boolean) {
     // state explicitly: play_media has no "shuffle" arg (sort_by="random" is a
     // silent no-op server-side), so the queue's shuffle_enabled flag is what makes
     // REPLACE shuffle the enqueued items.
-    const queueId =
-      player.active_source && player.active_source in api.queues
-        ? player.active_source
-        : player.player_id;
+    const queueId = store.activePlayerQueue?.queue_id ?? player.player_id;
     if (queueId) await api.queueCommandShuffle(queueId, shuffle);
     // NOTE: upstream dropped the `radio_mode` positional arg from playMedia;
     // the args are now (media, option, start_item, queue_id, sort_by).

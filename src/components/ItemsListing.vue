@@ -266,11 +266,7 @@ import {
 } from "@/components/ui/empty";
 import {
   useUserPreferences,
-  REVIEW_LIST_KEYS,
-  REVIEW_BOOL_KEYS,
-  type ReviewListKey,
-  type ReviewBoolKey,
-  type ReviewFilterParams,
+  itemsListingPreferenceKey,
   type ItemsListingPreferences,
 } from "@/composables/userPreferences";
 import {
@@ -278,7 +274,17 @@ import {
   panelViewItemResponsive,
   scrollElement,
 } from "@/helpers/utils";
-import { buildCriticalReceptionFilter } from "@/helpers/criticalReception";
+import {
+  buildCriticalReceptionFilter,
+  REVIEW_LIST_KEYS,
+  REVIEW_BOOL_KEYS,
+  REVIEW_ALL_KEYS,
+  REVIEW_KEY_SOURCE,
+  type AlbumListingFilterParams,
+  type ReviewListKey,
+  type ReviewBoolKey,
+  type ReviewFilterParams,
+} from "@/helpers/criticalReception";
 import { resolveSortPreference } from "@/helpers/listingSort";
 import { api } from "@/plugins/api";
 import { itemIsAvailable } from "@/plugins/api/helpers";
@@ -318,8 +324,8 @@ import PanelviewItem from "./PanelviewItem.vue";
 import PanelviewItemCompact from "./PanelviewItemCompact.vue";
 import ReviewFiltersPanel from "./album/ReviewFiltersPanel.vue";
 import {
-  getDetachedPrevStateUnsub,
   setDetachedPrevStateUnsub,
+  teardownDetachedPrevStateUnsub,
 } from "./itemsListingDetached";
 
 // Map a listing's itemtype to the library URI prefix its rows live under.
@@ -351,33 +357,21 @@ const applyMediaEventToItems = (
   paged: MediaItemType[],
   all?: MediaItemType[],
 ) => {
-  if (evt.event == EventType.MEDIA_ITEM_DELETED) {
-    const removeFrom = (arr: MediaItemType[]) => {
-      const idx = arr.findIndex((i) => i.uri == evt.object_id);
-      if (idx >= 0) arr.splice(idx, 1);
-    };
-    removeFrom(paged);
-    if (all) removeFrom(all);
-  } else if (evt.event == EventType.MEDIA_ITEM_UPDATED) {
-    const replaceIn = (arr: MediaItemType[]) => {
-      const idx = arr.findIndex((i) => i.uri == evt.object_id);
-      if (idx >= 0) arr[idx] = evt.data as MediaItemType;
-    };
-    replaceIn(paged);
-    if (all) replaceIn(all);
-  } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
-    const playData = evt.data as Record<string, unknown>;
-    const mergePlayedIn = (arr: MediaItemType[]) => {
-      const idx = arr.findIndex((i) => i.uri == evt.object_id);
-      if (idx < 0) return;
+  for (const arr of all ? [paged, all] : [paged]) {
+    const idx = arr.findIndex((i) => i.uri == evt.object_id);
+    if (idx < 0) continue;
+    if (evt.event == EventType.MEDIA_ITEM_DELETED) {
+      arr.splice(idx, 1);
+    } else if (evt.event == EventType.MEDIA_ITEM_UPDATED) {
+      arr[idx] = evt.data as MediaItemType;
+    } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
+      const playData = evt.data as Record<string, unknown>;
       if ("fully_played" in arr[idx])
         arr[idx].fully_played = playData["fully_played"] as boolean;
       if ("resume_position_ms" in arr[idx])
         arr[idx].resume_position_ms =
           (playData["seconds_played"] as number) * 1000;
-    };
-    mergePlayedIn(paged);
-    if (all) mergePlayedIn(all);
+    }
   }
 };
 
@@ -391,20 +385,20 @@ const applyMediaEventToItems = (
 // criticalReceptionMatch: "all" (default) ANDs the DR/AMG/TPS clauses; "any" ORs
 // them so an album matches if it satisfies at least one. Doesn't affect other
 // filters — favorites/genre/provider still AND alongside this group.
-export interface LoadDataParams extends ReviewFilterParams {
+// The album-filter slice (favoritesOnly / search / albumType / provider /
+// genreIds) comes from AlbumListingFilterParams, which is what the pure
+// albumFiltersFromParams helper marshals; `search` is narrowed to required here
+// because every listing always carries one.
+export interface LoadDataParams extends AlbumListingFilterParams {
   offset: number;
   limit: number;
   sortBy: string;
   search: string;
-  genreIds?: number | number[];
-  favoritesOnly?: boolean;
   albumArtistsFilter?: boolean;
   libraryOnly?: boolean;
   hideEmptyFilter?: boolean | null;
   hideFullyPlayed?: boolean;
   refresh?: boolean;
-  albumType?: string[];
-  provider?: string[];
 }
 // properties
 export interface Props {
@@ -1014,38 +1008,31 @@ const clearAllReviewFilters = function () {
   // Prune every active review-filter key from the params and persist in ONE
   // write (instead of up to 10 sequential setItemsListingPreference ->
   // api.updateUser round-trips), then a single loadData refresh.
+  // One pass over the whole review-filter group: clear the active keys from the
+  // params and drop every review key from the prefs copy. Match-mode resets to
+  // "all" alongside the data filters — an empty filter set with mode=any is
+  // meaningless and would silently re-apply on the next edit, surprising the user.
   let touched = false;
-  for (const k of REVIEW_LIST_KEYS) {
-    if ((params.value[k] ?? []).length) {
-      (params.value as Record<string, unknown>)[k] = undefined;
-      touched = true;
-    }
-  }
-  for (const k of REVIEW_BOOL_KEYS) {
-    if (params.value[k]) {
-      (params.value as Record<string, unknown>)[k] = undefined;
-      touched = true;
-    }
-  }
-  // Match-mode resets to "all" alongside the data filters — an empty filter
-  // set with mode=any is meaningless and would silently re-apply on the next
-  // edit, surprising the user.
-  if (params.value.criticalReceptionMatch === "any") {
-    params.value.criticalReceptionMatch = undefined;
-    touched = true;
-  }
-  if (!touched) return;
-  // Build one pruned prefs object (drop all review keys) and persist once.
-  const prefKey = `itemsListing.${props.path || props.itemtype}.${props.itemtype}`;
   const pruned: ItemsListingPreferences = { ...savedPrefs.value };
-  for (const k of [
-    ...REVIEW_LIST_KEYS,
-    ...REVIEW_BOOL_KEYS,
-    "criticalReceptionMatch" as const,
-  ]) {
+  for (const k of REVIEW_ALL_KEYS) {
+    const current = params.value[k];
+    const active =
+      k === "criticalReceptionMatch"
+        ? current === "any"
+        : Array.isArray(current)
+          ? current.length > 0
+          : !!current;
+    if (active) {
+      (params.value as Record<string, unknown>)[k] = undefined;
+      touched = true;
+    }
     delete pruned[k];
   }
-  setPreference(prefKey, pruned);
+  if (!touched) return;
+  setPreference(
+    itemsListingPreferenceKey(props.path || props.itemtype, props.itemtype),
+    pruned,
+  );
   loadData(true, undefined, true);
 };
 
@@ -1792,12 +1779,16 @@ const restoreSettings = async function () {
   }
 
   // critical_reception filters — restore from prefs when their dropdown is
-  // enabled. Gate each key on the matching source's prop (derived from the key
-  // prefix) and loop the shared key consts so a new key restores automatically.
+  // enabled. Gate each key on the matching source's prop (looked up in the
+  // shared REVIEW_KEY_SOURCE map) and loop the shared key consts so a new key
+  // restores automatically.
   const reviewKeyEnabled = (key: ReviewListKey | ReviewBoolKey): boolean => {
-    if (key.startsWith("dr")) return props.showDrFilter === true;
-    if (key.startsWith("amg")) return props.showAmgFilter === true;
-    return props.showTpsFilter === true;
+    const src = REVIEW_KEY_SOURCE[key];
+    return src === "dr"
+      ? props.showDrFilter === true
+      : src === "amg"
+        ? props.showAmgFilter === true
+        : props.showTpsFilter === true;
   };
   for (const k of REVIEW_LIST_KEYS) {
     if (reviewKeyEnabled(k) && prefs[k]?.length) {
@@ -1884,7 +1875,7 @@ if (props.restoreState) {
     // Tear down any prior detached listener BEFORE overwriting prevState,
     // so an event arriving in this window can't be misapplied to the new
     // snapshot.
-    getDetachedPrevStateUnsub()?.();
+    teardownDetachedPrevStateUnsub();
 
     const snapshot: StoredState = {
       path: key,
@@ -2051,12 +2042,20 @@ onMounted(async () => {
   // for the main listings (e.g. artists, albums etc.) we remember the scroll position
   // so we can jump back there on back navigation
   const key = props.path || props.itemtype;
+  // Any restoreState listing takes the detached bridge down on mount, whichever
+  // branch below it lands in:
+  // - snapshot is ours (path == key): we reclaim ownership of it — the live
+  //   in-component listener (registered later in this onMounted) keeps
+  //   pagedItems/allItems fresh from here on, so the bridge is redundant.
+  // - snapshot belongs to another listing: our own unmount will overwrite
+  //   prevState, so that bridge can never be reclaimed. Tear it down now
+  //   instead of leaking it (it would otherwise keep running
+  //   applyMediaEventToItems on a stale snapshot for our whole lifetime).
+  // A non-restoreState listing intentionally leaves the orphan alone — it
+  // doesn't overwrite prevState, so the original listing still reclaims its
+  // (bridge-kept-fresh) snapshot on back-nav.
+  if (props.restoreState) teardownDetachedPrevStateUnsub();
   if (props.restoreState && store.prevState?.path == key) {
-    // Reclaim ownership of the snapshot: the live in-component listener
-    // (registered later in this onMounted) will keep pagedItems/allItems
-    // fresh from here on, so the detached bridge is no longer needed.
-    getDetachedPrevStateUnsub()?.();
-    setDetachedPrevStateUnsub(undefined);
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
     allItems.value = store.prevState.allItems;
@@ -2082,18 +2081,6 @@ onMounted(async () => {
       loadData(true, undefined, true);
     }
   } else {
-    if (props.restoreState) {
-      // We're a restoreState listing with a different key than the stored
-      // snapshot: our own unmount will overwrite prevState, so the previous
-      // listing's detached bridge can never be reclaimed. Tear it down now
-      // instead of leaking it (it would otherwise keep running
-      // applyMediaEventToItems on a stale snapshot for our whole lifetime).
-      // A non-restoreState intermediate listing intentionally leaves the
-      // orphan alone — it doesn't overwrite prevState, so the original
-      // listing still reclaims its (bridge-kept-fresh) snapshot on back-nav.
-      getDetachedPrevStateUnsub()?.();
-      setDetachedPrevStateUnsub(undefined);
-    }
     applyQueryGenreFilter();
     loadData(true);
   }

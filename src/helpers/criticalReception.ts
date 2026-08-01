@@ -1,12 +1,93 @@
-import type { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { CriticalReceptionFilter } from "@/plugins/api/interfaces";
-import {
-  REVIEW_BOOL_KEYS,
-  REVIEW_LIST_KEYS,
-  type ReviewBoolKey,
-  type ReviewFilterParams,
-  type ReviewListKey,
-} from "@/composables/userPreferences";
+
+// Critical-reception filter shapes shared with ItemsListing.vue.
+// `dr_buckets` values match DRQuality from `@/helpers/album_tags` plus "untagged".
+// `*_ratings` are integer bucket selectors (AMG: 1..5; TPS: 1,3,5,7,9 covering bands of 2).
+// `*_accolades` are normalized accolade kinds matched against the merged accolades[]:
+// "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" | "tymhm" | "sitf" | "ymio" | "lit" | "rfu".
+export type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";
+
+// Single source of truth for the review-filter (DR / AMG / TPS) preference keys.
+// Both ItemsListing.vue (param mutators, clear-all, restore) and ReviewFiltersPanel.vue
+// derive their key unions and param slice from these so adding a key is one edit.
+export const REVIEW_LIST_KEYS = [
+  "drBuckets",
+  "amgRatings",
+  "amgAccolades",
+  "tpsRatings",
+  "tpsAccolades",
+] as const;
+export const REVIEW_BOOL_KEYS = [
+  "amgFavorite",
+  "amgUntagged",
+  "tpsFavorite",
+  "tpsUntagged",
+] as const;
+export type ReviewListKey = (typeof REVIEW_LIST_KEYS)[number];
+export type ReviewBoolKey = (typeof REVIEW_BOOL_KEYS)[number];
+
+/**
+ * Every per-listing preference key the review filters own, including the
+ * cross-clause match mode. Used by clear-all to walk the whole group in one
+ * pass instead of re-listing the keys inline.
+ */
+export const REVIEW_ALL_KEYS = [
+  ...REVIEW_LIST_KEYS,
+  ...REVIEW_BOOL_KEYS,
+  "criticalReceptionMatch",
+] as const;
+
+/**
+ * Filter key -> the source (DR / AMG / TPS) whose toggle prop gates it.
+ *
+ * Keyed by the shared REVIEW_*_KEYS unions so a new filter key is a compile
+ * error until it is attributed — replacing the old key-name prefix sniff, which
+ * silently attributed anything not starting with "dr"/"amg" to TPS.
+ */
+export const REVIEW_KEY_SOURCE: Record<
+  ReviewListKey | ReviewBoolKey,
+  "dr" | "amg" | "tps"
+> = {
+  drBuckets: "dr",
+  amgRatings: "amg",
+  amgAccolades: "amg",
+  amgFavorite: "amg",
+  amgUntagged: "amg",
+  tpsRatings: "tps",
+  tpsAccolades: "tps",
+  tpsFavorite: "tps",
+  tpsUntagged: "tps",
+};
+
+// The critical-reception slice of a listing's params/prefs. The canonical shape
+// for DR/AMG/TPS filters; LoadDataParams and ReviewFiltersPanel both Pick from
+// (or mirror) this so the three stay in lockstep.
+export interface ReviewFilterParams {
+  drBuckets?: DrBucket[];
+  amgRatings?: number[];
+  amgFavorite?: boolean;
+  amgAccolades?: string[];
+  amgUntagged?: boolean;
+  tpsRatings?: number[];
+  tpsFavorite?: boolean;
+  tpsAccolades?: string[];
+  tpsUntagged?: boolean;
+  criticalReceptionMatch?: "all" | "any";
+}
+
+/**
+ * The filter half of an album listing's params — everything that selects *which*
+ * albums match. Declared here rather than imported from ItemsListing.vue so this
+ * pure helper (and its tests) don't depend on the component's type surface;
+ * LoadDataParams extends it, so the two cannot drift.
+ */
+export interface AlbumListingFilterParams extends ReviewFilterParams {
+  favoritesOnly?: boolean;
+  search?: string;
+  albumType?: string[];
+  provider?: string[];
+  genreIds?: number | number[];
+}
 
 /**
  * Preference key -> wire key for every review filter.
@@ -29,35 +110,6 @@ const REVIEW_FILTER_WIRE_KEY: Record<
   tpsFavorite: "tps_favorite",
   tpsUntagged: "tps_untagged",
 };
-
-/**
- * The full set of album sort keys offered by the library Albums view. Shared so
- * the Listen Later view (which prepends its own listen-later keys) stays in
- * lockstep — adding an album sort key here surfaces it in both views. Order is
- * significant: sortKeys[0] is the default sort.
- */
-export const ALBUM_SORT_KEYS = [
-  "name",
-  "name_desc",
-  "sort_name",
-  "sort_name_desc",
-  "year",
-  "year_desc",
-  "timestamp_added",
-  "timestamp_added_desc",
-  "last_played",
-  "last_played_desc",
-  "play_count",
-  "play_count_desc",
-  "artist_name",
-  "artist_name_desc",
-  "dr",
-  "dr_desc",
-  "amg_rating",
-  "amg_rating_desc",
-  "tps_rating",
-  "tps_rating_desc",
-] as const;
 
 /**
  * Build a CriticalReceptionFilter from the DR / AMG / TPS list-filter params.
@@ -100,7 +152,9 @@ export function buildCriticalReceptionFilter(
  * questions. Accepts a partial so callers holding a snapshot of the last params
  * can pass it straight through.
  */
-export function albumFiltersFromParams(params: Partial<LoadDataParams>) {
+export function albumFiltersFromParams(
+  params: Partial<AlbumListingFilterParams>,
+) {
   return {
     favorite: params.favoritesOnly || undefined,
     search: params.search,
@@ -108,5 +162,26 @@ export function albumFiltersFromParams(params: Partial<LoadDataParams>) {
     provider: params.provider?.length ? params.provider : undefined,
     genre: params.genreIds,
     critical_reception_filter: buildCriticalReceptionFilter(params),
+  };
+}
+
+/**
+ * Marshal the same filter half into getLibraryAlbumsCount options.
+ *
+ * The count query mirrors the list query's filters, so keeping the shared five
+ * keys here stops the Albums and Listen Later views from drifting into counting
+ * something other than what they list. Provider stays caller-side: the two views
+ * legitimately differ on it (Albums drops the total when a provider filter is
+ * active, Listen Later forwards it).
+ */
+export function albumCountArgsFromParams(
+  params: Partial<AlbumListingFilterParams>,
+) {
+  return {
+    favorite_only: params.favoritesOnly || undefined,
+    album_types: params.albumType?.length ? params.albumType : undefined,
+    critical_reception_filter: buildCriticalReceptionFilter(params),
+    search: params.search || undefined,
+    genre: params.genreIds,
   };
 }
