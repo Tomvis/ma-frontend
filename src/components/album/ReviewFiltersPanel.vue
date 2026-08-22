@@ -189,25 +189,30 @@
             </span>
           </h3>
 
-          <!-- rating row: AMG = 5 star-pills; TPS = 5 bands (/10 in pairs) -->
+          <!-- rating row: AMG = 10 half-star pills; TPS = 5 bands (/10 in pairs) -->
           <div class="rf-row">
             <span class="rf-row__label">{{ $t("review_filters.rating") }}</span>
             <div v-if="s.id === 'amg'" class="rf-stars" role="group">
               <button
-                v-for="n in [1, 2, 3, 4, 5]"
-                :key="`amg-r-${n}`"
+                v-for="r in AMG_RATINGS"
+                :key="`amg-r-${r}`"
                 type="button"
                 class="rf-star"
                 data-accent="amg"
-                :class="{ 'rf-star--active': isListActive('amgRatings', n) }"
-                :title="`${'★'.repeat(n)}${'☆'.repeat(5 - n)}`"
-                @click="$emit('toggleList', 'amgRatings', n)"
+                :class="{ 'rf-star--active': isListActive('amgRatings', r) }"
+                :title="`${formatScore(r)} / 5`"
+                :aria-label="`${formatScore(r)} / 5`"
+                @click="$emit('toggleList', 'amgRatings', r)"
               >
                 <span
                   v-for="i in 5"
                   :key="`s-${i}`"
                   class="rf-star__pip"
-                  :class="{ 'rf-star__pip--lit': i <= n }"
+                  :class="{
+                    'rf-star__pip--lit': i <= r,
+                    'rf-star__pip--half': i > r && i - 0.5 <= r,
+                  }"
+                  aria-hidden="true"
                   >★</span
                 >
               </button>
@@ -298,6 +303,7 @@
 import { computed } from "vue";
 import {
   DR_THRESHOLDS,
+  formatScore,
   type AccoladeKind as FullAccoladeKind,
 } from "@/helpers/album_tags";
 import type {
@@ -370,6 +376,12 @@ const DR_BUCKETS: Array<{
   },
   { id: "poor", range: `≤ ${DR_THRESHOLDS.fair - 1}`, level: 1 },
 ];
+
+// AMG publishes half stars over its whole 0.5–5.0 scale (Unlistenable .. Iconic),
+// and the server buckets each selector as one exact step ([4.5, 5) and [4, 4.5) are
+// separate), so a 4-star album and a 4½-star one are separately selectable. Highest
+// first like the DR tiles and TPS bands below; ten pills lay out as two rows of five.
+const AMG_RATINGS: number[] = Array.from({ length: 10 }, (_, i) => (10 - i) / 2);
 
 // TPS ratings are stored as bucket selectors (1, 3, 5, 7, 9 — each covers
 // a band of 2 on /10). Order reversed so highest sits leftmost, matching DR.
@@ -900,18 +912,24 @@ const onClearAll = () => emit("clearAll");
   opacity: 0.55;
 }
 
-/* ── AMG star pills (5 of them) ────────────────────────────────── */
+/* ── AMG star pills (10 of them: 5 down to 0.5, two rows of five) ─ */
 .rf-stars {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
-  flex-wrap: wrap;
 }
 
 .rf-star {
+  /* Pip colors ride custom properties: the half-lit pip has to paint both of
+   * them in one gradient, and the dark-theme lift then stays a two-line
+   * override instead of one rule per pip state. */
+  --pip-lit: rgb(244 63 94);
+  --pip-dim: rgb(244 63 94 / 0.18);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 1px;
-  padding: 5px 7px;
+  padding: 5px 4px;
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   background: transparent;
@@ -928,19 +946,29 @@ const onClearAll = () => emit("clearAll");
   border-color: rgb(244 63 94 / 0.3);
 }
 .rf-star__pip {
-  font-size: 12px;
-  color: color-mix(in srgb, currentColor 26%, transparent);
+  font-size: 11px;
+  color: var(--pip-dim);
   letter-spacing: -0.06em;
 }
 .rf-star__pip--lit {
-  color: rgb(244 63 94);
+  color: var(--pip-lit);
+}
+/* The .5 step: one glyph painted by a hard-stop gradient clipped to the text,
+ * so a half star needs no second glyph set and no icon dependency. */
+.rf-star__pip--half {
+  background-image: linear-gradient(
+    90deg,
+    var(--pip-lit) 0 50%,
+    var(--pip-dim) 50% 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .rf-star--active {
+  --pip-lit: rgb(225 29 72);
   background: rgb(244 63 94 / 0.12);
   border-color: rgb(244 63 94 / 0.55);
-}
-.rf-star--active .rf-star__pip--lit {
-  color: rgb(225 29 72);
 }
 
 /* ── TPS rating bands (5 of them, /10 grouped in pairs) ────────── */
@@ -1116,15 +1144,13 @@ const onClearAll = () => emit("clearAll");
 }
 :deep(.v-theme--dark) .rf-star,
 .v-theme--dark .rf-star {
+  --pip-lit: rgb(251 113 133);
+  --pip-dim: rgb(251 113 133 / 0.24);
   color: rgb(251 113 133 / 0.55);
 }
-:deep(.v-theme--dark) .rf-star__pip--lit,
-.v-theme--dark .rf-star__pip--lit {
-  color: rgb(251 113 133);
-}
-:deep(.v-theme--dark) .rf-star--active .rf-star__pip--lit,
-.v-theme--dark .rf-star--active .rf-star__pip--lit {
-  color: rgb(253 164 175);
+:deep(.v-theme--dark) .rf-star--active,
+.v-theme--dark .rf-star--active {
+  --pip-lit: rgb(253 164 175);
 }
 :deep(.v-theme--dark) .rf-band__nums,
 .v-theme--dark .rf-band__nums {
@@ -1173,6 +1199,14 @@ const onClearAll = () => emit("clearAll");
   }
   .rf-spectrum {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* Ten pills stay five-per-row on a narrow dialog, so the pips shrink instead
+   * of the grid re-flowing into a five-row column. */
+  .rf-star {
+    padding: 5px 2px;
+  }
+  .rf-star__pip {
+    font-size: 10px;
   }
 }
 </style>

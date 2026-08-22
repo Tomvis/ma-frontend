@@ -22,7 +22,7 @@ describe("buildCriticalReceptionFilter", () => {
       buildCriticalReceptionFilter(
         params({
           drBuckets: ["excellent"],
-          amgRatings: [5],
+          amgRatings: [4.5, 5],
           amgFavorite: true,
           amgAccolades: ["aoty", "tymhm", "ymio"],
           tpsRatings: [9],
@@ -32,7 +32,7 @@ describe("buildCriticalReceptionFilter", () => {
       ),
     ).toEqual({
       dr_buckets: ["excellent"],
-      amg_ratings: [5],
+      amg_ratings: [4.5, 5],
       amg_favorite: true,
       amg_accolades: ["aoty", "tymhm", "ymio"],
       tps_ratings: [9],

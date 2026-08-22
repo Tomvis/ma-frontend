@@ -833,8 +833,9 @@ export interface ReviewSourceEntry {
 // clauses. The match-mode only affects the critical_reception group itself —
 // favorite/genre/provider filters still AND alongside it.
 // Sent flat (spread) into the music/albums/library_items + music/albums/count commands.
-// `*_ratings` are integer bucket selectors:
-//   AMG (/5):  1..5 — selector N matches an AMG entry whose floor(rating) == N
+// `*_ratings` are numeric bucket selectors:
+//   AMG (/5):  0.5..5 in half steps — selector N matches an AMG entry whose
+//              rating ∈ [N, N+0.5), so 4 and 4.5 are separate buckets
 //   TPS (/10): 1,3,5,7,9 — selector N matches a TPS entry whose rating ∈ [N, N+2)
 // `*_accolades` are normalized accolade kinds matched against the merged accolades[]
 // list: "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" |
