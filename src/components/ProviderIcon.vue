@@ -1,10 +1,17 @@
 <template>
-  <div
-    :style="`width:${size}px;margin-left:10px;margin-right:10px;content-align:center`"
-  >
+  <div class="provider-icon-wrapper" :style="{ width: `${size}px` }">
+    <!-- the library is not a real provider, so render its membership badge directly -->
+    <div
+      v-if="domain === 'library'"
+      class="d-flex align-center justify-center"
+      :style="`width: ${size}px;height: ${size}px;`"
+      :title="$t('in_library')"
+    >
+      <LibraryBig :size="size" />
+    </div>
     <!-- provider image (svg or png) served as data uri; blank when no variant exists -->
     <div
-      v-if="iconDataUri"
+      v-else-if="iconDataUri"
       class="d-flex align-center justify-center align-content-center justify-content-center"
       :style="`width: ${size}px;height: ${size}px;${applyInvert ? 'filter: invert(1);' : ''}`"
       :title="providerName"
@@ -15,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import { LibraryBig } from "@lucide/vue";
 import { computed, ref, watchEffect } from "vue";
 import { useTheme } from "vuetify";
 import { api } from "@/plugins/api";
@@ -23,7 +31,6 @@ import { ProviderIconVariant } from "@/plugins/api/interfaces";
 export interface Props {
   domain: string;
   size: number;
-  dark?: boolean;
   monochrome?: boolean;
 }
 const props = defineProps<Props>();

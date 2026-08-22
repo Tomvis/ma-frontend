@@ -15,14 +15,19 @@
     @contextmenu.prevent="onMenu"
     @touchstart.passive="holdFired = false"
   >
-    <div class="ed-card__art" :style="{ background: art.gradient }">
+    <div class="ed-card__art" :style="getStyle">
       <img
-        v-if="art.image"
+        v-if="art.image && props.item.media_type != MediaType.COLLECTION"
         class="ed-card__img"
         :class="{ 'ed-card__img--genre': isGenre }"
         loading="lazy"
         :src="art.image"
         :alt="item.name"
+      />
+      <MediaCollectionThumb
+        v-else-if="props.item.media_type == MediaType.COLLECTION"
+        :item="props.item as MediaCollection<MediaItemType>"
+        :thumb-offset="22"
       />
       <span v-else-if="art.initials" class="ed-card__initials">{{
         art.initials
@@ -60,7 +65,9 @@
       >
         {{ displayName }}
       </div>
-      <div class="ed-card__sub">{{ subtitle }}</div>
+      <div class="ed-card__sub">
+        <slot name="subtitle">{{ subtitle }}</slot>
+      </div>
       <span v-if="showPlay" class="ed-card__play" @click.stop="onPlay">
         <Play
           :size="18"
@@ -80,11 +87,14 @@ import { itemArtwork } from "@/components/discover/editorialArtwork";
 import NowPlayingBadge from "@/components/NowPlayingBadge.vue";
 import ProviderIcon from "@/components/ProviderIcon.vue";
 import {
-  getArtistsString,
-  getBrowseFolderName,
   handleMediaItemClick,
   handleMenuBtnClick,
   handlePlayBtnClick,
+} from "@/helpers/media_item_actions";
+import {
+  getArtistsString,
+  getAuthorsNarratorsArray,
+  getBrowseFolderName,
 } from "@/helpers/utils";
 import { getListItemProviderIconDomain } from "@/plugins/api/helpers";
 import {
@@ -93,11 +103,13 @@ import {
   type ItemMapping,
   type MediaItemType,
   MediaType,
+  type MediaCollection,
   type Track,
 } from "@/plugins/api/interfaces";
 import { Play } from "@lucide/vue";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import MediaCollectionThumb from "../MediaCollectionThumb.vue";
 
 interface Props {
   item: MediaItemType | ItemMapping;
@@ -135,6 +147,12 @@ const art = computed(() => itemArtwork(props.item, 320));
 
 const isGenre = computed(() => props.item.media_type === MediaType.GENRE);
 
+const getStyle = computed(() =>
+  props.item.media_type == MediaType.COLLECTION
+    ? {}
+    : { background: art.value.gradient },
+);
+
 const isPlayable = computed(() => props.item.is_playable !== false);
 const showPlay = computed(
   () => isPlayable.value && props.isAvailable && !props.showCheckboxes,
@@ -171,7 +189,8 @@ const subtitle = computed(() => {
       }
   >;
   if (it.artists?.length) return getArtistsString(it.artists, 1);
-  if (it.authors?.length) return it.authors.join(" / ");
+  if (it.authors?.length)
+    return getAuthorsNarratorsArray(it.authors).join(" / ");
   if (it.publisher) return it.publisher;
   if (it.owner) return it.owner;
   return t(props.item.media_type);
@@ -300,7 +319,6 @@ const onMenu = (e: MouseEvent) => {
   top: 6px;
   left: 6px;
   z-index: 2;
-  margin: 0 !important;
 }
 .ed-card__img {
   width: 100%;

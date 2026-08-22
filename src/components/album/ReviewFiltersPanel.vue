@@ -381,7 +381,10 @@ const DR_BUCKETS: Array<{
 // and the server buckets each selector as one exact step ([4.5, 5) and [4, 4.5) are
 // separate), so a 4-star album and a 4½-star one are separately selectable. Highest
 // first like the DR tiles and TPS bands below; ten pills lay out as two rows of five.
-const AMG_RATINGS: number[] = Array.from({ length: 10 }, (_, i) => (10 - i) / 2);
+const AMG_RATINGS: number[] = Array.from(
+  { length: 10 },
+  (_, i) => (10 - i) / 2,
+);
 
 // TPS ratings are stored as bucket selectors (1, 3, 5, 7, 9 — each covers
 // a band of 2 on /10). Order reversed so highest sits leftmost, matching DR.

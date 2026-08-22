@@ -198,13 +198,14 @@ async function playAll(shuffle: boolean) {
     // REPLACE shuffle the enqueued items.
     const queueId = store.activePlayerQueue?.queue_id ?? player.player_id;
     if (queueId) await api.queueCommandShuffle(queueId, shuffle);
-    // NOTE: upstream dropped the `radio_mode` positional arg from playMedia;
-    // the args are now (media, option, start_item, queue_id, sort_by).
+    // NOTE: 2.17 collapsed playMedia's positional tail into a PlayMediaOptions
+    // object; the args are now (media, option, { queue_id, start_item, sort_by }).
     await api.playMedia(
       all.map((a) => a.uri),
       QueueOption.REPLACE,
-      undefined,
-      queueId,
+      {
+        queue_id: queueId,
+      },
     );
     toast.success(
       shuffle
