@@ -1,17 +1,25 @@
 import NowPlayingSourceBadge from "@/layouts/default/PlayerOSD/NowPlayingSourceBadge.vue";
 import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Player, PlayerQueue, QueueItem } from "@/plugins/api/interfaces";
-import { audioSource } from "../fixtures/audioSource";
-import { providerMapping } from "../fixtures/providerMapping";
-import { queueItem } from "../fixtures/queueItem";
-import { track } from "../fixtures/track";
+import type { Player } from "@/plugins/api/interfaces";
+import { playerSource } from "../fixtures/playerSource";
 
-const { apiMock } = vi.hoisted(() => ({
-  apiMock: { queues: {} as Record<string, unknown> },
-}));
-
-vi.mock("@/plugins/api", () => ({ api: apiMock, default: apiMock }));
+vi.mock("@/composables/useProviderIcon", async () => {
+  const { computed, toValue } =
+    await vi.importActual<typeof import("vue")>("vue");
+  return {
+    useProviderIcon: (domain: () => string | undefined) => ({
+      iconDataUri: computed(() =>
+        ["airplay_receiver--abc", "spotify_connect--abc"].includes(
+          toValue(domain) ?? "",
+        )
+          ? "data:image/svg+xml;base64,PHN2Zy8+"
+          : null,
+      ),
+      applyInvert: computed(() => false),
+    }),
+  };
+});
 
 vi.mock("@/plugins/store", async () => {
   const { reactive } = await vi.importActual<typeof import("vue")>("vue");
@@ -19,7 +27,6 @@ vi.mock("@/plugins/store", async () => {
     store: reactive({
       activePlayer: undefined,
       activePlayerQueue: undefined,
-      curQueueItem: undefined,
     }),
   };
 });
@@ -28,8 +35,9 @@ const { store } = await import("@/plugins/store");
 
 enableAutoUnmount(afterEach);
 
-function mountBadge() {
+function mountBadge(props: { iconOnly?: boolean; plain?: boolean } = {}) {
   return mount(NowPlayingSourceBadge, {
+    props,
     global: {
       mocks: { $t: (key: string, args: string[]) => `${key}:${args?.[0]}` },
       // ProviderIcon fetches its artwork from the real api singleton
@@ -38,9 +46,14 @@ function mountBadge() {
   });
 }
 
-function playing(item: QueueItem) {
-  store.activePlayerQueue = { queue_id: "player-1" } as PlayerQueue;
-  store.curQueueItem = item;
+function activateSource(id: string, name: string) {
+  const source = playerSource({ id, name });
+  store.activePlayer = {
+    player_id: "player-1",
+    powered: true,
+    active_source: source.id,
+    source_list: [source],
+  } as unknown as Player;
 }
 
 beforeEach(() => {
@@ -51,20 +64,13 @@ beforeEach(() => {
     source_list: [],
   } as unknown as Player;
   store.activePlayerQueue = undefined;
-  store.curQueueItem = undefined;
 });
 
 describe("NowPlayingSourceBadge", () => {
   it("names the active source and labels it for assistive tech", () => {
-    playing(
-      queueItem({
-        media_item: audioSource({
-          name: "Spotify Connect",
-          provider_mappings: [
-            providerMapping({ provider_domain: "spotify_connect" }),
-          ],
-        }),
-      }),
+    activateSource(
+      "spotify_connect--abc://audio_source/main",
+      "Spotify Connect",
     );
 
     const badge = mountBadge();
@@ -73,26 +79,61 @@ describe("NowPlayingSourceBadge", () => {
     expect(badge.get("[data-slot=badge]").attributes("title")).toBe(
       "tooltip.playing_from:Spotify Connect",
     );
-    expect(badge.find("[data-provider-icon]").exists()).toBe(true);
+    expect(badge.find("img").exists()).toBe(true);
+    expect(badge.find(".now-playing-source__fallback").exists()).toBe(false);
   });
 
-  it("renders nothing while the media names itself", () => {
-    playing(queueItem({ media_item: track() }));
-
-    expect(mountBadge().find("[data-slot=badge]").exists()).toBe(false);
-  });
-
-  it("drops the icon for a source with no provider behind it", () => {
-    store.activePlayer = {
-      player_id: "player-1",
-      powered: true,
-      active_source: "line-in",
-      source_list: [{ id: "line-in", name: "Line In" }],
-    } as unknown as Player;
+  it("uses the AirPlay provider icon", () => {
+    activateSource("airplay_receiver--abc://audio_source/main", "AirPlay");
 
     const badge = mountBadge();
 
-    expect(badge.text()).toContain("Line In");
-    expect(badge.find("[data-provider-icon]").exists()).toBe(false);
+    expect(badge.find("img").exists()).toBe(true);
+    expect(badge.find(".now-playing-source__fallback").exists()).toBe(false);
+  });
+
+  it("renders nothing while the Music Assistant queue is active", () => {
+    expect(mountBadge().find("[data-slot=badge]").exists()).toBe(false);
+  });
+
+  it.each([
+    ["line-in", "Line In"],
+    ["unknown--abc://audio_source/main", "Unknown source"],
+  ])("falls back to a generic icon for %s", (id, name) => {
+    activateSource(id, name);
+
+    const badge = mountBadge();
+
+    expect(badge.find("img").exists()).toBe(false);
+    expect(badge.find(".now-playing-source__fallback").exists()).toBe(true);
+  });
+
+  it("hands the name to the tooltip when only the icon is asked for", () => {
+    activateSource("line-in", "Line In");
+
+    const badge = mountBadge({ iconOnly: true });
+
+    expect(badge.text()).not.toContain("Line In");
+    expect(badge.find(".now-playing-source__fallback").exists()).toBe(true);
+    expect(badge.get("[data-slot=badge]").attributes("title")).toBe(
+      "tooltip.playing_from:Line In",
+    );
+  });
+
+  // the player bars have a background of their own, so the badge sheds its
+  // pill there and lines up with the text around it
+  it("drops the pill when asked to render plain", () => {
+    activateSource("line-in", "Line In");
+
+    const pill = mountBadge().get("[data-slot=badge]").classes();
+    const plain = mountBadge({ plain: true })
+      .get("[data-slot=badge]")
+      .classes();
+
+    expect(pill).toContain("bg-background/40");
+    expect(plain).not.toContain("bg-background/40");
+    expect(plain).toEqual(
+      expect.arrayContaining(["border-0", "bg-transparent", "px-0"]),
+    );
   });
 });

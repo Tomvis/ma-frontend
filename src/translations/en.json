@@ -144,9 +144,11 @@
         "display": "Screen",
         "visualizer": "Visualizer",
         "light": "Light",
+        "source": "Audio input",
         "unknown": "Unknown"
     },
     "players": "Players",
+    "players_need_setup": "A new device was discovered that needs to be set up | {count} new devices were discovered that need to be set up",
     "playlist": "Playlist",
     "playlist_tracks": "Playlist tracks",
     "playlists": "Playlists",
@@ -165,6 +167,7 @@
     "refresh_item": "Refresh item",
     "remove_library": "Remove from library",
     "remove_playlist": "Remove from playlist",
+    "review": "Review",
     "review_filters": {
         "title": "Review filters",
         "eyebrow": "Filters",
@@ -223,6 +226,13 @@
         "server_logs_load_failed": "Failed to load server logs",
         "player_provider": "Provider",
         "player_settings": "Player settings",
+        "player_status": {
+            "available": "Available",
+            "needs_setup": "Needs setup",
+            "unavailable": "Unavailable",
+            "disabled": "Disabled"
+        },
+        "player_status_label": "Status",
         "player_type_label": "Player type",
         "playerproviders": "Player providers",
         "players": "Players",
@@ -239,8 +249,11 @@
         "core_modules": "Core modules",
         "server_info": "Server information",
         "server_id": "Server ID",
+        "server_name": "Server name",
         "server_version": "Server version",
-        "server_base_url": "Base URL",
+        "server_internal_url": "Internal URL",
+        "server_external_url": "External URL",
+        "server_remote_access": "Remote access",
         "server_as_addon": "Home Assistant add-on",
         "artists_in_library": "Artists in library",
         "albums_in_library": "Albums in library",
@@ -533,7 +546,6 @@
         "about_description": "Version information, credits and more",
         "auto_refresh_log": "Auto-refresh",
         "log_truncated": "Showing last {0} lines. Download the full log file for complete history.",
-        "version_info": "Version Information",
         "library_stats": "Library Statistics",
         "links": "Links",
         "changelog": "Changelog",
@@ -661,8 +673,18 @@
             "description": "Allow playback to this device\/browser using the built-in Sendspin web player."
         },
         "enable_browser_controls": {
-            "label": "Enable browser media controls",
-            "description": "Allow control of playback using the browser's built-in media controls (e.g., media keys on your keyboard)."
+            "label": "Browser media controls",
+            "description": "Expose Music Assistant playback to browser and operating-system media controls, such as media keys and lock-screen controls. Device events such as phone calls, sleep, or closing a laptop lid may pause the controlled player.",
+            "options": {
+                "active_player": "Any actively selected player",
+                "web_player": "Built-in web player only",
+                "disabled": "Disabled"
+            },
+            "option_descriptions": {
+                "active_player": "Control the player currently selected in Music Assistant, including speakers elsewhere in your home.",
+                "web_player": "Control only audio played by the built-in web player on this device.",
+                "disabled": "Do not expose Music Assistant playback to browser or operating-system controls."
+            }
         },
         "settings_saved": "Settings saved successfully",
         "protocol_disabled_message": "Enable this protocol to configure its settings",
@@ -773,6 +795,7 @@
         },
         "provider_status_auth_required": "Authentication required",
         "provider_status_incompatible": "Not supported on this system",
+        "provider_status_retired": "Retired",
         "provider_status_error": "Setup failed",
         "remove_provider": "Remove provider",
         "remove_provider_confirm": "Remove this provider? This cannot be undone.",
@@ -1135,7 +1158,7 @@
     "global_search": "Global search",
     "podcast_episode": "Episode",
     "podcast_episodes": "Episodes",
-    "play_from_here": "Play from here",
+    "play_from_here_to_latest": "Play from here to latest",
     "dsp_active": "Active",
     "currently_playing_players": "Currently playing",
     "all_players": "All players",
@@ -1201,7 +1224,8 @@
                 "measurement_only": "Measured loudness",
                 "fallback_fixed_gain": "Fallback fixed gain",
                 "fixed_gain": "Fixed gain",
-                "fallback_dynamic": "Fallback dynamic"
+                "fallback_dynamic": "Fallback dynamic",
+                "source": "Applied by {0}"
             },
             "measurement": {
                 "track": "Track",
@@ -1212,7 +1236,8 @@
             "crossfade_mode": {
                 "smart": "Smart",
                 "standard": "Standard",
-                "disabled": "Disabled"
+                "disabled": "Disabled",
+                "source": "Applied by {0}"
             },
             "dsp_state": {
                 "enabled": "DSP active",
@@ -1225,9 +1250,9 @@
             "integer_pcm": "{0}-bit PCM",
             "direct_signal_path": "Direct signal path",
             "direct_signal_path_detail": "Audio passes through queue processing unchanged.",
-            "direct_signal_path_inactive_detail": "No volume normalization, crossfade, playback speed adjustment, or audio overlay is active.",
+            "direct_signal_path_inactive_detail": "Music Assistant applies no volume normalization, crossfade, playback speed adjustment, or audio overlay.",
             "no_shared_transforms": "No shared transforms reported",
-            "no_shared_transforms_detail": "No normalization, crossfade, playback speed adjustment, or audio overlay is reported by the processing model.",
+            "no_shared_transforms_detail": "Music Assistant applies no normalization, crossfade, playback speed adjustment, or audio overlay.",
             "processing_headroom": "Processing headroom",
             "processing_headroom_detail": "Music Assistant converts audio to floating point internally to create headroom and reduce clipping or precision loss during normalization, mixing, crossfade, DSP, and limiting.",
             "processing_headroom_reasons": "Floating-point headroom is available for: {0}.",
@@ -2066,6 +2091,7 @@
         "view_details": "View task details",
         "remove_history": "Remove task from history",
         "log_title": "Task log",
+        "report_title": "Task report",
         "details_title": "Task details",
         "no_task_selected": "No task selected",
         "copy": "Copy",

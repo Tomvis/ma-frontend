@@ -69,7 +69,7 @@ const {
     },
     setLocale: vi.fn<MusicAssistantApi["setLocale"]>(),
     state: { value: "authenticated" },
-    subscribe: vi.fn((_event: string, _callback: CallableFunction) => () => {}),
+    subscribe: vi.fn(),
     supportsServerSideTranslations: false,
   };
   const authManagerMock = {
@@ -77,11 +77,11 @@ const {
     clearGuestSession: vi.fn(),
     endRejectedGuestSession: vi.fn(),
     getToken: vi.fn(),
-    guestSessionKind: vi.fn(() => guestType.value),
-    isDashboardViewer: vi.fn(() => false),
-    isGuestAccessSession: vi.fn(() => guestType.value !== null),
-    isMusicQuizGuest: vi.fn(() => guestType.value === "music_quiz"),
-    isPartyGuest: vi.fn(() => guestType.value === "party"),
+    guestSessionKind: vi.fn(),
+    isDashboardViewer: vi.fn(),
+    isGuestAccessSession: vi.fn(),
+    isMusicQuizGuest: vi.fn(),
+    isPartyGuest: vi.fn(),
     returnToFullApp: vi.fn(),
     setBaseUrl: vi.fn(),
     setCurrentUser: vi.fn(),
@@ -130,8 +130,9 @@ const {
     },
     webPlayerMock: {
       audioSource: "disabled",
+      browserControlsMode: "active_player",
       interacted: false,
-      player_id: null,
+      player_id: null as string | null,
       setBaseUrl: vi.fn(),
       setInteracted: vi.fn(),
       tabMode: "disabled",
@@ -184,6 +185,8 @@ vi.mock("@/composables/useShortcuts", () => ({
 
 vi.mock("@/plugins/web_player", () => ({
   initializeWebPlayerModeSync: mockInitializeWebPlayerModeSync,
+  isPlaybackMode: (mode: string) =>
+    mode === "sendspin_only" || mode === "sendspin_with_controls",
   webPlayer: webPlayerMock,
   WebPlayerMode: {
     CONTROLS_ONLY: "controls_only",
@@ -293,7 +296,11 @@ let wrapper: VueWrapper | undefined;
 
 describe("App initialization", () => {
   beforeEach(() => {
+    // Resets implementations as well as call history: a return value or
+    // rejection one test installs must not leak into the next. The defaults
+    // below are the only source of mock behavior, so test order can't matter.
     vi.resetAllMocks();
+    vi.resetModules();
     guestType.value = null;
     i18nMock.global.locale.value = "en";
     apiMock.state.value = "authenticated";
@@ -305,6 +312,9 @@ describe("App initialization", () => {
       server_id: "server-id",
       status: "running",
     };
+    apiMock.authenticateWithToken.mockResolvedValue({ user: user() });
+    apiMock.setLocale.mockResolvedValue(undefined);
+    apiMock.subscribe.mockReturnValue(() => {});
     apiMock.getCurrentUserInfo.mockResolvedValue(
       user({
         role: UserRole.USER,
@@ -341,12 +351,25 @@ describe("App initialization", () => {
     storeMock.isIngressSession = false;
     storeMock.isOnboarding = false;
     webPlayerMock.audioSource = "disabled";
+    webPlayerMock.browserControlsMode = "active_player";
     webPlayerMock.interacted = false;
     webPlayerMock.player_id = null;
     webPlayerMock.tabMode = "disabled";
     if (routeState.current) routeState.current.meta = {};
     vi.stubGlobal("localStorage", createStorage());
     vi.stubGlobal("sessionStorage", createStorage());
+    authManagerMock.getToken.mockReturnValue(null);
+    authManagerMock.guestSessionKind.mockImplementation(() => guestType.value);
+    authManagerMock.isDashboardViewer.mockReturnValue(false);
+    authManagerMock.isGuestAccessSession.mockImplementation(
+      () => guestType.value !== null,
+    );
+    authManagerMock.isMusicQuizGuest.mockImplementation(
+      () => guestType.value === "music_quiz",
+    );
+    authManagerMock.isPartyGuest.mockImplementation(
+      () => guestType.value === "party",
+    );
     authManagerMock.endRejectedGuestSession.mockImplementation(() => {
       const kind = authManagerMock.guestSessionKind();
       if (!kind) return { outcome: "no-guest-session" };
@@ -536,6 +559,54 @@ describe("App initialization", () => {
     expect(
       wrapper.findComponent({ name: "PlayerBrowserMediaControls" }).exists(),
     ).toBe(true);
+  });
+
+  it("leaves media controls to Sendspin in the playback tab", async () => {
+    stubMediaSession();
+    webPlayerMock.audioSource = "controls_only";
+    webPlayerMock.browserControlsMode = "active_player";
+    webPlayerMock.interacted = true;
+    webPlayerMock.player_id = "web-player";
+    webPlayerMock.tabMode = "sendspin_with_controls";
+
+    wrapper = await mountApp();
+
+    expect(
+      wrapper.findComponent({ name: "PlayerBrowserMediaControls" }).exists(),
+    ).toBe(false);
+    expect(wrapper.findComponent({ name: "SendspinPlayer" }).exists()).toBe(
+      true,
+    );
+  });
+
+  it("does not control the selected player in built-in-only mode", async () => {
+    const mediaSession = stubMediaSession();
+    webPlayerMock.audioSource = "controls_only";
+    webPlayerMock.browserControlsMode = "web_player";
+    webPlayerMock.interacted = true;
+    webPlayerMock.tabMode = "controls_only";
+
+    wrapper = await mountApp();
+
+    expect(
+      wrapper.findComponent({ name: "PlayerBrowserMediaControls" }).exists(),
+    ).toBe(false);
+    expect(mediaSession.metadata).toBeNull();
+    expect(mediaSession.playbackState).toBe("none");
+  });
+
+  it("clears media controls when no component owns them", async () => {
+    const mediaSession = stubMediaSession();
+    webPlayerMock.audioSource = "disabled";
+    webPlayerMock.browserControlsMode = "active_player";
+    webPlayerMock.interacted = true;
+    webPlayerMock.tabMode = "controls_only";
+
+    wrapper = await mountApp();
+
+    expect(mediaSession.metadata).toBeNull();
+    expect(mediaSession.playbackState).toBe("none");
+    expect(mediaSession.setActionHandler).toHaveBeenCalledTimes(7);
   });
 
   it("clears browser media controls on participant routes for regular users", async () => {

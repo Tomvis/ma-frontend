@@ -10,13 +10,17 @@ import {
   RepeatMode,
   PLAYER_CONTROL_NONE,
 } from "@/plugins/api/interfaces";
+import { isSelectablePlayer } from "@/helpers/players";
 import { getSleepTimerMenuItem, sleepTimerActive } from "@/helpers/sleep_timer";
+import { resolveExternalSource } from "@/composables/externalSource";
+import { resolveActiveSourceId } from "@/composables/activeSource";
 import { useAnnouncement } from "@/composables/useAnnouncement";
 import { useAudioOverlay } from "@/composables/useAudioOverlay";
 import { visualizerProviderAvailable } from "@/plugins/visualizer-relay";
+import { visualizerEnabledForPlayer } from "@/composables/visualizer/useVisualizer";
 import VisualizerMenuControl from "@/layouts/default/PlayerOSD/VisualizerMenuControl.vue";
 import { Droplet, Megaphone, Sparkles } from "@lucide/vue";
-import { markRaw } from "vue";
+import { h, markRaw } from "vue";
 import { useHosts } from "@/composables/ai-radio/useHosts";
 import { useShows } from "@/composables/ai-radio/useShows";
 import { authManager } from "@/plugins/auth";
@@ -51,6 +55,9 @@ export const getPlayerSetupMenuItem = (
 
 export const getPlayerMenuItems = (
   player: Player,
+  // the queue playing on this player, i.e. resolvePlayerQueue(player) — the
+  // shuffle and repeat state and the source those commands are aimed at are
+  // both derived from this pair
   playerQueue: PlayerQueue | undefined,
   options: {
     // which surface this menu is rendered on:
@@ -105,52 +112,64 @@ export const getPlayerMenuItems = (
   }
 
   const isDynamic = playerQueue?.is_dynamic === true;
+  // an external source orders its own session, so it takes these instead of the
+  // queue — and it has no queue to read the state or the dynamic flag from
+  const externalSource = resolveExternalSource(player, playerQueue);
+  const shuffleSource = externalSource?.can_shuffle
+    ? externalSource
+    : undefined;
+  const repeatSource = externalSource?.can_repeat ? externalSource : undefined;
+  const orderableQueue = playerQueue && !isDynamic ? playerQueue : undefined;
+  // the source the shuffle/repeat entries below are built for. Naming it on the
+  // command lets the server refuse one whose source stopped playing while the
+  // menu sat open, rather than let it land on whatever took the player since.
+  const commandSourceId = resolveActiveSourceId(player);
 
   // shuffle (queue menu only; hidden when the dedicated control is visible)
-  if (isQueue && playerQueue && !isDynamic && !hideShuffleRepeat) {
+  if (isQueue && (shuffleSource || orderableQueue) && !hideShuffleRepeat) {
+    const shuffleEnabled = shuffleSource
+      ? shuffleSource.shuffle_enabled === true
+      : orderableQueue!.shuffle_enabled;
     menuItems.push({
-      label: playerQueue.shuffle_enabled ? "shuffle_disable" : "shuffle_enable",
+      label: shuffleEnabled ? "shuffle_disable" : "shuffle_enable",
       labelArgs: [],
       action: () => {
-        api.queueCommandShuffleToggle(playerQueue.queue_id);
+        // the menu can sit open while the state moves, and an update lands as
+        // an Object.assign onto these, so the value is settled at click time —
+        // the source list is a fresh array by then, hence the re-resolve
+        const enabled = shuffleSource
+          ? resolveExternalSource(player, playerQueue)?.shuffle_enabled === true
+          : orderableQueue!.shuffle_enabled === true;
+        api.playerCommandShuffle(player.player_id, !enabled, commandSourceId);
       },
-      icon: playerQueue.shuffle_enabled
-        ? "mdi-shuffle-disabled"
-        : "mdi-shuffle",
+      icon: shuffleEnabled ? "mdi-shuffle-disabled" : "mdi-shuffle",
     });
   }
 
   // repeat (queue menu only; hidden when the dedicated control is visible)
-  if (isQueue && playerQueue && !isDynamic && !hideShuffleRepeat) {
+  if (isQueue && (repeatSource || orderableQueue) && !hideShuffleRepeat) {
+    // a source that has not reported its mode reads as off
+    const repeatMode = repeatSource
+      ? (repeatSource.repeat_mode ?? RepeatMode.OFF)
+      : orderableQueue!.repeat_mode;
     menuItems.push({
       label: "select_repeat_mode",
       labelArgs: [],
-      subItems: [
-        {
-          label: "repeat_mode.off",
-          labelArgs: [],
-          action: () => {
-            api.queueCommandRepeat(playerQueue!.queue_id, RepeatMode.OFF);
-          },
-          selected: playerQueue.repeat_mode == RepeatMode.OFF,
+      // keys spelled out so they stay greppable for the translation sync
+      subItems: (
+        [
+          ["repeat_mode.off", RepeatMode.OFF],
+          ["repeat_mode.all", RepeatMode.ALL],
+          ["repeat_mode.one", RepeatMode.ONE],
+        ] as const
+      ).map(([label, mode]) => ({
+        label,
+        labelArgs: [],
+        action: () => {
+          api.playerCommandRepeat(player.player_id, mode, commandSourceId);
         },
-        {
-          label: "repeat_mode.all",
-          labelArgs: [],
-          action: () => {
-            api.queueCommandRepeat(playerQueue!.queue_id, RepeatMode.ALL);
-          },
-          selected: playerQueue.repeat_mode == RepeatMode.ALL,
-        },
-        {
-          label: "repeat_mode.one",
-          labelArgs: [],
-          action: () => {
-            api.queueCommandRepeat(playerQueue!.queue_id, RepeatMode.ONE);
-          },
-          selected: playerQueue.repeat_mode == RepeatMode.ONE,
-        },
-      ],
+        selected: repeatMode == mode,
+      })),
       icon: "mdi-repeat",
     });
   }
@@ -197,8 +216,7 @@ export const getPlayerMenuItems = (
           (p) =>
             p.player_id != playerQueue!.queue_id &&
             p.player_id != player.player_id &&
-            p.available &&
-            p.enabled &&
+            isSelectablePlayer(p) &&
             !p.synced_to &&
             !p.hide_in_ui,
         )
@@ -354,11 +372,19 @@ export const getPlayerMenuItems = (
     });
   }
 
-  // MilkDrop visualizer popout (both menus), kept just above the settings entry
+  // MilkDrop visualizer popout (both menus), kept just above the settings
+  // entry; the droplet fills while enabled for this player (live, since the
+  // enabled preference is reactive store state)
   if (visualizerProviderAvailable()) {
     menuItems.push({
       label: "settings.visualizer_enabled.label",
-      icon: markRaw(Droplet),
+      icon: markRaw(() =>
+        h(Droplet, {
+          fill: visualizerEnabledForPlayer(player.player_id)
+            ? "currentColor"
+            : "none",
+        }),
+      ),
       subComponent: markRaw(VisualizerMenuControl),
       componentProps: { playerId: player.player_id },
     });

@@ -340,6 +340,26 @@
   </div>
 </template>
 
+<script lang="ts">
+import type {
+  Genre,
+  ItemMapping,
+  MediaItemTypeOrItemMapping,
+  RecommendationFolder,
+} from "@/plugins/api/interfaces";
+
+// Snapshot taken on unmount so a back/forward navigation back to Discover
+// renders the previous page instantly instead of refetching from empty.
+interface DiscoverSnapshot {
+  recommendations: RecommendationFolder[];
+  recentlyPlayed: ItemMapping[];
+  rowItemsMap: Map<string, MediaItemTypeOrItemMapping[]>;
+  genres: Genre[];
+  scrollPos: number;
+}
+let prevState: DiscoverSnapshot | undefined;
+</script>
+
 <script setup lang="ts">
 import EditorialCardSkeleton from "@/components/discover/EditorialCardSkeleton.vue";
 import EditorialGenreTile from "@/components/discover/EditorialGenreTile.vue";
@@ -352,6 +372,7 @@ import EditorialTimeline from "@/components/discover/EditorialTimeline.vue";
 import {
   DEFAULT_PRIORITY_ROWS,
   GENRES_ROW_ID,
+  IN_PROGRESS_ROW_ID,
   PLAYERS_ROW_ID,
   TOP_PICKS_ROW_ID,
   resolveDiscoverRowsConfig,
@@ -381,11 +402,8 @@ import {
   PlaybackState,
   RecommendationFolderType,
   type EventMessage,
-  type Genre,
-  type ItemMapping,
-  type MediaItemTypeOrItemMapping,
   type Player,
-  type RecommendationFolder,
+  type PlaylogUpdate,
 } from "@/plugins/api/interfaces";
 import { getBreakpointValue } from "@/plugins/breakpoint";
 import { $t } from "@/plugins/i18n";
@@ -407,10 +425,13 @@ import {
   ref,
   watch,
 } from "vue";
+import { useRouter } from "vue-router";
 
 const props = withDefaults(defineProps<{ editMode?: boolean }>(), {
   editMode: false,
 });
+
+const router = useRouter();
 
 const loading = ref(true);
 const playersShelf = ref<EditorialShelfExpose | null>(null);
@@ -934,6 +955,28 @@ const unsubscribeRecommendations = api.subscribe(
   },
 );
 
+// Played or reset items leave the "in progress" row right away; partial progress
+// (pause, another app syncing) belongs in the row, so only the refresh acts on it.
+const unsubscribePlaylog = api.subscribe(
+  EventType.PLAYLOG_UPDATED,
+  (evt: EventMessage) => {
+    const update = evt.data as PlaylogUpdate | undefined;
+    // per-user playlog: ignore changes belonging to another user (null = everyone)
+    if (update?.userid && update.userid !== store.currentUser?.user_id) return;
+    const leavesInProgress =
+      update && (update.fully_played || update.seconds_played === 0);
+    const uri = update?.uri ?? evt.object_id;
+    const items = rowItemsMap.value.get(IN_PROGRESS_ROW_ID);
+    if (leavesInProgress && uri && items) {
+      rowItemsMap.value.set(
+        IN_PROGRESS_ROW_ID,
+        items.filter((item) => item.uri !== uri),
+      );
+    }
+    scheduleRecommendationRefresh();
+  },
+);
+
 const unsubscribeProviderEvents = api.subscribe(
   EventType.PROVIDER_EVENT,
   (evt: EventMessage) => {
@@ -954,6 +997,36 @@ onMounted(async () => {
   loadGenres();
   window.addEventListener("resize", updateHeroNav);
 
+  // A history back/forward traversal sets `forward` on the entry we're
+  // returning to; a fresh navigation leaves it null.
+  if (prevState && router.options.history.state.forward != null) {
+    const snapshot = prevState;
+    recommendations.value = snapshot.recommendations;
+    recentlyPlayed.value = snapshot.recentlyPlayed;
+    rowItemsMap.value = snapshot.rowItemsMap;
+    genres.value = snapshot.genres;
+    resolveHeroPicks();
+    loading.value = false;
+    nextTick(() => {
+      const el = document.querySelector(
+        ".content-section",
+      ) as HTMLElement | null;
+      if (el) el.scrollTop = snapshot.scrollPos;
+      observeHero();
+    });
+
+    // Refresh everything in the background so the restored page stays current.
+    await loadRecommendationRows();
+    if (unmounted) return;
+    await refreshShownRowItems();
+    if (unmounted) return;
+    resolveHeroPicks();
+    nextTick(() => {
+      if (!unmounted) observeHero();
+    });
+    return;
+  }
+
   await loadRecommendationRows();
   if (unmounted) return;
   loading.value = false;
@@ -971,10 +1044,20 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", updateHeroNav);
   unsubscribeRecommendations();
   unsubscribeProviderEvents();
+  unsubscribePlaylog();
   cancelScheduledRecommendationRefresh();
   heroRo?.disconnect();
   heroRo = undefined;
   observedHeroGrid = null;
+
+  const el = document.querySelector(".content-section");
+  prevState = {
+    recommendations: recommendations.value,
+    recentlyPlayed: recentlyPlayed.value,
+    rowItemsMap: rowItemsMap.value,
+    genres: genres.value,
+    scrollPos: el?.scrollTop ?? 0,
+  };
 });
 </script>
 

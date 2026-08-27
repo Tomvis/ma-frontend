@@ -373,8 +373,10 @@ export const showContextMenuForMediaItem = async function (
     return;
   }
 
+  const menuTargets = await withFullItemDetails(mediaItems);
+
   const contextMenuItems = await getContextMenuItems(
-    mediaItems,
+    menuTargets,
     parentItem,
     options,
   );
@@ -383,12 +385,12 @@ export const showContextMenuForMediaItem = async function (
 
   if (
     includePlayMenuItems &&
-    mediaItems[0].is_playable &&
-    itemIsAvailable(mediaItems[0])
+    menuTargets[0].is_playable &&
+    itemIsAvailable(menuTargets[0])
   ) {
     // Play menu items first, then context items
     menuItems = await getPlaybackContextMenuItems(
-      mediaItems,
+      menuTargets,
       parentItem,
       sortBy,
     );
@@ -1309,10 +1311,11 @@ export const getPlaybackContextMenuItems = async function (
         disabled: !store.activePlayer,
       });
     }
-    // Play from here (podcast episode)
+    // Play from here (podcast episode). Episodes are listed newest first, so
+    // playback runs the other way: from the chosen episode forward in time.
     if (parentItem.media_type == MediaType.PODCAST) {
       playMenuItems.push({
-        label: "play_from_here",
+        label: "play_from_here_to_latest",
         action: () => {
           api.playMedia(parentItem.uri, undefined, {
             start_item: firstItem.item_id,
@@ -1509,6 +1512,40 @@ const startAudioSourceMenuItem = function (
     labelArgs: [],
     disabled: !store.activePlayer,
   };
+};
+
+/**
+ * Hydrate a single audiobook or podcast-episode reference (no provider
+ * mappings) with the play state the menu needs; anything else is returned
+ * as is.
+ */
+const withFullItemDetails = async function (
+  items: MediaItemTypeOrItemMapping[],
+): Promise<MediaItemTypeOrItemMapping[]> {
+  if (items.length != 1) return items;
+  const item = items[0];
+  if ("provider_mappings" in item || !itemSupportsPlayLog(item)) {
+    return items;
+  }
+  // a failed lookup still opens the menu, without the actions needing the detail
+  const fullItem = await api
+    .getItem(item.media_type, item.item_id, item.provider, {
+      suppressGlobalError: true,
+    })
+    .catch((err) => {
+      console.error("[ItemContextMenu] failed to resolve %s", item.uri, err);
+      return undefined;
+    });
+  if (!fullItem || !itemSupportsPlayLog(fullItem)) return items;
+  // hydrate only the play state onto the reference: id-based actions (favorites,
+  // library) and the playlog are keyed by the identity the card holds
+  return [
+    {
+      ...item,
+      fully_played: fullItem.fully_played,
+      resume_position_ms: fullItem.resume_position_ms,
+    } as MediaItemTypeOrItemMapping,
+  ];
 };
 
 // media types whose contents have an order that is worth shuffling. Audiobooks and

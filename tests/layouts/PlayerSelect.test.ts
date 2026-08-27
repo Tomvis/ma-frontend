@@ -119,6 +119,13 @@ vi.mock("@/helpers/players", () => ({
   isPlayerActive: (player: Player) =>
     player.playback_state === PlaybackState.PLAYING ||
     player.playback_state === PlaybackState.PAUSED,
+  isSelectablePlayer: (player?: Player) =>
+    Boolean(
+      player?.enabled &&
+      player.available &&
+      !player.needs_setup &&
+      player.type !== PlayerType.SOURCE,
+    ),
   playerVisible: () => true,
 }));
 
@@ -678,6 +685,21 @@ describe("PlayerSelect", () => {
     expect(store.showPlayersMenu).toBe(false);
   });
 
+  it("lists an audio input without ever selecting it", async () => {
+    const source = createPlayer("turntable", "Turntable");
+    source.type = PlayerType.SOURCE;
+    api.players = { [source.player_id]: source };
+    const wrapper = mountPlayerSelect();
+
+    // listed for discoverability, but never auto-picked as the default player
+    expect(wrapper.find('[data-player-id="turntable"]').exists()).toBe(true);
+    expect(store.activePlayerId).toBeUndefined();
+
+    await wrapper.find(".select-player").trigger("click");
+
+    expect(store.activePlayerId).toBeUndefined();
+  });
+
   it("starts setup instead of selecting a setup-required player", async () => {
     const player = createPlayer("kitchen", "Kitchen");
     player.available = false;
@@ -692,7 +714,48 @@ describe("PlayerSelect", () => {
     expect(emitEvent).toHaveBeenCalledWith("setupFlowDialog", {
       kind: "player",
       playerId: player.player_id,
+      onFlowEnded: expect.any(Function),
     });
+  });
+
+  it.each([
+    { finished: true, selected: "kitchen" },
+    { finished: false, selected: undefined },
+  ])(
+    "selects $selected when its setup flow reports finished=$finished",
+    async ({ finished, selected }) => {
+      const player = createPlayer("kitchen", "Kitchen");
+      player.available = false;
+      player.needs_setup = true;
+      api.players = { [player.player_id]: player };
+      const wrapper = mountPlayerSelect();
+
+      await wrapper.find(".select-player").trigger("click");
+      const event = emitEvent.mock.calls.at(-1)?.[1] as {
+        onFlowEnded: (finished: boolean) => void;
+      };
+      event.onFlowEnded(finished);
+
+      expect(store.activePlayerId).toBe(selected);
+    },
+  );
+
+  it("remembers the player its setup flow finished on", async () => {
+    const player = createPlayer("kitchen", "Kitchen");
+    player.needs_setup = true;
+    api.players = { [player.player_id]: player };
+    const wrapper = mountPlayerSelect();
+
+    await wrapper.find(".select-player").trigger("click");
+    const event = emitEvent.mock.calls.at(-1)?.[1] as {
+      onFlowEnded: (finished: boolean) => void;
+    };
+    event.onFlowEnded(true);
+
+    expect(setPreference).toHaveBeenCalledWith(
+      "activePlayerId",
+      player.player_id,
+    );
   });
 
   it("enables the detailed card layout only in the selector", () => {
