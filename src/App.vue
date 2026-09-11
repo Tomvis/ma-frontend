@@ -39,12 +39,15 @@
 <script setup lang="ts">
 import HomeAssistantMenuButton from "@/components/HomeAssistantMenuButton.vue";
 import { Toaster } from "@/components/ui/sonner";
+import { useReconnectGrace } from "@/composables/useReconnectGrace";
 import { initGlobalShortcutsSync } from "@/composables/useShortcuts";
 import { useThemePreference } from "@/composables/useThemePreference";
 import { sanitizeDashboardViewerPath } from "@/helpers/dashboard_viewer_access";
 import {
+  BROWSER_MEDIA_CONTROLS,
   BrowserMediaControlsMode,
   FORCE_MOBILE_LAYOUT,
+  getBrowserMediaControlsMode,
   readDeviceSetting,
   subscribeToDeviceSetting,
 } from "@/helpers/device_settings";
@@ -77,6 +80,7 @@ import {
   subscribeToHAProperties,
   unsubscribeFromHAProperties,
 } from "./plugins/homeassistant";
+import { DEFAULT_PAGE_TITLE, getPageTitle } from "@/helpers/pageTitle";
 import type { User } from "./plugins/api/interfaces";
 import { remoteConnectionManager } from "./plugins/remote";
 import { httpProxyBridge } from "./plugins/remote/http-proxy";
@@ -104,6 +108,26 @@ const selectedPlayerMediaControlsEnabled = computed(
     webPlayer.audioSource === WebPlayerMode.CONTROLS_ONLY &&
     webPlayer.tabMode === WebPlayerMode.CONTROLS_ONLY,
 );
+const browserMediaControlsEnabled = ref(true);
+
+const applyBrowserMediaControlsEnabled = () => {
+  browserMediaControlsEnabled.value =
+    getBrowserMediaControlsMode() !== BrowserMediaControlsMode.DISABLED;
+};
+
+watch(
+  [
+    () => store.activePlayer?.current_media?.title,
+    () => store.activePlayer?.current_media?.artist,
+    browserMediaControlsEnabled,
+  ],
+  ([title, artist, controlsEnabled]) => {
+    document.title = controlsEnabled
+      ? getPageTitle(title ?? undefined, artist ?? undefined)
+      : DEFAULT_PAGE_TITLE;
+  },
+  { immediate: true },
+);
 
 watch(
   [
@@ -121,13 +145,18 @@ watch(
 
 const isConnected = ref(false);
 const loginComponent = ref<InstanceType<typeof Login> | null>(null);
+
+// Keep the app mounted while a dropped connection recovers, instead of bouncing
+// through the login screen.
+const recovering = useReconnectGrace(api.state);
+
 const showLogin = computed(
-  () => api.state.value !== ConnectionState.INITIALIZED,
+  () => api.state.value !== ConnectionState.INITIALIZED && !recovering.value,
 );
 
-// Show main app when API is initialized AND (not remote OR service worker is ready)
+// Show main app when API is initialized or recovering AND (not remote OR service worker is ready)
 const showMainApp = computed(() => {
-  if (api.state.value !== ConnectionState.INITIALIZED) {
+  if (api.state.value !== ConnectionState.INITIALIZED && !recovering.value) {
     return false;
   }
   // For remote connections, also require service worker to be ready
@@ -447,6 +476,11 @@ onMounted(async () => {
   }
   applyForceMobileLayout();
   subscribeToDeviceSetting(FORCE_MOBILE_LAYOUT, applyForceMobileLayout);
+  applyBrowserMediaControlsEnabled();
+  subscribeToDeviceSetting(
+    BROWSER_MEDIA_CONTROLS,
+    applyBrowserMediaControlsEnabled,
+  );
 
   setTheme();
 
@@ -497,6 +531,23 @@ onMounted(async () => {
     .addEventListener("change", setTheme);
 
   window.addEventListener("click", interactedHandler);
+
+  let recoveringToastId: string | number | undefined;
+  watch(recovering, (isRecovering) => {
+    if (isRecovering) {
+      const { t } = i18n.global;
+      recoveringToastId = toast.loading(
+        t(
+          "login.reconnecting_message",
+          "Attempting to reconnect to the server...",
+        ),
+        { duration: Infinity },
+      );
+    } else if (recoveringToastId) {
+      toast.dismiss(recoveringToastId);
+      recoveringToastId = undefined;
+    }
+  });
 
   watch(
     () => api.state.value,
@@ -570,13 +621,20 @@ onMounted(async () => {
   });
 
   // Re-prune when the provider set changes at runtime.
-  api.subscribe(EventType.PROVIDERS_UPDATED, () => {
-    if (
-      !authManager.isGuestAccessSession() &&
-      !authManager.isDashboardViewer()
-    ) {
-      void pruneStaleProviderFilters();
+  api.subscribe(EventType.PROVIDERS_UPDATED, async () => {
+    if (authManager.isGuestAccessSession() || authManager.isDashboardViewer()) {
+      return;
     }
+    // The server rewrites the sidebar shortcuts held on the user when a provider is removed.
+    // Refresh before pruning, which saves preferences and would write the old set back.
+    // Without a fresh user there is nothing safe to prune against, so leave it for next time.
+    const userInfo = await api.getCurrentUserInfo();
+    if (!userInfo) {
+      return;
+    }
+    authManager.setCurrentUser(userInfo);
+    store.currentUser = userInfo;
+    await pruneStaleProviderFilters();
   });
 });
 

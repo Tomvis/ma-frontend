@@ -77,6 +77,8 @@
     "dark_mode": "Dark mode",
     "delete_db": "Delete item from database",
     "details": "Details",
+    "increase_value": "Increase value",
+    "decrease_value": "Decrease value",
     "enter_url": "Enter the URL you want to manually add to the database",
     "goto_album": "View album {0}",
     "goto_artist": "View artist {0}",
@@ -133,6 +135,10 @@
     "perform_action": "Perform action on {0} item(s)",
     "play": "Play",
     "play_album_from": "Play Album from here",
+    "previous_track": "Previous track",
+    "next_track": "Next track",
+    "previous_chapter": "Previous chapter",
+    "next_chapter": "Next chapter",
     "play_next": "Play Next",
     "play_now": "Play Now",
     "play_on": "Play on: {0}",
@@ -413,10 +419,10 @@
                 "help": "Raises or lowers the level of everything passing through this point in the pipeline."
             },
             "balance": {
-                "help": "Shifts the sound towards the left or right speaker. Only applies to stereo audio."
+                "help": "Shifts the sound towards the left or right speaker."
             },
             "stereo_width": {
-                "help": "Adjusts the stereo image width. Left of center narrows towards mono, right widens the sound.",
+                "help": "Adjusts the stereo image width. Left of center narrows towards mono, right widens the sound. Only applies to stereo audio.",
                 "clip_hint": "Widening past Original can raise peaks and cause clipping. Consider adding a Limiter after this filter.",
                 "scale": {
                     "mono": "Mono",
@@ -425,7 +431,7 @@
                 }
             },
             "crossfeed": {
-                "help": "Makes headphone listening feel more natural by gently blending the left and right channels, similar to listening to speakers.",
+                "help": "Makes headphone listening feel more natural by gently blending the left and right channels, similar to listening to speakers. Only applies to stereo audio.",
                 "presets": {
                     "low": "Low",
                     "medium": "Medium",
@@ -772,6 +778,8 @@
         "audio_analysis_providers": "Audio analysis",
         "audio_analysis_providers_description": "Manage providers that analyze your audio",
         "audio_analysis": "Audio analysis",
+        "audio_analysis_status_hint": "See how the analysis is progressing per provider, and any failures, on the status page.",
+        "audio_analysis_status_link": "Open audio analysis status",
         "sendspin_static_delay": {
             "label": "Static playback delay (ms)",
             "description": "Offset in milliseconds to keep this player in sync with other players. Increase if audio plays too late, for example to compensate for latency from an amp, active speakers, or the OS."
@@ -1014,6 +1022,8 @@
         "select_items": "Select multiple items",
         "sort_options": "Sort options",
         "toggle_view_mode": "Toggle view mode list\/thumbs",
+        "view_mode_current": "Current view: {0}. Change view mode",
+        "view_mode_switch": "Current view: {0}. Switch to {1}",
         "filter_favorites": "Only show favorites",
         "favorite": "Mark\/unmark as a favorite",
         "filter_dr": "Filter by Dynamic Range",
@@ -1110,6 +1120,7 @@
     "create_playlist_on": "Create new playlist on {0}",
     "view": {
         "list": "List view",
+        "card": "Card view",
         "panel": "Thumbs view",
         "panel_compact": "Compact thumbs view",
         "discovery": "Discovery"
@@ -2197,6 +2208,14 @@
     "import_playlist_title": "Import playlist",
     "import_playlist_invalid_file": "Invalid playlist file",
     "import_playlist_search_providers": "Search for tracks on",
+    "import_playlist_search_providers_description": "Selected providers are used as fallback sources when a track's original source is unavailable.",
+    "import_playlist_match_policy_label": "Track matching",
+    "import_playlist_match_policy_exact_title": "Exact release",
+    "import_playlist_match_policy_exact_description": "Only match tracks against the exact same release.",
+    "import_playlist_match_policy_same_recording_title": "Same recording (recommended)",
+    "import_playlist_match_policy_same_recording_description": "Prefer an exact match, otherwise accept the same recording from a different release.",
+    "import_playlist_match_policy_best_effort_title": "Best effort",
+    "import_playlist_match_policy_best_effort_description": "Prefer an exact match, then the same recording, otherwise accept the closest available match.",
     "party_mode": "Party",
     "edit_playlist": "Edit playlist",
     "edit_radio": "Edit radio station",
@@ -2293,6 +2312,31 @@
         "op_less_than": "less than",
         "picker_search": "Search {label}"
     },
+    "migrate_playlist": {
+        "action": "Migrate playlist",
+        "title": "Migrate playlist",
+        "description": "Copy \"{0}\" to another provider, matching its tracks along the way.",
+        "destination_label": "Destination",
+        "destination_placeholder": "Choose a destination",
+        "name_label": "Playlist name",
+        "match_policy_label": "Track matching",
+        "match_policy": {
+            "exact": {
+                "title": "Exact release",
+                "description": "Only add tracks that match the exact same release. Tracks that can't be matched this way are skipped."
+            },
+            "same_recording": {
+                "title": "Same recording",
+                "description": "Prefer an exact match, otherwise accept the same recording from a different release. Tracks that can't be matched this way are skipped."
+            },
+            "best_effort": {
+                "title": "Best effort",
+                "description": "Prefer an exact match, then the same recording, otherwise accept the closest available match."
+            }
+        },
+        "submit": "Migrate",
+        "no_destinations_error": "No eligible destination provider is available for this playlist."
+    },
     "explore": "Explore",
     "shortcuts": "Shortcuts",
     "system": "System",
@@ -2326,6 +2370,7 @@
     "autoplay_disable": "Disable Autoplay",
     "autoplay": "Autoplay",
     "autoplay_explanation": "When your queue runs out, additional tracks are added automatically so the music will not stop.",
+    "autoplay_repeat_disabled": "Autoplay has been automatically turned off because repeat is on",
     "autoplay_active": "Autoplay is on.",
     "genre_content_type": {
         "all": "All",

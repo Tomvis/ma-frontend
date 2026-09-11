@@ -1,23 +1,29 @@
 import {
+  type BackgroundTask,
   type CommandMessage,
   CoreState,
   type DSPConfig,
   type ErrorResultMessage,
   type Player,
+  PlaylistMatchPolicy,
   RepeatMode,
   type ServerInfoMessage,
   type SuccessResultMessage,
+  TaskStatus,
 } from "@/plugins/api/interfaces";
 import { BaseTransport, TransportState } from "@/plugins/remote/transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { playlist } from "../../fixtures/playlist";
 
-const { mockToastError } = vi.hoisted(() => ({
+const { mockToastError, mockToastInfo } = vi.hoisted(() => ({
   mockToastError: vi.fn(),
+  mockToastInfo: vi.fn(),
 }));
 
 vi.mock("vue-sonner", () => ({
   toast: {
     error: mockToastError,
+    info: mockToastInfo,
   },
 }));
 
@@ -377,6 +383,115 @@ describe("MusicAssistantApi error handling", () => {
       expect.any(Error),
     );
     expect(api["commands"].size).toBe(0);
+  });
+
+  it("imports a playlist with the chosen match policy", async () => {
+    const result = api.importPlaylist(
+      "#EXTM3U",
+      true,
+      ["spotify--1"],
+      PlaylistMatchPolicy.EXACT,
+    );
+
+    expect(transport.lastCommand.command).toBe(
+      "music/playlists/import_playlist",
+    );
+    expect(transport.lastCommand.args).toEqual({
+      m3u_data: "#EXTM3U",
+      library_matching: true,
+      match_providers: ["spotify--1"],
+      match_policy: PlaylistMatchPolicy.EXACT,
+    });
+
+    const importedPlaylist = playlist({ item_id: "1", name: "My playlist" });
+    transport.receive({
+      message_id: transport.lastCommand.message_id!,
+      result: importedPlaylist,
+      partial: false,
+    });
+    await expect(result).resolves.toEqual(importedPlaylist);
+  });
+
+  it("omits match_policy when it isn't provided", () => {
+    api.importPlaylist("#EXTM3U", true, ["spotify--1"]);
+
+    expect(transport.lastCommand.args).toEqual({
+      m3u_data: "#EXTM3U",
+      library_matching: true,
+      match_providers: ["spotify--1"],
+    });
+  });
+
+  it("migrates a playlist and notifies the background task toast", async () => {
+    const task: BackgroundTask = {
+      id: "task-1",
+      name: "Migrate playlist",
+      status: TaskStatus.PENDING,
+      report: null,
+      logs: [],
+      schedule: null,
+      last_run: null,
+      next_run: null,
+      user_id: null,
+      last_run_user_id: null,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      started_at: null,
+      finished_at: null,
+      last_error: null,
+      failure_count: 0,
+      failure_messages: [],
+      metadata: {},
+      progress: null,
+      progress_text: null,
+      allow_retry: false,
+      allow_cancel: true,
+    };
+    const result = api.migratePlaylist(
+      "1",
+      "spotify--1",
+      PlaylistMatchPolicy.SAME_RECORDING,
+      "My playlist",
+    );
+
+    expect(transport.lastCommand.command).toBe(
+      "music/playlists/migrate_playlist",
+    );
+    expect(transport.lastCommand.args).toEqual({
+      db_playlist_id: "1",
+      destination_provider: "spotify--1",
+      match_policy: PlaylistMatchPolicy.SAME_RECORDING,
+      name: "My playlist",
+    });
+
+    transport.receive({
+      message_id: transport.lastCommand.message_id!,
+      result: task,
+      partial: false,
+    });
+    await expect(result).resolves.toEqual(task);
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      "background_tasks.toast.added",
+      expect.anything(),
+    );
+  });
+
+  it("rejects a failed migration without the global error toast", async () => {
+    const result = api.migratePlaylist(
+      "1",
+      "spotify--1",
+      PlaylistMatchPolicy.SAME_RECORDING,
+      "My playlist",
+    );
+    const error = createErrorResult(transport.lastCommand, "Migration failed");
+    const rejection = expect(result).rejects.toMatchObject({
+      message: "Migration failed",
+    });
+
+    transport.receive(error);
+
+    await rejection;
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("rejects in-flight commands when the connection closes", async () => {
