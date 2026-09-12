@@ -62,6 +62,7 @@ import {
   PlaylistMatchPolicy,
   Podcast,
   PodcastEpisode,
+  ProviderAccess,
   ProviderConfig,
   ProviderIconVariant,
   ProviderManifest,
@@ -2333,6 +2334,21 @@ export class MusicAssistantApi {
     });
   }
 
+  public setProviderAccess(
+    instance_id: string,
+    access: ProviderAccess,
+  ): Promise<ProviderConfig> {
+    // Set who owns a music source and who else may use it.
+    // An admin may set this for any music source, an owner may
+    // only change the sharing of a source it owns.
+    return this.sendCommand("config/providers/set_access", {
+      instance_id,
+      owner: access.owner,
+      sharing: access.sharing,
+      shared_users: access.shared_users,
+    });
+  }
+
   // PlayerConfig related functions
 
   public async getPlayerConfigs(
@@ -3251,13 +3267,17 @@ export class MusicAssistantApi {
     return users;
   }
 
+  public getRoleScopes(): Promise<Record<string, string[]>> {
+    // Get the scopes granted to each user role, keyed by role id
+    return this.sendCommand("auth/scopes");
+  }
+
   public async createUser(
     username: string,
     password: string,
     role: UserRole,
     displayName?: string,
     playerFilter?: string[],
-    providerFilter?: string[],
   ): Promise<User> {
     // Create a new user (admin only)
     try {
@@ -3269,7 +3289,6 @@ export class MusicAssistantApi {
         role,
         display_name: displayName,
         player_filter: playerFilter,
-        provider_filter: providerFilter,
       });
 
       if (result == null) {
@@ -3312,7 +3331,6 @@ export class MusicAssistantApi {
       role?: UserRole;
       password?: string;
       preferences?: Record<string, unknown>;
-      provider_filter?: string[];
       player_filter?: string[];
     },
   ): Promise<User> {
@@ -3327,8 +3345,6 @@ export class MusicAssistantApi {
       if (updates.password) args.password = updates.password;
       if (updates.preferences != undefined)
         args.preferences = updates.preferences;
-      if (updates.provider_filter != undefined)
-        args.provider_filter = updates.provider_filter;
       if (updates.player_filter != undefined)
         args.player_filter = updates.player_filter;
 
