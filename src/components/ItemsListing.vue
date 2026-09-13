@@ -4,6 +4,7 @@
     <!-- eslint-disable vue/no-template-shadow -->
     <Toolbar
       :icon="icon"
+      :icon-action="iconAction"
       :title="title"
       :subtitle="subtitle"
       :count="params.search ? pagedItems.length : total || allItems.length"
@@ -553,6 +554,8 @@ export interface Props {
   infiniteScroll?: boolean;
   path?: string;
   icon?: string | Component;
+  // makes the toolbar icon a button, e.g. a back arrow for a full-page listing
+  iconAction?: () => void;
   restoreState?: boolean;
   // Suppress the MEDIA_ITEM_ADDED "new content available" banner. Set for views
   // whose membership is a server-side sub-filter the itemtype prefix can't express
@@ -615,6 +618,7 @@ const props = withDefaults(defineProps<Props>(), {
   loadItems: undefined,
   path: undefined,
   icon: undefined,
+  iconAction: undefined,
   restoreState: false,
   onTitleClick: undefined,
   refreshOnParentUpdate: false,
@@ -2587,6 +2591,12 @@ defineExpose({
   // a row toggled out of e.g. listen_later=true otherwise lingers visible until
   // the user navigates away.
   refresh: () => loadData(true, undefined, true),
+  // whether the item is absent while every item of the unfiltered listing is
+  // loaded; a filter leaves items out on purpose
+  isMissing: (uri: string) =>
+    allItemsReceived.value &&
+    !hasActiveFilters.value &&
+    !pagedItems.value.some((i) => i.uri === uri),
 });
 </script>
 
