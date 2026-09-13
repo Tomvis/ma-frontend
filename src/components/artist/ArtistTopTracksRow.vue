@@ -13,6 +13,9 @@
       >
         <template #art-overlay>
           <span class="artist-top-tracks__art-scrim"></span>
+          <!-- enhanced: DR/AMG/TPS badges on the latest release, matching the
+               release shelf below it and the library grid. -->
+          <AlbumPanelBadges :album="latestRelease!" hide-saved />
           <span v-if="latestReleaseYear" class="artist-top-tracks__year">{{
             latestReleaseYear
           }}</span>
@@ -120,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import AlbumPanelBadges from "@/components/album/AlbumPanelBadges.vue";
 import EditorialMediaCard from "@/components/discover/EditorialMediaCard.vue";
 import MediaItemThumb from "@/components/MediaItemThumb.vue";
 import ProviderIcon from "@/components/ProviderIcon.vue";
