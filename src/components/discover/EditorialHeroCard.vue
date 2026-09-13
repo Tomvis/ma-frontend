@@ -111,11 +111,15 @@ const onHold = (e: TouchEvent) => {
 </script>
 
 <style scoped>
-/* Positioned box the badge overlay insets itself within. Starts at 45% so the
-   DR badge (left of the pair) never reaches the tag label in the top-left. */
+/* Positioned box the badge overlay insets itself within. The overlay lays its two
+   badges out with space-between, so the box has to be narrow or the DR badge strands
+   itself mid-card. Pinned to the top-right corner: the tag label owns the top-left,
+   the title the bottom-left, and the play button the bottom-right. */
 .ed-hero__badges {
   position: absolute;
-  inset: 0 0 auto 45%;
+  top: 0;
+  right: 0;
+  width: 124px;
   height: 40px;
   z-index: 2;
   pointer-events: none;
