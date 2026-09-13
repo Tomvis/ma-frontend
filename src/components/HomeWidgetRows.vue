@@ -283,7 +283,20 @@
                 v-for="item in rowItemsMap.get(row.id) ?? []"
                 :key="item.uri"
                 :item="item"
-              />
+              >
+                <!-- enhanced: DR/AMG/TPS/listen-later badges on discover cards,
+                     matching the library panel view. Lives here rather than inside
+                     EditorialMediaCard because PanelviewItem already overlays the
+                     same component via its own slot - putting it in the card would
+                     render the badges twice in every library grid. -->
+                <template #art-overlay>
+                  <AlbumPanelBadges
+                    v-if="item.media_type === MediaType.ALBUM"
+                    :album="item as Album"
+                    hide-saved
+                  />
+                </template>
+              </EditorialMediaCard>
             </template>
           </EditorialShelf>
 
@@ -367,6 +380,7 @@ let prevState: DiscoverSnapshot | undefined;
 </script>
 
 <script setup lang="ts">
+import AlbumPanelBadges from "@/components/album/AlbumPanelBadges.vue";
 import EditorialCardSkeleton from "@/components/discover/EditorialCardSkeleton.vue";
 import EditorialGenreTile from "@/components/discover/EditorialGenreTile.vue";
 import EditorialHeroCard from "@/components/discover/EditorialHeroCard.vue";
@@ -406,8 +420,10 @@ import api from "@/plugins/api";
 import { ACTIVE_DOT_CLASS } from "@/constants";
 import {
   EventType,
+  MediaType,
   PlaybackState,
   RecommendationFolderType,
+  type Album,
   type EventMessage,
   type Player,
   type PlaylogUpdate,

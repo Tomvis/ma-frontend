@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { toRef } from "vue";
+import { computed, toRef } from "vue";
 import { BookmarkCheck, Star } from "@lucide/vue";
 import type { Album } from "@/plugins/api/interfaces";
 import { useAlbumBadgeLabels } from "@/composables/useAlbumBadgeLabels";
 
 interface Props {
   album: Album;
+  // Suppress the saved-for-later bookmark. Set on the Listen Later shelf, where
+  // every album is saved by definition and the badge carries no information.
+  hideSaved?: boolean;
 }
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { hideSaved: false });
 const albumRef = toRef(props, "album");
 const {
   tags,
@@ -18,10 +21,12 @@ const {
   amgTitle,
   tpsTitle,
 } = useAlbumBadgeLabels(albumRef);
+
+const showSaved = computed(() => savedForLater.value && !props.hideSaved);
 </script>
 
 <template>
-  <div v-if="tags.hasAny || savedForLater" class="album-badges">
+  <div v-if="tags.hasAny || showSaved" class="album-badges">
     <div
       v-if="tags.dr"
       class="badge dr-badge"
@@ -39,7 +44,7 @@ const {
     <div v-else></div>
     <div class="badge-stack">
       <div
-        v-if="savedForLater"
+        v-if="showSaved"
         class="badge listen-later-badge"
         :title="$t('listen_later.saved_short')"
         :aria-label="$t('listen_later.saved_short')"

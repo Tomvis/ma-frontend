@@ -31,6 +31,13 @@
       >
         <template #art-overlay>
           <span class="artist-shelf__art-scrim"></span>
+          <!-- enhanced: DR/AMG/TPS badges on the artist page's release shelf,
+               matching the library grid and the discover shelves. -->
+          <AlbumPanelBadges
+            v-if="item.media_type === MediaType.ALBUM"
+            :album="item as Album"
+            hide-saved
+          />
           <span v-if="item.year" class="artist-shelf__year">{{
             item.year
           }}</span>
@@ -45,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import AlbumPanelBadges from "@/components/album/AlbumPanelBadges.vue";
 import EditorialCardSkeleton from "@/components/discover/EditorialCardSkeleton.vue";
 import EditorialMediaCard from "@/components/discover/EditorialMediaCard.vue";
 import EditorialShelf from "@/components/discover/EditorialShelf.vue";
@@ -53,6 +61,7 @@ import { panelViewItemResponsive } from "@/helpers/utils";
 import { itemIsAvailable } from "@/plugins/api/helpers";
 import {
   AlbumType,
+  MediaType,
   type Album,
   type ItemMapping,
   type MediaItemType,

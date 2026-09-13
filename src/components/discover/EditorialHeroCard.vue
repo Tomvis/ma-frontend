@@ -18,6 +18,12 @@
       />
     </div>
     <div class="ed-hero__scrim"></div>
+    <!-- enhanced: DR/AMG/TPS badges on album heroes. Constrained to the right-hand
+         half of the top edge so they clear the ed-hero__tag label on the left.
+         hide-saved: the bookmark carries no information on a discover shelf. -->
+    <div v-if="item.media_type === MediaType.ALBUM" class="ed-hero__badges">
+      <AlbumPanelBadges :album="item as Album" hide-saved />
+    </div>
     <div class="ed-hero__content">
       <div class="ed-hero__tag">
         <Sparkles :size="12" />
@@ -41,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import AlbumPanelBadges from "@/components/album/AlbumPanelBadges.vue";
 import { itemArtwork } from "@/components/discover/editorialArtwork";
 import {
   handleMediaItemClick,
@@ -49,6 +56,7 @@ import {
 } from "@/helpers/media_item_actions";
 import { getArtistsString } from "@/helpers/utils";
 import {
+  MediaType,
   type Album,
   type ItemMapping,
   type MediaItemType,
@@ -103,6 +111,16 @@ const onHold = (e: TouchEvent) => {
 </script>
 
 <style scoped>
+/* Positioned box the badge overlay insets itself within. Starts at 45% so the
+   DR badge (left of the pair) never reaches the tag label in the top-left. */
+.ed-hero__badges {
+  position: absolute;
+  inset: 0 0 auto 45%;
+  height: 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .ed-hero {
   position: relative;
   overflow: hidden;
