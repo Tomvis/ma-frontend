@@ -85,6 +85,21 @@
     "items_selected": "{0} item(s) selected",
     "items_total": "{0} total item(s)",
     "library": "Library",
+    "digarr": {
+        "approve": "Approve in digarr",
+        "reject": "Reject in digarr",
+        "block": "Never recommend this artist",
+        "undo": "Undo",
+        "approving": "Approving \"{0}\"…",
+        "approved": "\"{0}\" approved and sent to Lidarr",
+        "rejected": "\"{0}\" rejected",
+        "blocked": "\"{0}\" will not be recommended again",
+        "undone": "\"{0}\" reverted and removed from Lidarr",
+        "undone_kept": "\"{0}\" reverted, but was left in Lidarr",
+        "undone_kept_not_added_by_digarr": "\"{0}\" reverted; it was left in Lidarr because digarr didn't add it there",
+        "undone_kept_has_files": "\"{0}\" reverted, but was left in Lidarr because it already has files",
+        "undone_kept_removal_failed": "\"{0}\" reverted, but removing it from Lidarr failed"
+    },
     "lidarr": {
         "adding": "Sending \"{0}\" to Lidarr…",
         "added": "\"{0}\" is now monitored in Lidarr",

@@ -22,6 +22,7 @@ import {
   type BackgroundTask,
   type CommandMessage,
   type CriticalReceptionFilter,
+  type DigarrActionResult,
   type ErrorResultMessage,
   type EventMessage,
   type Genre,
@@ -855,6 +856,22 @@ export class MusicAssistantApi {
     item: string | Album | ItemMapping,
   ): Promise<LidarrAddAlbumResult> {
     return this.sendCommand("lidarr/add_album", { item });
+  }
+
+  public digarrApprove(item: string): Promise<DigarrActionResult> {
+    return this.sendCommand("digarr/approve", { item });
+  }
+
+  public digarrReject(item: string): Promise<DigarrActionResult> {
+    return this.sendCommand("digarr/reject", { item });
+  }
+
+  public digarrBlock(item: string): Promise<DigarrActionResult> {
+    return this.sendCommand("digarr/block", { item });
+  }
+
+  public digarrUndo(item: string): Promise<DigarrActionResult> {
+    return this.sendCommand("digarr/undo", { item });
   }
 
   public getAlbum(
