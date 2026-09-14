@@ -785,43 +785,53 @@ export const getContextMenuItems = async function (
           return $t("digarr.undone_kept", [result.artist]);
       }
     };
-    contextMenuItems.push({
-      label: "digarr.approve",
-      labelArgs: [],
-      action: async () => {
-        const id = toast.loading($t("digarr.approving", [artist.name]));
-        try {
-          await api.digarrApprove(artist.uri);
-          toast.success($t("digarr.approved", [artist.name]), {
-            id,
-            duration: 8000,
-            action: {
-              label: $t("digarr.undo"),
-              onClick: async () => {
-                try {
-                  const result = await api.digarrUndo(artist.uri);
-                  toast.success(digarrUndoMessage(result));
-                } catch {
-                  // Global handler in api/index.ts shows the error toast.
-                }
+    // Approve triggers a real Lidarr add (and a real download), so — like
+    // add_library (above, itemIsAvailable(resolvedItem)) and add_to_lidarr
+    // (itemIsAvailable(item) in the lidarrAlbums filter) — it requires the
+    // artist to currently resolve to an available provider mapping. Reject
+    // and Block are pure digarr-side bookkeeping: they never touch Lidarr, so
+    // a user can still dismiss a recommendation while its only provider
+    // happens to be down (arguably that's exactly when they'd want to). This
+    // asymmetry is deliberate — don't unify it into one shared gate.
+    if (itemIsAvailable(artist)) {
+      contextMenuItems.push({
+        label: "digarr.approve",
+        labelArgs: [],
+        action: async () => {
+          const id = toast.loading($t("digarr.approving", [artist.name]));
+          try {
+            const approveResult = await api.digarrApprove(artist.uri);
+            toast.success($t("digarr.approved", [approveResult.artist]), {
+              id,
+              duration: 8000,
+              action: {
+                label: $t("digarr.undo"),
+                onClick: async () => {
+                  try {
+                    const undoResult = await api.digarrUndo(artist.uri);
+                    toast.success(digarrUndoMessage(undoResult));
+                  } catch {
+                    // Global handler in api/index.ts shows the error toast.
+                  }
+                },
               },
-            },
-          });
-        } catch {
-          // Global handler in api/index.ts shows the error toast.
-          toast.dismiss(id);
-        }
-        eventbus.emit("clearSelection");
-      },
-      icon: "mdi-check",
-    });
+            });
+          } catch {
+            // Global handler in api/index.ts shows the error toast.
+            toast.dismiss(id);
+          }
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-check",
+      });
+    }
     contextMenuItems.push({
       label: "digarr.reject",
       labelArgs: [],
       action: async () => {
         try {
-          await api.digarrReject(artist.uri);
-          toast.success($t("digarr.rejected", [artist.name]));
+          const result = await api.digarrReject(artist.uri);
+          toast.success($t("digarr.rejected", [result.artist]));
         } catch {
           // Global handler in api/index.ts shows the error toast.
         }
@@ -834,8 +844,8 @@ export const getContextMenuItems = async function (
       labelArgs: [],
       action: async () => {
         try {
-          await api.digarrBlock(artist.uri);
-          toast.success($t("digarr.blocked", [artist.name]));
+          const result = await api.digarrBlock(artist.uri);
+          toast.success($t("digarr.blocked", [result.artist]));
         } catch {
           // Global handler in api/index.ts shows the error toast.
         }
