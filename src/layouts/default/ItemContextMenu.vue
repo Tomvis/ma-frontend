@@ -296,6 +296,7 @@ import {
 import {
   Album,
   BrowseFolder,
+  type DigarrActionResult,
   EventType,
   Genre,
   MediaItemType,
@@ -752,6 +753,98 @@ export const getContextMenuItems = async function (
       });
     }
   }
+
+  // digarr review actions — artists surfaced by a digarr Discover row. Gated
+  // on a loaded digarr provider; single-artist only, since Approve triggers a
+  // real Lidarr add and a bulk mis-tap would be expensive to unwind.
+  const digarrLoaded = Object.values(api.providers).some(
+    (p) => p.domain === "digarr" && p.available,
+  );
+  if (
+    digarrLoaded &&
+    items.length === 1 &&
+    items[0].media_type === MediaType.ARTIST
+  ) {
+    const artist = items[0];
+    // Only Approve's toast offers Undo — Reject and Block never touch Lidarr,
+    // so there is nothing for them to reverse. An undo can still leave the
+    // artist in Lidarr (e.g. it already had files); say so plainly instead of
+    // reporting a bare "Undone" that would overstate what happened.
+    const digarrUndoMessage = (result: DigarrActionResult): string => {
+      if (result.lidarr_artist_removed) {
+        return $t("digarr.undone", [result.artist]);
+      }
+      switch (result.detail) {
+        case "not_added_by_digarr":
+          return $t("digarr.undone_kept_not_added_by_digarr", [result.artist]);
+        case "has_files":
+          return $t("digarr.undone_kept_has_files", [result.artist]);
+        case "removal_failed":
+          return $t("digarr.undone_kept_removal_failed", [result.artist]);
+        default:
+          return $t("digarr.undone_kept", [result.artist]);
+      }
+    };
+    contextMenuItems.push({
+      label: "digarr.approve",
+      labelArgs: [],
+      action: async () => {
+        const id = toast.loading($t("digarr.approving", [artist.name]));
+        try {
+          await api.digarrApprove(artist.uri);
+          toast.success($t("digarr.approved", [artist.name]), {
+            id,
+            duration: 8000,
+            action: {
+              label: $t("digarr.undo"),
+              onClick: async () => {
+                try {
+                  const result = await api.digarrUndo(artist.uri);
+                  toast.success(digarrUndoMessage(result));
+                } catch {
+                  // Global handler in api/index.ts shows the error toast.
+                }
+              },
+            },
+          });
+        } catch {
+          // Global handler in api/index.ts shows the error toast.
+          toast.dismiss(id);
+        }
+        eventbus.emit("clearSelection");
+      },
+      icon: "mdi-check",
+    });
+    contextMenuItems.push({
+      label: "digarr.reject",
+      labelArgs: [],
+      action: async () => {
+        try {
+          await api.digarrReject(artist.uri);
+          toast.success($t("digarr.rejected", [artist.name]));
+        } catch {
+          // Global handler in api/index.ts shows the error toast.
+        }
+        eventbus.emit("clearSelection");
+      },
+      icon: "mdi-close",
+    });
+    contextMenuItems.push({
+      label: "digarr.block",
+      labelArgs: [],
+      action: async () => {
+        try {
+          await api.digarrBlock(artist.uri);
+          toast.success($t("digarr.blocked", [artist.name]));
+        } catch {
+          // Global handler in api/index.ts shows the error toast.
+        }
+        eventbus.emit("clearSelection");
+      },
+      icon: "mdi-cancel",
+    });
+  }
+
   // remove from library (a personal playlist only by whoever manages it)
   const managesSelectedPlaylists = items.every(
     (item) =>

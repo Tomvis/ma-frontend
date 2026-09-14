@@ -1111,6 +1111,13 @@ export interface LidarrAddAlbumResult {
   lidarr_instance: string;
 }
 
+export interface DigarrActionResult {
+  artist: string;
+  status: string;
+  lidarr_artist_removed: boolean | null;
+  detail: string | null;
+}
+
 export interface AudioMetadata {
   // Audio analysis details (e.g. bpm, musical key).
   bpm: number | null;
