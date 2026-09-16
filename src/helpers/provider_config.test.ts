@@ -11,6 +11,7 @@ import {
   getProviderStageTranslationKey,
   getProviderStatusTranslationKey,
   getProviderSupportIssuesUrl,
+  isBuiltinProvider,
   providerDisplayName,
   providerRequiresReconfiguration,
   shouldShowStageBadge,
@@ -138,10 +139,20 @@ describe("the name a provider goes by", () => {
   const manifest = providerManifest({ domain: "spotify", name: "Spotify" });
   const instance = { name: "Spotify" } as ProviderInstance;
 
-  it("prefers what the running instance calls itself", () => {
+  it("prefers the custom name set on the configuration", () => {
     expect(
       providerDisplayName(
         { ...config },
+        { ...instance, name: "Renamed" },
+        manifest,
+      ),
+    ).toBe("The kitchen's Spotify");
+  });
+
+  it("falls back on what the running instance calls itself", () => {
+    expect(
+      providerDisplayName(
+        { ...config, name: null },
         { ...instance, name: "Renamed" },
         manifest,
       ),
@@ -152,6 +163,13 @@ describe("the name a provider goes by", () => {
     expect(providerDisplayName(config, undefined, manifest)).toBe(
       "The kitchen's Spotify",
     );
+  });
+
+  it("falls back past a custom name that was cleared", () => {
+    // renaming writes an empty string rather than dropping the key
+    expect(
+      providerDisplayName({ ...config, name: "" }, instance, manifest),
+    ).toBe("Spotify");
   });
 
   it("falls back on the default name the server gave it", () => {
@@ -174,5 +192,16 @@ describe("the name a provider goes by", () => {
     expect(
       providerDisplayName({ ...config, name: null, default_name: null }),
     ).toBe("");
+  });
+});
+
+describe("a provider that ships with the server", () => {
+  it("reads the flag off the manifest", () => {
+    expect(isBuiltinProvider(providerManifest({ builtin: true }))).toBe(true);
+    expect(isBuiltinProvider(providerManifest({ builtin: false }))).toBe(false);
+  });
+
+  it("claims nothing about a provider whose manifest is missing", () => {
+    expect(isBuiltinProvider(undefined)).toBe(false);
   });
 });

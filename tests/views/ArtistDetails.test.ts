@@ -52,9 +52,12 @@ vi.mock("@/plugins/i18n", async (importOriginal) => ({
 
 vi.mock("@/components/artist/artistRows", () => ({
   availableArtistRowIds: mockAvailableArtistRowIds,
-  resolveArtistRows: mockResolveArtistRows,
-  effectiveArtistRowSource: () => "all",
-  artistRowSources: () => ["library", "all"],
+  artistRows: {
+    resolve: mockResolveArtistRows,
+    definition: (id: string) => ({ id, labelKey: id }),
+    effectiveSource: () => "all",
+    sources: () => ["library", "all"],
+  },
 }));
 
 // the loaders are mocked, the pure helpers (sorting, single/EP and library
@@ -75,8 +78,8 @@ vi.mock("@/components/artist/ArtistHero.vue", () => ({
     template: "<div data-hero />",
   },
 }));
-vi.mock("@/components/artist/ArtistBioRow.vue", () => ({
-  default: { name: "ArtistBioRow", template: '<div data-row="bio" />' },
+vi.mock("@/components/details/DetailTextRow.vue", () => ({
+  default: { name: "DetailTextRow", template: '<div data-row="bio" />' },
 }));
 vi.mock("@/components/artist/ArtistTopTracksRow.vue", () => ({
   default: {
@@ -85,9 +88,9 @@ vi.mock("@/components/artist/ArtistTopTracksRow.vue", () => ({
   },
 }));
 // one component backs three rows, so it reports which title it was given
-vi.mock("@/components/artist/ArtistReleaseShelf.vue", () => ({
+vi.mock("@/components/details/ReleaseShelf.vue", () => ({
   default: {
-    name: "ArtistReleaseShelf",
+    name: "ReleaseShelf",
     props: ["title"],
     template: '<div :data-row="title" />',
   },

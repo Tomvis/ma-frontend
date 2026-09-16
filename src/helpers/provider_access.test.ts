@@ -16,6 +16,8 @@ import {
   getProviderSharingTranslationKey,
   hasConfigurableAccess,
   isOwnMusicSource,
+  isSelfServiceProvider,
+  ownedMusicSourceCount,
   ownerCandidates,
   servesNobody,
   shareCandidates,
@@ -136,6 +138,38 @@ describe("isOwnMusicSource", () => {
 
   it("is false when nobody is signed in", () => {
     expect(isOwnMusicSource(owned, undefined)).toBe(false);
+  });
+});
+
+describe("ownedMusicSourceCount", () => {
+  const owned = (owner: string | null) =>
+    providerConfig({
+      access: { owner, sharing: ProviderSharing.PRIVATE, shared_users: [] },
+    });
+
+  it("counts only the sources owned by the given user", () => {
+    const configs = [
+      owned("user-1"),
+      owned("user-1"),
+      owned("user-2"),
+      // a household source carries no owner
+      providerConfig(),
+    ];
+    expect(ownedMusicSourceCount(configs, "user-1")).toBe(2);
+  });
+
+  it("counts none when nobody is signed in", () => {
+    expect(ownedMusicSourceCount([owned("user-1")], undefined)).toBe(0);
+  });
+
+  it("ignores sources owned by others and those without a record", () => {
+    expect(
+      ownedMusicSourceCount([owned("user-2"), providerConfig()], "user-1"),
+    ).toBe(0);
+  });
+
+  it("counts none for an empty list", () => {
+    expect(ownedMusicSourceCount([], "user-1")).toBe(0);
   });
 });
 
@@ -292,5 +326,23 @@ describe("userDisplayName", () => {
   it("prefers the display name over the username", () => {
     expect(userDisplayName(user({ display_name: "Marcel" }))).toBe("Marcel");
     expect(userDisplayName(user({ username: "marcel" }))).toBe("marcel");
+  });
+});
+
+describe("isSelfServiceProvider", () => {
+  it("is true for a provider that members may set up themselves", () => {
+    expect(isSelfServiceProvider(providerManifest())).toBe(true);
+  });
+
+  it("is false for a provider that only an admin may set up", () => {
+    expect(
+      isSelfServiceProvider(providerManifest({ self_service: false })),
+    ).toBe(false);
+  });
+
+  it("is true for a manifest without the flag, as an older server sends it", () => {
+    expect(
+      isSelfServiceProvider(providerManifest({ self_service: undefined })),
+    ).toBe(true);
   });
 });

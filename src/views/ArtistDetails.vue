@@ -5,9 +5,11 @@
     <template v-if="itemDetails">
       <template v-for="rowId in visibleRows" :key="rowId">
         <!-- biography -->
-        <ArtistBioRow
+        <DetailTextRow
           v-if="rowId === 'bio' && !!itemDetails.metadata?.description"
-          :item="itemDetails"
+          :text="itemDetails.metadata.description!"
+          :dialog-title="itemDetails.name"
+          markdown
           @edit-rows="rowsEditorOpen = true"
         />
 
@@ -24,19 +26,18 @@
         />
 
         <!-- albums -->
-        <ArtistReleaseShelf
+        <ReleaseShelf
           v-else-if="rowId === 'albums' && showRow(albumItems)"
           :title="$t('albums')"
           :meta="albumsMeta"
           :items="albumItems"
           :view-all-to="listingRoute('albums')"
-          size="lg"
           :parent-item="itemDetails"
           @edit-rows="rowsEditorOpen = true"
         />
 
         <!-- singles & EPs -->
-        <ArtistReleaseShelf
+        <ReleaseShelf
           v-else-if="rowId === 'singles_eps' && showRow(singleItems)"
           :title="$t('singles_eps')"
           :meta="singleItems?.length ? String(singleItems.length) : undefined"
@@ -47,10 +48,10 @@
         />
 
         <!-- appears on -->
-        <ArtistReleaseShelf
+        <ReleaseShelf
           v-else-if="rowId === 'appears_on' && showRow(appearsOnItems)"
           :title="$t('appears_on')"
-          :meta="$t('appears_on_hint')"
+          :meta="isPhone ? undefined : $t('appears_on_hint')"
           :items="appearsOnItems"
           :view-all-to="listingRoute('appears_on')"
           :parent-item="itemDetails"
@@ -129,49 +130,52 @@
         />
 
         <!-- provider mapping details -->
-        <div v-else-if="rowId === 'provider_mappings'" class="artist-admin">
+        <DetailAdminCard v-else-if="rowId === 'provider_mappings'">
           <ProviderDetails :item-details="itemDetails" />
-        </div>
+        </DetailAdminCard>
 
         <!-- media images -->
-        <div
+        <DetailAdminCard
           v-else-if="
             rowId === 'artwork' &&
             itemDetails.provider == 'library' &&
             itemDetails.metadata?.images
           "
-          class="artist-admin"
         >
           <MediaItemImages
             v-model="itemDetails.metadata.images"
             @update:model-value="UpdateItemInDb"
           />
-        </div>
+        </DetailAdminCard>
       </template>
     </template>
-    <ArtistRowsEditor
+    <RowsEditor
       v-if="itemDetails"
       v-model:open="rowsEditorOpen"
-      :artist="itemDetails"
+      :item="itemDetails"
+      :registry="artistRows"
       :available-ids="availableRows"
       :row-meta="rowMeta"
+      :subtitle="$t('edit_rows_subtitle')"
+      round-avatar
     />
     <br />
   </section>
 </template>
 
 <script setup lang="ts">
-import ArtistBioRow from "@/components/artist/ArtistBioRow.vue";
 import ArtistHero from "@/components/artist/ArtistHero.vue";
-import ArtistReleaseShelf from "@/components/artist/ArtistReleaseShelf.vue";
-import ArtistRowsEditor from "@/components/artist/ArtistRowsEditor.vue";
 import {
+  artistRows,
   availableArtistRowIds,
-  resolveArtistRows,
   type ArtistRowId,
 } from "@/components/artist/artistRows";
 import ArtistSimilarShelf from "@/components/artist/ArtistSimilarShelf.vue";
 import ArtistTopTracksRow from "@/components/artist/ArtistTopTracksRow.vue";
+import DetailAdminCard from "@/components/details/DetailAdminCard.vue";
+import DetailTextRow from "@/components/details/DetailTextRow.vue";
+import ReleaseShelf from "@/components/details/ReleaseShelf.vue";
+import RowsEditor from "@/components/details/RowsEditor.vue";
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import MediaItemImages from "@/components/MediaItemImages.vue";
 import ProviderDetails from "@/components/ProviderDetails.vue";
@@ -187,6 +191,7 @@ import {
   type Artist,
 } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
+import { isPhoneSizedScreen } from "@/plugins/breakpoint";
 import { $t } from "@/plugins/i18n";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { RouteLocationRaw } from "vue-router";
@@ -200,6 +205,8 @@ const props = defineProps<Props>();
 const itemDetails = ref<Artist>();
 const loading = ref(false);
 const rowsEditorOpen = ref(false);
+
+const isPhone = computed(() => isPhoneSizedScreen());
 
 const isAudiobookArtist = computed(() => {
   const artistType = itemDetails.value?.artist_type;
@@ -216,7 +223,7 @@ const availableRows = computed(() =>
 
 // reads the user's preferences from the store, so the page follows the editor
 const visibleRows = computed(() => {
-  const { order, hidden } = resolveArtistRows(availableRows.value);
+  const { order, hidden } = artistRows.resolve(availableRows.value);
   return order.filter((rowId) => !hidden.has(rowId));
 });
 
@@ -237,9 +244,7 @@ const {
 // adds the source itself)
 const rowMeta = computed<Partial<Record<ArtistRowId, string>>>(() => ({
   top_tracks: libraryTracks.value?.length
-    ? $t("all_n_tracks", libraryTracks.value.length, {
-        named: { count: libraryTracks.value.length },
-      })
+    ? $t("n_in_library", { count: libraryTracks.value.length })
     : undefined,
   albums: albumsMeta.value,
   singles_eps: singleItems.value?.length
@@ -422,74 +427,3 @@ function listingRoute(listing: string): RouteLocationRaw | undefined {
   };
 }
 </script>
-
-<style scoped>
-/* the shared admin sections keep their own toolbar and content, but take the
-   page's row title and gutter and sit in a card each; their inline bottom margin
-   is the only spacing they set themselves, hence the override */
-.artist-admin :deep(section) {
-  margin: 16px 28px 0 !important;
-  border-radius: 12px;
-  background: rgba(var(--v-theme-on-surface), 0.04);
-  overflow: hidden;
-}
-.artist-admin :deep(.v-toolbar-title) {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
-}
-.artist-admin :deep(.v-divider) {
-  display: none;
-}
-/* the lists and image tiles inside sit on the card instead of painting their own surface */
-.artist-admin :deep(.v-container) {
-  padding: 0 12px 12px;
-}
-.artist-admin :deep(.v-list),
-.artist-admin :deep(.panel-item) {
-  background: transparent;
-  box-shadow: none;
-}
-.artist-admin :deep(.v-list) {
-  padding: 0;
-}
-/* uniform square image tiles instead of percentage columns, one row per image type */
-.artist-admin :deep(.v-row) {
-  margin: 0 0 12px;
-  gap: 12px;
-}
-.artist-admin :deep(.v-row:empty) {
-  display: none;
-}
-.artist-admin :deep(.v-col) {
-  flex: 0 0 auto;
-  width: 176px;
-  max-width: 176px;
-  padding: 0;
-}
-.artist-admin :deep(.panel-item) {
-  padding: 8px;
-  /* outweighs the equally-!important radius the card's tile utility carries */
-  border-radius: 12px !important;
-}
-.artist-admin :deep(.panel-item:hover) {
-  background: rgba(var(--v-theme-on-surface), 0.08);
-  box-shadow: none;
-}
-.artist-admin :deep(.panel-item .v-img) {
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-}
-.artist-admin :deep(.panel-item .v-img__img) {
-  object-fit: cover;
-}
-
-@media (max-width: 768px) {
-  .artist-admin :deep(section) {
-    margin: 12px 16px 0 !important;
-  }
-  .artist-admin :deep(.v-toolbar-title) {
-    font-size: 19px;
-  }
-}
-</style>

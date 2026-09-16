@@ -48,7 +48,7 @@
           class="artist-top-tracks__more"
         >
           {{
-            $t("all_n_tracks", libraryTrackCount, {
+            $t("artist_view_library_tracks", libraryTrackCount, {
               named: { count: libraryTrackCount },
             })
           }}

@@ -370,18 +370,19 @@
               class="flex items-center gap-2"
             >
               <!-- favorite (heart) icon -->
-              <button
+              <Button
                 v-if="canEditLibrary"
                 type="button"
-                class="favorite-icon-button"
+                variant="ghost-icon"
+                size="icon-xs"
                 :aria-label="$t('tooltip.favorite')"
                 :aria-pressed="item.favorite ? 'true' : 'false'"
                 :title="favoriteButtonLabel"
                 @click="api.toggleFavorite(item)"
               >
-                <IconHeartFilled v-if="item.favorite" :size="24" />
-                <IconHeart v-else :stroke-width="2" :size="24" />
-              </button>
+                <IconHeartFilled v-if="item.favorite" class="size-6" />
+                <IconHeart v-else :stroke-width="2" class="size-6" />
+              </Button>
               <!-- listen later (bookmark) — albums only, Roon-style "save for later" -->
               <ListenLaterButton
                 v-if="item.media_type === MediaType.ALBUM"
@@ -396,32 +397,33 @@
                 v-if="item.media_type == MediaType.TRACK"
                 :audio-metadata="(item as Track).audio_metadata"
               />
-              <!-- slot for extra action icons (e.g. smart playlist edit) -->
+              <!-- slot for extra action buttons (e.g. smart playlist edit) -->
               <slot name="append-actions"></slot>
               <!-- merge genre button (admin only) -->
-              <Merge
-                v-if="
-                  item.media_type === MediaType.GENRE &&
-                  item.provider === 'library' &&
-                  canManageLibrary
-                "
-                :size="22"
-                class="cursor-pointer"
+              <Button
+                v-if="canManageGenre"
+                type="button"
+                variant="ghost-icon"
+                size="icon-xs"
+                :aria-label="$t('merge_into')"
                 :title="$t('merge_into')"
                 @click="mergeGenre"
-              />
+              >
+                <Merge class="size-5.5" />
+              </Button>
               <!-- delete genre button (admin only) -->
-              <Trash2
-                v-if="
-                  item.media_type === MediaType.GENRE &&
-                  item.provider === 'library' &&
-                  canManageLibrary
-                "
-                :size="22"
-                class="cursor-pointer ml-2"
+              <Button
+                v-if="canManageGenre"
+                type="button"
+                variant="ghost-icon"
+                size="icon-xs"
+                class="ml-2"
+                :aria-label="$t('delete_genre')"
                 :title="$t('delete_genre')"
                 @click="deleteGenre"
-              />
+              >
+                <Trash2 class="size-5.5" />
+              </Button>
             </div>
           </div>
           <div
@@ -774,6 +776,13 @@ const canManageLibrary = computed(() =>
 const canEditLibrary = computed(() =>
   authManager.hasScope(Scope.LIBRARY_WRITE),
 );
+// merging and deleting a genre is limited to library genres and library managers
+const canManageGenre = computed(
+  () =>
+    compProps.item?.media_type === MediaType.GENRE &&
+    compProps.item.provider === "library" &&
+    canManageLibrary.value,
+);
 const favoriteButtonLabel = computed(() =>
   compProps.item?.favorite ? $t("favorites_remove") : $t("favorites_add"),
 );
@@ -840,24 +849,6 @@ const collectionNarrators = computed(() => {
 
 .background-image .v-img__img--cover {
   object-position: 50% 20%;
-}
-
-.favorite-icon-button {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  color: currentColor;
-  cursor: pointer;
-  display: inline-flex;
-  height: 24px;
-  justify-content: center;
-  padding: 0;
-  width: 24px;
-}
-
-.favorite-icon-button:focus-visible {
-  outline: 2px solid rgb(var(--v-theme-primary));
-  outline-offset: 2px;
 }
 
 .v-card--variant-elevated {

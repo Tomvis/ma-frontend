@@ -16,8 +16,6 @@ import {
 } from "@/components/ui/sidebar";
 import { useOnboarding } from "@/composables/useOnboarding";
 import type { OnboardingStepId } from "@/helpers/onboarding";
-import { Scope } from "@/plugins/api/interfaces";
-import { authManager } from "@/plugins/auth";
 import { Circle, CircleCheck, ListChecks } from "@lucide/vue";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -39,14 +37,23 @@ const {
 
 const open = ref(false);
 
-// Onboarding is an admin job; nobody else ever sees the checklist, and nothing
-// is counted before the provider configurations say what is set up.
-const visible = computed(
-  () =>
-    authManager.hasScope(Scope.CONFIG_PROVIDERS_WRITE) &&
-    configsLoaded.value &&
-    hasPending.value &&
-    !dismissed.value,
+// Whoever onboarding has something for sees the checklist: the admin their
+// setup, everyone else who lives here their welcome. Nothing is counted before
+// the track's own data is in — the provider configs for the admin and for a
+// member who can own sources, and nothing at all for an ordinary member.
+const visible = computed(() => {
+  if (dismissed.value || !hasPending.value) return false;
+  if (ctx.value.isAdmin) return configsLoaded.value;
+  if (ctx.value.isMember)
+    return !ctx.value.canOwnSources || configsLoaded.value;
+  return false;
+});
+
+// the welcome has nothing to finish setting up, so it says what it is there for
+const hintKey = computed(() =>
+  ctx.value.isMember
+    ? "onboarding.welcome_hint"
+    : "onboarding.getting_started_hint",
 );
 
 const openStep = function (step: OnboardingStepId) {
@@ -61,11 +68,12 @@ const hideForNow = function () {
 };
 
 // the checklist is the only reason the sidebar needs the provider
-// configurations, so nobody but an admin ever fetches them
+// configurations: the admin's setup is counted off them, and so is the
+// own-sources step of a member who can add sources, so those two fetch them
+// and nobody else does
 onMounted(() => {
-  if (authManager.hasScope(Scope.CONFIG_PROVIDERS_WRITE)) {
+  if (ctx.value.isAdmin || (ctx.value.isMember && ctx.value.canOwnSources))
     void loadProviderConfigs();
-  }
 });
 </script>
 
@@ -99,7 +107,7 @@ onMounted(() => {
             </PopoverTrigger>
             <PopoverContent side="right" align="start" class="w-64 p-2">
               <p class="text-muted-foreground px-2 pt-1 pb-2 text-xs">
-                {{ t("onboarding.getting_started_hint") }}
+                {{ t(hintKey) }}
               </p>
               <ul class="flex flex-col gap-0.5">
                 <li v-for="step in checklist" :key="step.id">

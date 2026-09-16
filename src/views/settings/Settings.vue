@@ -201,14 +201,14 @@
         </v-list>
       </div>
 
-      <div v-if="canRunOnboarding" class="mt-2 flex justify-center">
+      <div v-if="canOpenOnboarding" class="mt-2 flex justify-center">
         <Button
           variant="link"
           class="text-muted-foreground"
           data-testid="run-onboarding"
-          @click="router.push({ name: 'onboarding' })"
+          @click="router.push(onboardingRoute)"
         >
-          {{ t("onboarding.run_again") }}
+          {{ t(onboardingLinkKey) }}
         </Button>
       </div>
     </Container>
@@ -234,7 +234,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { provideEditedProviderName } from "@/composables/useEditedProviderName";
 import { useUserPreferences } from "@/composables/userPreferences";
+import { hasOnboardingTrack, isAdminTrack } from "@/helpers/onboarding_access";
 import { availableSettingsSections } from "@/helpers/settings_sections";
 import { api } from "@/plugins/api";
 import { requireServerVersion } from "@/plugins/api/helpers";
@@ -252,6 +254,10 @@ const router = useRouter();
 const { t } = useI18n();
 const { getPreference, setPreference } = useUserPreferences();
 const { mobile } = useDisplay();
+
+// the provider settings page publishes the name it shows, so the crumb above
+// it cannot disagree with its heading
+const editedProviderName = provideEditedProviderName();
 
 const settingsViewMode = ref<"list" | "card">("card");
 const settingsListPrependGap = computed(() => (mobile.value ? 4 : 24));
@@ -418,9 +424,21 @@ provide("systemViewMode", {
   toggleViewMode: toggleSystemViewMode,
 });
 
-// the setup wizard sets up every kind of provider, and is reachable again from here
-const canRunOnboarding = computed(() =>
-  authManager.hasScope(Scope.CONFIG_PROVIDERS_WRITE),
+// Onboarding is reachable again from here: the setup wizard for the admin who
+// sets every kind of provider up, and the welcome for everyone else who lives
+// here — there is no setup for them to run again.
+const canOpenOnboarding = computed(() => hasOnboardingTrack());
+const onboardingLinkKey = computed(() =>
+  isAdminTrack() ? "onboarding.run_again" : "onboarding.welcome_again",
+);
+// The setup wizard opens on whatever is left to set up. The welcome has been
+// shown by the time this link is any use, so nothing is left to do on it and
+// it would otherwise open on its own summary: showing it again means showing
+// it from the top.
+const onboardingRoute = computed(() =>
+  isAdminTrack()
+    ? { name: "onboarding" }
+    : { name: "onboarding", query: { step: "welcome" } },
 );
 
 const settingsSections = computed(() =>
@@ -555,6 +573,7 @@ const activeTab = computed(() => {
   return "music_providers";
 });
 
+// the fallback for as long as the page below has not resolved a name yet
 const getProviderName = (instanceId: string) => {
   const providerInstance = api.getProvider(instanceId);
   if (providerInstance) {
@@ -662,7 +681,9 @@ const breadcrumbItems = computed(() => {
   match(name)
     .with("editprovider", () => {
       items.push({
-        title: getProviderName(route.params.instanceId as string),
+        title:
+          editedProviderName.value ||
+          getProviderName(route.params.instanceId as string),
         disabled: true,
       });
     })

@@ -74,11 +74,11 @@ import {
   RecommendationFolder,
   RemoteAccessInfo,
   RepeatMode,
+  Role,
   Scope,
   SearchResults,
   SmartPlaylistRules,
   SoundEffect,
-  UserRole,
   MediaCollection,
   ArtistType,
 } from "./interfaces";
@@ -99,6 +99,9 @@ const REPEAT_AUTOPLAY_LOCK_SCHEMA_VERSION = 69;
 
 // The config/providers/share_candidates command landed in API schema 72.
 const SHARE_CANDIDATES_SCHEMA_VERSION = 72;
+
+// The auth/roles command and custom user roles landed in API schema 74.
+const ROLES_SCHEMA_VERSION = 74;
 
 // Playing AI Radio stations with queues.control instead of config.providers.write landed in API schema 75.
 const AI_RADIO_PLAYBACK_SCOPES_SCHEMA_VERSION = 75;
@@ -3165,6 +3168,11 @@ export class MusicAssistantApi {
     );
   }
 
+  /** Whether the connected server lists the user roles and has custom ones (schema >= 74). */
+  public get supportsRoles(): boolean {
+    return (this.serverInfo.value?.schema_version ?? 0) >= ROLES_SCHEMA_VERSION;
+  }
+
   /** Whether the connected server lets a role with queues.control play AI Radio stations (schema >= 75). */
   public get supportsAIRadioPlaybackScopes(): boolean {
     return (
@@ -3356,15 +3364,60 @@ export class MusicAssistantApi {
     return users;
   }
 
-  public getRoleScopes(): Promise<Record<string, string[]>> {
-    // Get the scopes granted to each user role, keyed by role id
-    return this.sendCommand("auth/scopes");
+  public async getRoles(options?: CommandOptions): Promise<Role[]> {
+    // Get all user roles: the builtin roles first, then the custom roles by name
+    if (this.supportsRoles) {
+      return await this.sendCommand<Role[]>("auth/roles", undefined, options);
+    }
+    // an older server only has the builtin roles, of which it lists the scopes
+    const roleScopes = await this.sendCommand<Record<string, string[]>>(
+      "auth/scopes",
+      undefined,
+      options,
+    );
+    return Object.entries(roleScopes).map(([role_id, scopes]) => ({
+      role_id,
+      name: role_id,
+      scopes,
+      builtin: true,
+    }));
+  }
+
+  public createRole(name: string, scopes: string[]): Promise<Role> {
+    // Create a custom user role (admin only)
+    return this.sendCommand(
+      "auth/role/create",
+      { name, scopes },
+      // callers show the reason the server gives; avoid a duplicate global toast
+      { suppressGlobalError: true },
+    );
+  }
+
+  public updateRole(
+    roleId: string,
+    updates: { name?: string; scopes?: string[] },
+  ): Promise<Role> {
+    // Change the name and/or the scopes of a custom user role (admin only)
+    return this.sendCommand(
+      "auth/role/update",
+      { role_id: roleId, ...updates },
+      { suppressGlobalError: true },
+    );
+  }
+
+  public deleteRole(roleId: string): Promise<void> {
+    // Delete a custom user role that no user holds (admin only)
+    return this.sendCommand(
+      "auth/role/delete",
+      { role_id: roleId },
+      { suppressGlobalError: true },
+    );
   }
 
   public async createUser(
     username: string,
     password: string,
-    role: UserRole,
+    role: string,
     displayName?: string,
     playerFilter?: string[],
     options?: CommandOptions,
@@ -3422,7 +3475,7 @@ export class MusicAssistantApi {
       username?: string;
       displayName?: string;
       avatarUrl?: string;
-      role?: UserRole;
+      role?: string;
       password?: string;
       preferences?: Record<string, unknown>;
       player_filter?: string[];
