@@ -9,7 +9,7 @@ import { ProviderType } from "@/plugins/api/interfaces";
  * Everything in here is pure: a step decides whether it applies and whether it
  * is done from the context it is handed, never from the api or the router. The
  * composable (`@/composables/useOnboarding`) builds that context from live
- * state and the wizard page renders whatever this module returns.
+ * state and the wizard renders whatever this module returns.
  */
 
 export type OnboardingStepId =
@@ -23,28 +23,24 @@ export type OnboardingStepId =
   | "finish"
   // the member track: being welcomed into a server someone else set up
   | "welcome"
-  | "whats_here"
+  | "your_players"
+  | "your_music"
   | "own_sources"
-  | "tour"
   | "all_set";
 
 export type OnboardingIntent = "phone_apps" | "music_hub";
 
-/** How much of the player a member wants to see, as the welcome asks it. */
-export type OnboardingPersona = "enthusiast" | "regular";
+/** How much of the app a member wants to see, as the welcome asks it. */
+export type OnboardingExperience = "standard" | "expert";
 
 /**
- * The preferences a persona seeds. Nothing reads the persona itself: the
- * answer only decides what these are set to, once, and every one of them stays
- * a setting the member can change afterwards.
+ * The welcome's answer as the account holds it: expert mode on or off. What
+ * the answer changes is read from that flag wherever it applies, so nothing is
+ * seeded and answering again simply moves the flag.
  */
-export const PERSONA_DEFAULTS: Readonly<
-  Record<OnboardingPersona, Readonly<Record<string, boolean>>>
-> = {
-  // the waveform progress bar and the background visualizer of the full player
-  enthusiast: { show_waveform: true, visualizer_enabled: true },
-  regular: { show_waveform: false, visualizer_enabled: false },
-};
+export function experienceOf(expert: boolean): OnboardingExperience {
+  return expert ? "expert" : "standard";
+}
 
 /** A configured provider, reduced to what the steps need. */
 export interface OnboardingProvider {
@@ -58,7 +54,8 @@ export interface OnboardingProvider {
 
 export interface OnboardingAnswers {
   intent?: OnboardingIntent;
-  persona?: OnboardingPersona;
+  // the welcome's answer: whether they asked for the expert experience
+  expert?: boolean;
 }
 
 export interface OnboardingContext {
@@ -95,11 +92,10 @@ export type OnboardingStepKind = "step" | "review" | "summary";
 export interface OnboardingStep {
   id: OnboardingStepId;
   kind: OnboardingStepKind;
-  // optional by nature: the wizard offers it, the checklist never asks for it
+  // optional by nature: the wizard offers a skip instead of a Next
   optional?: boolean;
-  // a core step the answers pushed to the back: it stops blocking the wizard,
-  // but it stays on the checklist, which is the whole point of deferring it
-  // rather than dropping it
+  // a core step the answers pushed to the back: it no longer leads the wizard
+  // and offers a skip, but stays listed as still to do rather than dropped
   deferred?: boolean;
   appliesTo(ctx: OnboardingContext): boolean;
   isDone(ctx: OnboardingContext): boolean;
@@ -186,14 +182,22 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: "welcome",
     kind: "step",
     appliesTo: onMemberTrack,
-    // the one thing the welcome asks for: how much of the player they want to
+    // the one thing the welcome asks for: how much of the app they want to
     // see. Everything after it is there to be looked at, not filled in.
     // Having been shown it is enough: nobody is asked to answer a question
     // they have already been put in front of and walked away from.
-    isDone: (ctx) => ctx.answers.persona != null || ctx.welcomed,
+    isDone: (ctx) => ctx.answers.expert != null || ctx.welcomed,
+  },
+  // what is here for them, one short look at a time: the players first, then
+  // the music, so the invitation to add music of their own follows straight on
+  {
+    id: "your_players",
+    kind: "review",
+    appliesTo: onMemberTrack,
+    isDone: () => false,
   },
   {
-    id: "whats_here",
+    id: "your_music",
     kind: "review",
     appliesTo: onMemberTrack,
     isDone: () => false,
@@ -204,12 +208,6 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // a member-track step, but only for a role that may add its own sources
     appliesTo: (ctx) => ctx.isMember && ctx.canOwnSources,
     isDone: (ctx) => ctx.ownedMusicSourceCount > 0,
-  },
-  {
-    id: "tour",
-    kind: "review",
-    appliesTo: onMemberTrack,
-    isDone: () => false,
   },
   {
     id: "all_set",
@@ -271,26 +269,8 @@ export function pendingSteps(ctx: OnboardingContext): OnboardingStep[] {
 }
 
 /**
- * What the getting started checklist lists, done or not: every step that
- * applies bar the ones that are nothing to do (a review, the summary) and the
- * steps that are optional by nature, so leaving one of those alone stops the
- * checklist from asking for it forever. A deferred step stays on the list,
- * still waiting to be picked up.
- */
-export function checklistSteps(ctx: OnboardingContext): OnboardingStep[] {
-  return applicableSteps(ctx).filter((step) => isTodo(step) && !step.optional);
-}
-
-/** The checklist steps still to do — what its badge counts. */
-export function checklistPendingSteps(
-  ctx: OnboardingContext,
-): OnboardingStep[] {
-  return checklistSteps(ctx).filter((step) => !step.isDone(ctx));
-}
-
-/**
- * The step the wizard opens on. A requested id (`?step=`) wins as long as it
- * applies, an already done step included, and anything else falls back to the
+ * The step the wizard opens on. A requested step wins as long as it applies,
+ * an already done step included, and anything else falls back to the
  * first step still to do, which a review never is: the wizard walks the user
  * into one, it does not drop them in it. With nothing left to do it opens on
  * the last step of the track, which is that track's summary.
