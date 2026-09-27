@@ -124,6 +124,7 @@ import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import MediaItemImages from "@/components/MediaItemImages.vue";
 import ProviderDetails from "@/components/ProviderDetails.vue";
 import { useAlbumRowData } from "@/composables/useAlbumRowData";
+import { keepOwnFavorite, subscribeOwnFavorites } from "@/helpers/favorites";
 import { api } from "@/plugins/api";
 import {
   AlbumType,
@@ -263,7 +264,10 @@ onMounted(() => {
       const updatedItem = evt.data as MediaItemType;
       // check if the updated item is the current item
       if (itemDetails.value?.uri == updatedItem.uri) {
-        itemDetails.value = updatedItem as Album;
+        itemDetails.value = keepOwnFavorite(
+          updatedItem,
+          itemDetails.value,
+        ) as Album;
       } else if ("provider_mappings" in updatedItem) {
         for (const provMap of updatedItem.provider_mappings) {
           if (
@@ -272,7 +276,10 @@ onMounted(() => {
               props.provider,
             )
           ) {
-            itemDetails.value = updatedItem as Album;
+            itemDetails.value = keepOwnFavorite(
+              updatedItem,
+              itemDetails.value,
+            ) as Album;
             break;
           }
         }
@@ -280,6 +287,13 @@ onMounted(() => {
     },
   );
   onBeforeUnmount(unsub);
+
+  // the user's own like or dislike, wherever they made it
+  const unsubFavorite = subscribeOwnFavorites((update) => {
+    const item = itemDetails.value;
+    if (item?.uri == update.uri) item.favorite = update.favorite;
+  });
+  onBeforeUnmount(unsubFavorite);
 });
 
 const loadTracks = async function (params: LoadDataParams) {

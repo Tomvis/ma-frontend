@@ -305,6 +305,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCommandCenter } from "@/composables/useCommandCenter";
 import { SEARCHABLE_MEDIA_TYPES } from "@/composables/useProgressiveSearch";
 import { useUserPreferences } from "@/composables/userPreferences";
+import { keepOwnFavorite, subscribeOwnFavorites } from "@/helpers/favorites";
 import { handleMenuBtnClick } from "@/helpers/media_item_actions";
 import { panelViewItemResponsive, scrollElement } from "@/helpers/utils";
 import { api } from "@/plugins/api";
@@ -1926,6 +1927,7 @@ const loadGenreOptions = async () => {
 };
 
 let _unsubscribeMediaEvents: (() => void) | undefined;
+let _unsubscribeFavorites: (() => void) | undefined;
 
 const clearSelection = () => {
   selectedItems.value = [];
@@ -1940,6 +1942,7 @@ onBeforeUnmount(() => {
   unmounted = true;
   eventbus.off("clearSelection", clearSelection);
   _unsubscribeMediaEvents?.();
+  _unsubscribeFavorites?.();
 });
 
 onMounted(async () => {
@@ -1994,7 +1997,10 @@ onMounted(async () => {
         // update item
         const idx = pagedItems.value.findIndex((i) => i.uri == evt.object_id);
         if (idx >= 0) {
-          pagedItems.value[idx] = evt.data as MediaItemType;
+          pagedItems.value[idx] = keepOwnFavorite(
+            evt.data as MediaItemType,
+            pagedItems.value[idx],
+          );
         }
       } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
         // update item
@@ -2011,6 +2017,12 @@ onMounted(async () => {
       }
     },
   );
+
+  // the user's own like or dislike, wherever they made it
+  _unsubscribeFavorites = subscribeOwnFavorites((update) => {
+    const item = pagedItems.value.find((i) => i.uri == update.uri);
+    if (item && "favorite" in item) item.favorite = update.favorite;
+  });
 });
 
 watch(
