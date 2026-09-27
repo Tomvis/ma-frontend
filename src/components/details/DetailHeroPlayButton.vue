@@ -21,6 +21,9 @@ import { computed, useTemplateRef, type ComponentPublicInstance } from "vue";
 
 export interface Props {
   item: MediaItemType;
+  // container the item belongs to, which gives the play menu its options for
+  // playing on from the item (e.g. the podcast an episode belongs to)
+  parentItem?: MediaItemType;
 }
 const props = defineProps<Props>();
 
@@ -55,7 +58,7 @@ const playButtonClick = function (forceMenu = false) {
     props.item,
     rect?.right ?? 0,
     rect?.bottom ?? 0,
-    undefined,
+    props.parentItem,
     forceMenu,
   );
 };
