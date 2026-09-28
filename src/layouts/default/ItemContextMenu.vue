@@ -284,10 +284,16 @@ import {
   unpinShortcutStandaloneItem,
 } from "@/composables/useShortcuts";
 import { runWithConcurrency } from "@/helpers/concurrency";
+import {
+  FAVORITABLE_MEDIA_TYPES,
+  favoriteState,
+  setFavoriteState,
+} from "@/helpers/favorites";
 import { genresShareTaxonomy } from "@/helpers/genreTaxonomy";
 import { backFromMediaDetails } from "@/helpers/navigation";
 import { playerVisible } from "@/helpers/players";
 import {
+  canAddToPlaylist,
   canEditPlaylistItems,
   canManagePlaylist,
   canSharePlaylist,
@@ -359,6 +365,7 @@ import {
   Shuffle,
   SkipForward,
   Sparkles,
+  ThumbsDown,
   Trash2,
 } from "@lucide/vue";
 import type { Component } from "vue";
@@ -927,7 +934,7 @@ export const getContextMenuItems = async function (
             for (const item of items) {
               // optimistically clear membership so the derived state re-evaluates;
               // favorite implies membership, so it must clear too
-              if ("favorite" in item) item.favorite = false;
+              setFavoriteState(item, null);
               if ("provider_mappings" in item)
                 item.provider_mappings.forEach((pm) => (pm.in_library = false));
             }
@@ -946,38 +953,25 @@ export const getContextMenuItems = async function (
     });
   }
   // Favorites handling - supports mixed states like played/unplayed
-  if (
-    canEditLibrary &&
-    actionTargets.length > 0 &&
-    actionTargets.every((item) => "favorite" in item)
-  ) {
+  if (canEditLibrary && actionTargets.length > 0) {
     const favoritableItems = actionTargets.filter(
       (item) =>
-        [
-          MediaType.ALBUM,
-          MediaType.ARTIST,
-          MediaType.AUDIOBOOK,
-          MediaType.GENRE,
-          MediaType.PLAYLIST,
-          MediaType.PODCAST,
-          MediaType.RADIO,
-          MediaType.TRACK,
-        ].includes(item.media_type) && itemIsAvailable(item),
+        FAVORITABLE_MEDIA_TYPES.has(item.media_type) && itemIsAvailable(item),
     );
 
     // a favorite belongs to the library item, so a single item follows its
-    // resolved membership while a multi selection reads each item's own flag
+    // resolved membership while a multi selection reads each item's own flag;
+    // a dislike carries no membership implication of its own, so the state
+    // alone decides it
     const isFavorite = (item: MediaItemTypeOrItemMapping) =>
-      "favorite" in item &&
-      item.favorite === true &&
-      (items.length > 1 || inLibrary);
+      favoriteState(item) === true && (items.length > 1 || inLibrary);
+    const isDisliked = (item: MediaItemTypeOrItemMapping) =>
+      favoriteState(item) === false;
 
     // the actions run on the library copy while the next menu is built from
-    // the item the caller holds, so its flag has to follow
-    const markFavorite = (favorite: boolean) => {
-      for (const item of items) {
-        if ("favorite" in item) item.favorite = favorite;
-      }
+    // the item the caller holds, so its state has to follow
+    const markFavorite = (favorite: boolean | null) => {
+      for (const item of items) setFavoriteState(item, favorite);
     };
 
     if (favoritableItems.length > 0) {
@@ -993,7 +987,7 @@ export const getContextMenuItems = async function (
             for (const item of favoritableItems) {
               api.removeItemFromFavorites(item.media_type, item.item_id);
             }
-            markFavorite(false);
+            markFavorite(null);
             // Clear the multi-select after action
             eventbus.emit("clearSelection");
           },
@@ -1026,7 +1020,7 @@ export const getContextMenuItems = async function (
               (item) => !isFavorite(item),
             )) {
               api.addItemToFavorites(addableItem(item));
-              if ("favorite" in item) item.favorite = true;
+              setFavoriteState(item, true);
             }
             // Clear the multi-select after action
             eventbus.emit("clearSelection");
@@ -1040,12 +1034,75 @@ export const getContextMenuItems = async function (
           action: () => {
             for (const item of favoritableItems.filter(isFavorite)) {
               api.removeItemFromFavorites(item.media_type, item.item_id);
-              if ("favorite" in item) item.favorite = false;
+              setFavoriteState(item, null);
             }
             // Clear the multi-select after action
             eventbus.emit("clearSelection");
           },
           icon: Heart,
+        });
+      }
+
+      // A dislike is a state of its own, so it gets its own pair of entries:
+      // the heart only ever says "liked", and clearing a dislike is not the
+      // same action as removing a favorite.
+      const allDisliked = favoritableItems.every(isDisliked);
+      const noneDisliked = !favoritableItems.some(isDisliked);
+
+      if (allDisliked) {
+        contextMenuItems.push({
+          label: "favorites_dislike_remove",
+          labelArgs: [],
+          action: () => {
+            for (const item of favoritableItems) {
+              api.removeItemFromFavorites(item.media_type, item.item_id);
+            }
+            markFavorite(null);
+            eventbus.emit("clearSelection");
+          },
+          icon: ThumbsDown,
+        });
+      } else if (noneDisliked) {
+        contextMenuItems.push({
+          label: "favorites_dislike",
+          labelArgs: [],
+          action: () => {
+            for (const item of favoritableItems) {
+              api.setFavorite(addableItem(item), false);
+            }
+            markFavorite(false);
+            eventbus.emit("clearSelection");
+          },
+          icon: ThumbsDown,
+        });
+      } else {
+        // mixed selection: both, each acting on the items it applies to
+        contextMenuItems.push({
+          label: "favorites_dislike",
+          labelArgs: [],
+          action: () => {
+            for (const item of favoritableItems.filter(
+              (item) => !isDisliked(item),
+            )) {
+              api.setFavorite(addableItem(item), false);
+              setFavoriteState(item, false);
+            }
+            eventbus.emit("clearSelection");
+          },
+          icon: ThumbsDown,
+        });
+
+        contextMenuItems.push({
+          label: "favorites_dislike_remove",
+          labelArgs: [],
+          action: () => {
+            for (const item of favoritableItems.filter(isDisliked)) {
+              api.removeItemFromFavorites(item.media_type, item.item_id);
+              setFavoriteState(item, null);
+            }
+            eventbus.emit("clearSelection");
+          },
+          icon: ThumbsDown,
         });
       }
     }
@@ -1124,15 +1181,8 @@ export const getContextMenuItems = async function (
       });
     }
   }
-  // add to playlist action (tracks, albums, radios, podcasts, podcast episodes, and audiobooks)
-  if (
-    canEditLibrary &&
-    (firstItem.media_type === MediaType.TRACK ||
-      firstItem.media_type === MediaType.ALBUM ||
-      firstItem.media_type === MediaType.RADIO ||
-      firstItem.media_type === MediaType.PODCAST_EPISODE ||
-      firstItem.media_type === MediaType.AUDIOBOOK)
-  ) {
+  // add to playlist action
+  if (canEditLibrary && canAddToPlaylist(firstItem)) {
     contextMenuItems.push({
       label: "add_playlist",
       labelArgs: [],

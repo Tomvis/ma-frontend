@@ -253,6 +253,20 @@
             {{ $t("try_global_search") }}
           </Button>
         </EmptyContent>
+        <EmptyContent
+          v-if="emptyStateProviderActions.length"
+          class="flex-row flex-wrap justify-center gap-2"
+        >
+          <Button
+            v-for="provider in emptyStateProviderActions"
+            :key="provider.value"
+            variant="outline"
+            size="sm"
+            @click="changeProviderFilter(provider.value)"
+          >
+            {{ $t("show_results_on", [provider.label]) }}
+          </Button>
+        </EmptyContent>
       </Empty>
 
       <!-- box shown when item(s) selected; vuetify writes the overlay z-index inline
@@ -348,12 +362,19 @@ import {
   listingSortPreferenceKey,
   resolveSortPreference,
 } from "@/helpers/listingSort";
+import {
+  favoriteState,
+  keepOwnFavorite,
+  setFavoriteState,
+  subscribeOwnFavorites,
+} from "@/helpers/favorites";
 import { handleMenuBtnClick } from "@/helpers/media_item_actions";
 import { panelViewItemResponsive, scrollElement } from "@/helpers/utils";
 import { api } from "@/plugins/api";
 import { itemIsAvailable, itemSupportsPlayLog } from "@/plugins/api/helpers";
 import {
   EventMessage,
+  FavoriteUpdate,
   EventType,
   ItemMapping,
   MediaItemTypeOrItemMapping,
@@ -450,7 +471,9 @@ const applyMediaEventToItems = (
     if (evt.event == EventType.MEDIA_ITEM_DELETED) {
       arr.splice(idx, 1);
     } else if (evt.event == EventType.MEDIA_ITEM_UPDATED) {
-      arr[idx] = evt.data as MediaItemType;
+      // the event carries the state of whoever triggered it, not the signed-in
+      // user's; their own changes arrive as FAVORITE_UPDATED instead
+      arr[idx] = keepOwnFavorite(evt.data as MediaItemType, arr[idx]);
     } else if (evt.event == EventType.MEDIA_ITEM_PLAYED) {
       // 2.17 narrows this with itemSupportsPlayLog and defaults the seconds:
       // an item type without a play log has neither field, and a PLAYED event
@@ -462,6 +485,20 @@ const applyMediaEventToItems = (
         item.resume_position_ms =
           ((playData["seconds_played"] as number) ?? 0) * 1000;
       }
+    }
+  }
+};
+
+// Apply the signed-in user's own like/dislike/unset to every matching row of the
+// given item arrays (a listing can hold one item on several rows).
+const applyFavoriteUpdateToItems = (
+  update: FavoriteUpdate,
+  paged: MediaItemType[],
+  all?: MediaItemType[],
+) => {
+  for (const arr of all ? [paged, all] : [paged]) {
+    for (const item of arr) {
+      if (item.uri == update.uri) setFavoriteState(item, update.favorite);
     }
   }
 };
@@ -1243,6 +1280,19 @@ const clearAllReviewFilters = function () {
 const hasAnyReviewFilter = computed(
   () => buildCriticalReceptionFilter(params.value) !== undefined,
 );
+
+// a listing scoped to the library (its own "library" option selected) that comes
+// up empty gives no hint that a provider's catalog is one filter switch away —
+// the artist album/singles "See all" is the case. Offer those sources as
+// one-tap buttons in the empty state; other listings never select "library" so
+// they never show them.
+const emptyStateProviderActions = computed(() => {
+  if (!props.libraryFilterOption) return [];
+  if (params.value.provider?.[0] !== "library") return [];
+  return musicProviders.value.filter(
+    (provider) => provider.value !== "library",
+  );
+});
 
 // the provider list shown by both the provider filter and the provider selector
 const providerFilterSubItems = () =>
@@ -2133,6 +2183,7 @@ if (props.restoreState) {
 
     const snapshot: StoredState = {
       path: key,
+      parentUri: props.parentItem?.uri,
       scrollPos: el?.scrollTop || 0,
       pagedItems: pagedItems.value,
       allItems: allItems.value,
@@ -2159,9 +2210,17 @@ if (props.restoreState) {
     const unsubAdded = subscribeAdded(() => {
       snapshot.newContentAvailable = true;
     });
+    const unsubFavorites = subscribeOwnFavorites((update) => {
+      applyFavoriteUpdateToItems(
+        update,
+        snapshot.pagedItems,
+        snapshot.allItems,
+      );
+    });
     setDetachedPrevStateUnsub(() => {
       unsubUpdated();
       unsubAdded?.();
+      unsubFavorites();
     });
   });
 }
@@ -2290,6 +2349,7 @@ const loadGenreOptions = async () => {
 };
 
 let _unsubscribeMediaEvents: (() => void) | undefined;
+let _unsubscribeFavorites: (() => void) | undefined;
 
 const clearSelection = () => {
   selectedItems.value = [];
@@ -2304,6 +2364,7 @@ onBeforeUnmount(() => {
   unmounted = true;
   eventbus.off("clearSelection", clearSelection);
   _unsubscribeMediaEvents?.();
+  _unsubscribeFavorites?.();
 });
 
 onMounted(async () => {
@@ -2323,7 +2384,11 @@ onMounted(async () => {
   // doesn't overwrite prevState, so the original listing still reclaims its
   // (bridge-kept-fresh) snapshot on back-nav.
   if (props.restoreState) teardownDetachedPrevStateUnsub();
-  if (props.restoreState && store.prevState?.path == key) {
+  if (
+    props.restoreState &&
+    store.prevState?.path == key &&
+    store.prevState.parentUri == props.parentItem?.uri
+  ) {
     restoredFromPrevState = true;
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
@@ -2386,6 +2451,13 @@ onMounted(async () => {
   _unsubscribeMediaEvents = () => {
     for (const unsub of unsubs) unsub?.();
   };
+
+  // the user's own like or dislike, wherever they made it. A listing can hold
+  // the same item on more than one row (a playlist listing a track twice), and
+  // every one of them shows the state.
+  _unsubscribeFavorites = subscribeOwnFavorites((update) => {
+    applyFavoriteUpdateToItems(update, pagedItems.value, allItems.value);
+  });
 });
 
 watch(
@@ -2400,6 +2472,10 @@ watch(
 
 export interface StoredState {
   path: string;
+  // several listings share one path across different parents (e.g. every
+  // artist's albums use "artistalbums"), so the parent's uri scopes the
+  // restore to the item that was actually on screen
+  parentUri?: string;
   scrollPos: number;
   pagedItems: MediaItemType[];
   allItems: MediaItemType[];
@@ -2557,7 +2633,7 @@ const getFilteredItems = function (
   }
 
   if (params.favoritesOnly) {
-    result = result.filter((x) => "favorite" in x && x.favorite);
+    result = result.filter((x) => favoriteState(x) === true);
   }
 
   if (params.hideFullyPlayed) {
