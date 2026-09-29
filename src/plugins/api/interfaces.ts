@@ -1105,6 +1105,7 @@ export interface MediaItem extends _MediaItemBase {
   listen_later?: boolean;
   listen_later_added_at?: number | null;
   position?: number | null; //required for playlist tracks, optional for all other
+  date_added?: string | null;
 }
 
 export interface ItemMapping extends _MediaItemBase {
