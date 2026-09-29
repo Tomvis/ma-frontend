@@ -26,6 +26,9 @@ const { apiMock, emittedMenus, storeMock } = vi.hoisted(() => ({
     getProvider: vi.fn(),
     getCoreConfigValue: vi.fn(),
     playMedia: vi.fn(),
+    // the fork's album menu adds "listen later", whose composable subscribes to
+    // MEDIA_ITEM_UPDATED on first use
+    subscribe: vi.fn(() => () => {}),
     providers: {},
     players: {},
   },
