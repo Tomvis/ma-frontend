@@ -209,8 +209,7 @@ onMounted(() => {
       category: "display_settings",
       value:
         (store.currentUser?.preferences?.show_toolbar_icons as
-          | boolean
-          | undefined) ?? true,
+          boolean | undefined) ?? true,
     },
     {
       key: "audiobook_chapter_progress",
