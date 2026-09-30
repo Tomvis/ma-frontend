@@ -787,7 +787,10 @@ async function runTaskToast(
     partial: false,
   });
   await result;
-  await vi.waitFor(() => expect(mockToastInfo).toHaveBeenCalled());
+  // Fork: the default 1 s flakes under forksync's 8-worker load (dynamic auth import).
+  await vi.waitFor(() => expect(mockToastInfo).toHaveBeenCalled(), {
+    timeout: 5000,
+  });
   return mockToastInfo.mock.calls[0][1];
 }
 
