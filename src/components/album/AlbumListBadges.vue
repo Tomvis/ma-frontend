@@ -102,7 +102,7 @@ const {
 }
 
 .chip__label {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 9px;
   letter-spacing: 0.1em;
   opacity: 0.6;
@@ -110,7 +110,7 @@ const {
 }
 
 .chip__value {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 12px;
 }
 

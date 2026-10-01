@@ -1,0 +1,151 @@
+/* Home theme (HW-48), fork-only. Tokens: Tomvis/homelab-stacks theme/dist/tokens.resolved.json.
+   Loaded last (src/plugins/home-theme.ts); overrides style.css and Login.vue by order/specificity
+   so upstream files stay untouched. Cyan (lit) is reserved for "on right now". */
+
+@font-face {
+  font-family: "Rubik";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("../assets/fonts/Rubik-VF.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Rubik";
+  font-style: italic;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("../assets/fonts/Rubik-Italic-VF.woff2") format("woff2");
+}
+
+:root {
+  --home-font: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --home-lit: #0a6a60;
+  --home-lit-fill: #14d9c4;
+  --home-on-lit: #062420;
+  --radius: 0.375rem;
+  --background: #eaf0f0;
+  --foreground: #16222a;
+  --card: #ffffff;
+  --card-foreground: #16222a;
+  --popover: #ffffff;
+  --popover-foreground: #16222a;
+  --primary: #466a77;
+  --primary-foreground: #ffffff;
+  --secondary: #dce6e8;
+  --secondary-foreground: #16222a;
+  --muted: #dce6e8;
+  --muted-foreground: #34505a;
+  --accent: #dce6e8;
+  --accent-foreground: #16222a;
+  --destructive: #b0233d;
+  --border: #bad2de;
+  --input: #bad2de;
+  --ring: #466a77;
+  --chart-1: #466a77;
+  --chart-2: #0f6e4e;
+  --chart-3: #8a5300;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16222a;
+  --sidebar-primary: #466a77;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(88, 126, 141, 0.12);
+  --sidebar-accent-foreground: #16222a;
+  --sidebar-border: #bad2de;
+  --sidebar-ring: #466a77;
+}
+
+.dark {
+  --home-lit: #14d9c4;
+  --background: #16222a;
+  --foreground: #eaf0f0;
+  --card: #1f2f38;
+  --card-foreground: #eaf0f0;
+  --popover: #1f2f38;
+  --popover-foreground: #eaf0f0;
+  --primary: #8db0bd;
+  --primary-foreground: #16222a;
+  --secondary: #283b45;
+  --secondary-foreground: #eaf0f0;
+  --muted: #283b45;
+  --muted-foreground: #bad2de;
+  --accent: #283b45;
+  --accent-foreground: #eaf0f0;
+  --destructive: #ff8aa0;
+  --border: #3a525d;
+  --input: #3a525d;
+  --ring: #8db0bd;
+  --chart-1: #8db0bd;
+  --chart-2: #36e0a0;
+  --chart-3: #f5b14c;
+  --sidebar: #1f2f38;
+  --sidebar-foreground: #eaf0f0;
+  --sidebar-primary: #8db0bd;
+  --sidebar-primary-foreground: #16222a;
+  --sidebar-accent: rgba(141, 176, 189, 0.14);
+  --sidebar-accent-foreground: #eaf0f0;
+  --sidebar-border: #3a525d;
+  --sidebar-ring: #8db0bd;
+}
+
+/* Rubik everywhere Vuetify hard-codes Roboto; tabular figures for numbers. */
+:root,
+:root body,
+:root .v-application,
+:root
+  .v-application
+  :is(
+    .text-h1,
+    .text-h2,
+    .text-h3,
+    .text-h4,
+    .text-h5,
+    .text-h6,
+    .text-subtitle-1,
+    .text-subtitle-2,
+    .text-body-1,
+    .text-body-2,
+    .text-button,
+    .text-caption,
+    .text-overline
+  ),
+:root .v-badge__badge {
+  font-family: var(--home-font);
+}
+:root body {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Login view (scoped vars in Login.vue). */
+:root .v-main.login-background {
+  --fg: #16222a;
+  --background: #eaf0f0;
+  --panel: #ffffff;
+  --primary: #466a77;
+  --text-secondary: #34505a;
+  --text-tertiary: #526d78;
+  --border: #bad2de;
+  --input-focus-bg: rgba(70, 106, 119, 0.06);
+  --error-text: #b0233d;
+  --success: #0f6e4e;
+}
+@media (prefers-color-scheme: dark) {
+  :root .v-main.login-background {
+    --fg: #eaf0f0;
+    --background: #16222a;
+    --panel: #1f2f38;
+    --primary: #8db0bd;
+    --text-secondary: #bad2de;
+    --text-tertiary: #8ba4ae;
+    --border: #3a525d;
+    --input-bg: rgba(234, 240, 240, 0.05);
+    --input-focus-bg: rgba(141, 176, 189, 0.08);
+    --error-text: #ff8aa0;
+    --success: #36e0a0;
+  }
+}
+:root .v-main.login-background .login-card {
+  border-radius: 20px !important;
+}
+:root .container-panel.container-panel--light {
+  background: #eaf0f0;
+}

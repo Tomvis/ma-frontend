@@ -514,7 +514,7 @@ const onClearAll = () => emit("clearAll");
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -539,14 +539,14 @@ const onClearAll = () => emit("clearAll");
 }
 
 .rf-eyebrow__count {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 11px;
   letter-spacing: 0.04em;
   color: rgb(var(--v-theme-primary));
 }
 
 .rf-eyebrow__clear {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -614,7 +614,7 @@ const onClearAll = () => emit("clearAll");
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -672,7 +672,7 @@ const onClearAll = () => emit("clearAll");
   align-items: center;
   justify-content: center;
   height: 100%;
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.18em;
@@ -744,7 +744,7 @@ const onClearAll = () => emit("clearAll");
 }
 
 .rf-heading__tag {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -778,7 +778,7 @@ const onClearAll = () => emit("clearAll");
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   font-weight: 600;
   border-radius: 999px;
@@ -826,7 +826,7 @@ const onClearAll = () => emit("clearAll");
 }
 
 .rf-tile__range {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -908,7 +908,7 @@ const onClearAll = () => emit("clearAll");
 }
 
 .rf-row__label {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1001,7 +1001,7 @@ const onClearAll = () => emit("clearAll");
   border-color: rgb(56 189 248 / 0.3);
 }
 .rf-band__nums {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1040,7 +1040,7 @@ const onClearAll = () => emit("clearAll");
 }
 
 .rf-chip {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 10px;
   letter-spacing: 0.08em;
   font-weight: 600;

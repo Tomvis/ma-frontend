@@ -40,8 +40,8 @@ export default defineConfig({
         short_name: "Music Assistant",
         description:
           "Music Assistant is a free, opensource Media library manager that connects to your streaming services and a wide range of connected speakers.",
-        theme_color: "#181818",
-        background_color: "#181818",
+        theme_color: "#16222A",
+        background_color: "#16222A",
         icons: [
           {
             src: "pwa-192x192.png",
@@ -54,10 +54,10 @@ export default defineConfig({
             type: "image/png",
           },
           {
-            src: "pwa-512x512.png",
+            src: "pwa-512x512-maskable.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "maskable",
           },
         ],
       },

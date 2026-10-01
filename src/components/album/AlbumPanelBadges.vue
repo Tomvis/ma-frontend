@@ -129,7 +129,7 @@ const showSaved = computed(() => savedForLater.value && !props.hideSaved);
 }
 
 .badge-label {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
   font-size: 8.5px;
   letter-spacing: 0.08em;
   opacity: 0.65;
@@ -137,7 +137,7 @@ const showSaved = computed(() => savedForLater.value && !props.hideSaved);
 }
 
 .badge-value {
-  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
+  font-family: var(--home-font, inherit);
 }
 
 .dr-badge {

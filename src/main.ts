@@ -47,6 +47,8 @@ import { registerPlugins } from "@/plugins";
 
 // Install Sendspin WebSocket interceptor for authenticated connections
 import { installSendspinInterceptor } from "@/plugins/sendspin-connection";
+// Home theme (HW-48, fork): after every other style import
+import "@/plugins/home-theme";
 installSendspinInterceptor();
 
 // Embedded (e.g. the Home Assistant panel): the host sizes our viewport and
