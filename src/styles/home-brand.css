@@ -149,15 +149,3 @@
 :root .container-panel.container-panel--light {
   background: #eaf0f0;
 }
-
-/* Tom's full logo: icon.svg is the light variant; dark surfaces get the dark variant (faint cloud).
-   Element replacement via `content` keeps Login.vue / AppSidebar.vue untouched. */
-:root.dark .sidebar-header-logo,
-.v-theme--dark .sidebar-header-logo {
-  content: url("../assets/icon-dark.svg");
-}
-@media (prefers-color-scheme: dark) {
-  :root .v-main.login-background .login-logo {
-    content: url("../assets/icon-dark.svg");
-  }
-}
