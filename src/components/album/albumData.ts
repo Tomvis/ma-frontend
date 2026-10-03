@@ -62,9 +62,9 @@ function signedReview(source: ReviewSourceEntry): string {
   const link =
     source.links?.find((l) => l.label === "Review") ?? source.links?.[0];
   const site = $t(REVIEW_TEXT_SOURCES[source.source]);
-  const authors = source.authors?.length
-    ? `${source.authors.join(", ")}, `
-    : "";
+  // AMG's founder writes as "Angry Metal Guy": don't sign his reviews twice
+  const names = (source.authors ?? []).filter((a) => a !== site);
+  const authors = names.length ? `${names.join(", ")}, ` : "";
   const byline = link ? `[${site}](${link.url})` : site;
   return `${source.review}\n\n*— ${authors}${byline}*`;
 }

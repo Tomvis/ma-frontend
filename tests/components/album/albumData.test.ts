@@ -194,6 +194,19 @@ describe("albumData", () => {
         albumReview(
           album({
             metadata: {
+              critical_reception: {
+                sources: [{ ...amg, authors: ["Angry Metal Guy"] }],
+              },
+            },
+          }),
+        ),
+      ).toBe(
+        "Riffs.\n\nMore riffs.\n\n*— [Angry Metal Guy](https://amg/review/)*",
+      );
+      expect(
+        albumReview(
+          album({
+            metadata: {
               ...metadata,
               critical_reception: { sources: [{ source: "AMG", rating: 3 }] },
             },
