@@ -402,7 +402,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 
 .rs-fallback-tag {
   margin-left: auto;
-  font-family: var(--home-font, inherit);
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -454,7 +454,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 
 /* ── DR block ──────────────────────────────────────────────────────── */
 .rs-dr-value {
-  font-family: var(--home-font, inherit);
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
   font-size: 38px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -542,7 +542,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 }
 
 .rs-amg-divergence {
-  font-family: var(--home-font, inherit);
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -556,7 +556,7 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 
 /* ── Source blocks (AMG/TPS) ───────────────────────────────────────── */
 .rs-numeric {
-  font-family: var(--home-font, inherit);
+  font-family: "JetBrains Mono Medium", ui-monospace, monospace;
   font-size: 32px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -576,7 +576,15 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
   color: var(--muted-foreground, #64748b);
   margin-left: 4px;
   letter-spacing: 0;
-  font-family: var(--home-font, inherit);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
 }
 
 .rs-stars {
