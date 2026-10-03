@@ -8,7 +8,6 @@ import { ProviderFeature, type Album } from "@/plugins/api/interfaces";
 
 export type AlbumRowId =
   | "tracks"
-  | "critical_reception"
   | "review"
   | "other_versions"
   | "more_from_artist"
@@ -19,8 +18,8 @@ export type AlbumRowId =
 // only ever shown by the provider the album came from
 export const ALBUM_ROWS: readonly RowDefinition<AlbumRowId>[] = [
   { id: "tracks", labelKey: "tracks" },
-  // enhanced: DR / AMG / TPS / accolades panel
-  { id: "critical_reception", labelKey: "critical_reception.label" },
+  // enhanced: also holds the DR / AMG / TPS / accolades panel; a saved order
+  // still naming the retired "critical_reception" row just drops that id
   { id: "review", labelKey: "review" },
   { id: "other_versions", labelKey: "other_versions" },
   {

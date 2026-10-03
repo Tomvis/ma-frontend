@@ -11,9 +11,13 @@ vi.mock("@/components/MarkdownText.vue", () => ({
 import DetailTextRow from "@/components/details/DetailTextRow.vue";
 import { flushPromises, mount } from "@vue/test-utils";
 
-function mountRow(props: Record<string, unknown> = {}) {
+function mountRow(
+  props: Record<string, unknown> = {},
+  slots: Record<string, string> = {},
+) {
   return mount(DetailTextRow, {
     props: { dialogTitle: "An item", ...props },
+    slots,
     global: {
       mocks: { $t: (key: string) => key },
       // the long-press directive is registered by a plugin the test skips
@@ -64,6 +68,33 @@ describe("DetailTextRow", () => {
     const wrapper = mountRow();
 
     expect(wrapper.findAll(".skeleton").length).toBeGreaterThan(0);
+    expect(wrapper.find(".detail-text__body").exists()).toBe(false);
+  });
+
+  // enhanced: the album's critic block rides in the default slot (MUSIC-23)
+  it("puts slotted content between the heading and the text", () => {
+    const wrapper = mountRow(
+      { title: "Review", text: "Some text" },
+      { default: '<div class="critics" />' },
+    );
+
+    const html = wrapper.html();
+    expect(html.indexOf("detail-text__title")).toBeLessThan(
+      html.indexOf("critics"),
+    );
+    expect(html.indexOf("critics")).toBeLessThan(
+      html.indexOf("detail-text__body"),
+    );
+  });
+
+  it("shows slotted content alone, without a skeleton, when there is no text", () => {
+    const wrapper = mountRow(
+      { title: "Review" },
+      { default: '<div class="critics" />' },
+    );
+
+    expect(wrapper.find(".critics").exists()).toBe(true);
+    expect(wrapper.find(".skeleton").exists()).toBe(false);
     expect(wrapper.find(".detail-text__body").exists()).toBe(false);
   });
 

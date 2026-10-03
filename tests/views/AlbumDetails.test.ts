@@ -237,6 +237,15 @@ describe("AlbumDetails", () => {
     expect(renderedRows(wrapper)).not.toContain("review");
   });
 
+  // enhanced: the critic block lives in the review row (MUSIC-23)
+  it("keeps the review row for critic data alone", async () => {
+    const wrapper = await mountDetails(
+      album({ item_id: "1", metadata: { dynamic_range: 12 } }),
+    );
+
+    expect(renderedRows(wrapper)).toContain("review");
+  });
+
   it("counts and times the album from the tracks the listing loaded", async () => {
     const wrapper = await mountDetails();
     expect(hero(wrapper).props("trackCount")).toBeUndefined();

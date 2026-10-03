@@ -36,25 +36,19 @@
           :refresh-on-parent-update="true"
         />
 
-        <!-- enhanced: critical reception (DR / AMG / TPS / accolades).
-             A first-class row rather than a fixed block under the header, so it
-             follows the same order/visibility editor as every other row. The
-             component self-guards on tags.hasAny, so an album with no reception
-             data renders nothing. -->
-        <CriticalReception
-          v-else-if="rowId === 'critical_reception'"
-          :album="itemDetails"
-        />
-
-        <!-- review -->
+        <!-- review; enhanced: the critic block (DR / AMG / TPS / accolades)
+             sits above the text, and carries the row on its own when the
+             album has no review text -->
         <DetailTextRow
-          v-else-if="rowId === 'review' && !!review"
+          v-else-if="rowId === 'review' && (!!review || reception.hasAny)"
           :title="$t('review')"
           :text="review"
           :dialog-title="itemDetails.name"
           markdown
           @edit-rows="rowsEditorOpen = true"
-        />
+        >
+          <CriticalReception v-if="reception.hasAny" :album="itemDetails" />
+        </DetailTextRow>
 
         <!-- other versions -->
         <MediaRowList
@@ -145,6 +139,7 @@ import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import MediaItemImages from "@/components/MediaItemImages.vue";
 import ProviderDetails from "@/components/ProviderDetails.vue";
 import { useAlbumRowData } from "@/composables/useAlbumRowData";
+import { useAlbumTags } from "@/composables/useAlbumTags";
 import { keepOwnFavorite, subscribeOwnFavorites } from "@/helpers/favorites";
 import { backFromMediaDetails } from "@/helpers/navigation";
 import { api } from "@/plugins/api";
@@ -225,6 +220,8 @@ const backdrop = computed(() =>
 const review = computed(() =>
   itemDetails.value ? albumReview(itemDetails.value) : undefined,
 );
+// enhanced: the album's critic data, shown in the review row
+const reception = useAlbumTags(itemDetails);
 
 const runningTime = computed(() =>
   albumTracks.value ? albumDuration(albumTracks.value) : undefined,

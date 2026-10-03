@@ -11,6 +11,9 @@
     @click.capture="swallowClickAfterHold"
   >
     <h2 v-if="title" class="detail-text__title">{{ title }}</h2>
+    <!-- enhanced: content between the heading and the text (the album's
+         critic block); with it, a missing text means none, not loading -->
+    <slot></slot>
 
     <template v-if="text !== undefined">
       <MarkdownText
@@ -57,7 +60,11 @@
       </Dialog>
     </template>
 
-    <div v-else class="detail-text__skeleton" aria-hidden="true">
+    <div
+      v-else-if="!$slots.default"
+      class="detail-text__skeleton"
+      aria-hidden="true"
+    >
       <Skeleton
         v-for="index in 3"
         :key="index"

@@ -33,8 +33,6 @@ import { providerMapping } from "../../fixtures/providerMapping";
 
 const ALL_ROWS: AlbumRowId[] = [
   "tracks",
-  // enhanced: the critical-reception panel is a row on this branch
-  "critical_reception",
   "review",
   "other_versions",
   "more_from_artist",
@@ -135,6 +133,23 @@ describe("albumRows", () => {
       expect(order.indexOf("review")).toBeLessThan(order.indexOf("tracks"));
       expect(order).toHaveLength(ALL_ROWS.length);
       expect(hidden.has("other_versions")).toBe(true);
+    });
+
+    // enhanced: the critic panel moved into the review row (MUSIC-23)
+    it("drops the retired critical_reception row from a saved config", () => {
+      setPreferences({
+        [ALBUM_ROWS_PREFERENCE_KEY]: {
+          order: ["critical_reception", "review", "tracks"],
+          hidden: ["critical_reception"],
+        },
+      });
+
+      const { order, hidden } = albumRows.resolve(ALL_ROWS);
+
+      expect(order).not.toContain("critical_reception");
+      expect(order).toHaveLength(ALL_ROWS.length);
+      expect(order.indexOf("review")).toBeLessThan(order.indexOf("tracks"));
+      expect(hidden.size).toBe(0);
     });
   });
 

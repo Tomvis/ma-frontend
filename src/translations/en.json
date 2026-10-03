@@ -39,7 +39,6 @@
     "close": "Close",
     "create_playlist": "Create new playlist on {0}",
     "critical_reception": {
-        "label": "Critical reception",
         "dynamic_range": "Dynamic Range",
         "dr_quality": {
             "excellent": "Excellent",

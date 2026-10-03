@@ -284,7 +284,8 @@ function linksForAccolade(s: SourceTags, a: ParsedAccolade): ReviewLink[] {
 .reception-strip {
   position: relative;
   margin: 6px 0 4px;
-  padding: 14px 14px 12px;
+  /* no side padding: the review row around it already insets it */
+  padding: 14px 0 12px;
 }
 
 /* Faded hairlines top and bottom turn the strip into a band without
