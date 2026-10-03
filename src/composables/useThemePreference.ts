@@ -1,8 +1,9 @@
 import { authManager } from "@/plugins/auth";
+import { homeThemeEffective, homeThemeMode } from "@/plugins/home-theme-core";
 import { store } from "@/plugins/store";
 import { setStatusBarThemeColor } from "./useStatusBarColor";
 import { useColorMode } from "@vueuse/core";
-import { readonly, ref } from "vue";
+import { readonly, ref, watch } from "vue";
 import { useTheme } from "vuetify";
 
 const THEME_STORAGE_KEY = "frontend.settings.theme";
@@ -30,6 +31,8 @@ export function useThemePreference() {
     storageKey: null,
   });
   const themePreference = ref(initialThemePreference);
+  // Home theme (HW-64, fork): re-apply when the person's theme or mode changes
+  watch(homeThemeEffective, () => applyThemePreference(), { deep: true });
 
   function applyThemePreference(): void {
     applyTheme(getThemePreference());
@@ -84,6 +87,8 @@ export function useThemePreference() {
 }
 
 function getThemePreference(): ThemePreference {
+  if (!authManager.isGuestAccessSession() && homeThemeMode.value)
+    return homeThemeMode.value;
   const preference = authManager.isGuestAccessSession()
     ? localStorage.getItem(GUEST_THEME_STORAGE_KEY)
     : store.currentUser?.preferences?.theme ||

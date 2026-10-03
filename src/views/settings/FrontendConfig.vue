@@ -60,6 +60,10 @@ import {
 import { companionMode } from "@/plugins/companion";
 import { eventbus } from "@/plugins/eventbus";
 import { getKioskModePreference } from "@/plugins/homeassistant";
+import {
+  homeThemeEntry,
+  saveHomeThemeEntry,
+} from "@/plugins/home-theme-settings";
 import { $t, i18n } from "@/plugins/i18n";
 import { store } from "@/plugins/store";
 import EditConfig from "./EditConfig.vue";
@@ -102,7 +106,7 @@ onMounted(() => {
   const storedTheme = localStorage.getItem("frontend.settings.theme") || "auto";
 
   const configEntries: ConfigEntry[] = [
-    {
+    homeThemeEntry({
       key: "theme",
       type: ConfigEntryType.STRING,
       label: "theme",
@@ -116,7 +120,7 @@ onMounted(() => {
       multi_value: false,
       category: "preferences",
       value: (store.currentUser?.preferences?.theme as string) || storedTheme,
-    },
+    }),
     {
       key: "language",
       type: ConfigEntryType.STRING,
@@ -352,6 +356,7 @@ const saveValues = async function (values: Record<string, ConfigValueType>) {
       if (!entry) continue;
       // Action-only entries carry no persistable value
       if (entry.type === ConfigEntryType.ACTION) continue;
+      if (await saveHomeThemeEntry(key, values[key])) continue;
 
       if (DEVICE_SETTING_KEYS.has(key)) {
         // Save to localStorage (per-device settings)
