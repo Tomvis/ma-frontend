@@ -9,8 +9,11 @@ import {
   ImageType,
   type Album,
   type Artist,
+  type ReviewSource,
+  type ReviewSourceEntry,
   type Track,
 } from "@/plugins/api/interfaces";
+import { $t } from "@/plugins/i18n";
 
 /** The album's tracks, limited to the ones in the library when asked for. */
 export async function loadAlbumTracks(
@@ -48,8 +51,34 @@ export async function loadArtistReleases(
   );
 }
 
-/** The album's review, else the description it came with. */
+/** Each review source's site-name key, in the order its text is preferred. */
+const REVIEW_TEXT_SOURCES: Record<ReviewSource, string> = {
+  AMG: "source.amg",
+  TPS: "source.tps",
+};
+
+/** A source's review text, signed with its authors and a link to the post. */
+function signedReview(source: ReviewSourceEntry): string {
+  const link =
+    source.links?.find((l) => l.label === "Review") ?? source.links?.[0];
+  const site = $t(REVIEW_TEXT_SOURCES[source.source]);
+  const authors = source.authors?.length
+    ? `${source.authors.join(", ")}, `
+    : "";
+  const byline = link ? `[${site}](${link.url})` : site;
+  return `${source.review}\n\n*— ${authors}${byline}*`;
+}
+
+/**
+ * The album's review: AMG's text, then TPS's (both from our own file tags),
+ * then the review or description its metadata providers found.
+ */
 export function albumReview(album: Album): string | undefined {
+  const sources = album.metadata?.critical_reception?.sources ?? [];
+  for (const name of Object.keys(REVIEW_TEXT_SOURCES) as ReviewSource[]) {
+    const source = sources.find((s) => s.source === name && s.review);
+    if (source) return signedReview(source);
+  }
   return album.metadata?.review || album.metadata?.description || undefined;
 }
 

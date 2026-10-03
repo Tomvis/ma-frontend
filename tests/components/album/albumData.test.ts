@@ -152,6 +152,55 @@ describe("albumData", () => {
       );
       expect(albumReview(album())).toBeUndefined();
     });
+
+    it("prefers AMG's then TPS's review text, signed, over MA's own", () => {
+      const amg = {
+        source: "AMG" as const,
+        rating: 4,
+        authors: ["Kronos"],
+        links: [
+          { label: "TYMHM", url: "https://amg/tymhm/" },
+          { label: "Review", url: "https://amg/review/" },
+        ],
+        review: "Riffs.\n\nMore riffs.",
+      };
+      const tps = { source: "TPS" as const, rating: 8, review: "Prog." };
+      const metadata = { review: "A review", description: "A blurb" };
+      expect(
+        albumReview(
+          album({
+            metadata: {
+              ...metadata,
+              critical_reception: { sources: [tps, amg] },
+            },
+          }),
+        ),
+      ).toBe(
+        "Riffs.\n\nMore riffs.\n\n*— Kronos, [Angry Metal Guy](https://amg/review/)*",
+      );
+      expect(
+        albumReview(
+          album({
+            metadata: {
+              ...metadata,
+              critical_reception: {
+                sources: [{ ...amg, review: undefined }, tps],
+              },
+            },
+          }),
+        ),
+      ).toBe("Prog.\n\n*— The Progressive Subway*");
+      expect(
+        albumReview(
+          album({
+            metadata: {
+              ...metadata,
+              critical_reception: { sources: [{ source: "AMG", rating: 3 }] },
+            },
+          }),
+        ),
+      ).toBe("A review");
+    });
   });
 
   describe("albumDuration", () => {
