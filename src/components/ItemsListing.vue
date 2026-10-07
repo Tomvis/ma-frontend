@@ -114,7 +114,7 @@
             v-for="n in 12"
             :key="'skeleton-panel-' + n"
             cols="12"
-            :class="`col-${panelViewItemResponsive($vuetify.display.width)}`"
+            :class="`col-${gridColumnCount}`"
           >
             <PanelViewSkeleton />
           </v-col>
@@ -124,7 +124,7 @@
             v-for="n in 12"
             :key="'skeleton-compact-' + n"
             cols="12"
-            :class="`col-${panelViewItemResponsive($vuetify.display.width)}`"
+            :class="`col-${gridColumnCount}`"
           >
             <PanelViewSkeleton />
           </v-col>
@@ -149,7 +149,7 @@
             v-for="item in pagedItems"
             :key="item.uri"
             cols="12"
-            :class="`col-${panelViewItemResponsive($vuetify.display.width)}`"
+            :class="`col-${gridColumnCount}`"
           >
             <PanelviewItem
               :item="item"
@@ -181,7 +181,7 @@
             v-for="item in pagedItems"
             :key="item.uri"
             cols="12"
-            :class="`col-${panelViewItemResponsive($vuetify.display.width)}`"
+            :class="`col-${gridColumnCount}`"
           >
             <PanelviewItemCompact
               :item="item"
@@ -342,6 +342,7 @@ import {
 } from "@/components/ui/empty";
 import { SearchInput } from "@/components/ui/search-input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import GridSizeSlider from "@/components/GridSizeSlider.vue";
 import { useCommandCenter } from "@/composables/useCommandCenter";
 import { SEARCHABLE_MEDIA_TYPES } from "@/composables/useProgressiveSearch";
 import {
@@ -371,6 +372,11 @@ import {
   subscribeOwnFavorites,
 } from "@/helpers/favorites";
 import { handleMenuBtnClick } from "@/helpers/media_item_actions";
+import {
+  GRID_SIZE_DEFAULT,
+  gridColumns,
+  normalizeGridSize,
+} from "@/helpers/grid_size";
 import { returnedByHistory } from "@/helpers/navigation";
 import { panelViewItemResponsive, scrollElement } from "@/helpers/utils";
 import { api } from "@/plugins/api";
@@ -427,6 +433,7 @@ import {
 } from "@lucide/vue";
 import {
   computed,
+  markRaw,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -755,6 +762,7 @@ const params = ref<LoadDataParams>({
   genreIds: undefined,
 });
 const viewMode = ref("list");
+const gridSize = ref(GRID_SIZE_DEFAULT);
 const showSearch = ref(false);
 const searchHasFocus = ref(false);
 const searchInputRef = ref<InstanceType<typeof SearchInput>>();
@@ -915,6 +923,21 @@ const selectViewMode = function (newMode: string) {
       newMode,
     );
   }
+};
+
+// follows resizes: the breakpoints it looks up are reactive
+const gridColumnCount = computed(() =>
+  gridColumns(panelViewItemResponsive(0), gridSize.value),
+);
+
+const commitGridSize = function (size: number) {
+  gridSize.value = size;
+  setItemsListingPreference(
+    props.path || props.itemtype,
+    props.itemtype,
+    "gridSize",
+    size,
+  );
 };
 
 const getViewModeLabel = function (mode: string) {
@@ -1887,6 +1910,20 @@ const menuItems = computed(() => {
             selectViewMode("panel_compact");
           },
         },
+        {
+          label: "grid_size",
+          hide: viewMode.value == "list",
+          // markRaw: the menu items land in a reactive array; a bare component
+          // definition there would be needlessly made reactive.
+          component: markRaw(GridSizeSlider),
+          componentProps: {
+            size: gridSize.value,
+            onChange: (size: number) => {
+              gridSize.value = size;
+            },
+            onCommit: commitGridSize,
+          },
+        },
       ],
     });
 
@@ -2051,6 +2088,8 @@ const restoreSettings = async function () {
   } else {
     viewMode.value = "list";
   }
+
+  gridSize.value = normalizeGridSize(prefs.gridSize);
 
   // sortBy: per-listing override (prefs.sortBy) > shared default for this
   // listing (globalSortDefault) > first declared sort key.
@@ -2889,6 +2928,18 @@ async function selectEveryItem() {
   width: 10%;
   max-width: 10%;
   flex-basis: 10%;
+  padding: 8px;
+}
+.col-11 {
+  width: 9.09%;
+  max-width: 9.09%;
+  flex-basis: 9.09%;
+  padding: 8px;
+}
+.col-12 {
+  width: 8.33%;
+  max-width: 8.33%;
+  flex-basis: 8.33%;
   padding: 8px;
 }
 .content-tabs {

@@ -2266,3 +2266,11 @@ export interface AIRadioSession {
 export interface AIRadioStatus {
   sessions: AIRadioSession[];
 }
+
+/** Refetch hints the ai_radio plugin broadcasts as PROVIDER_EVENT payloads; they carry no state. */
+export type AIRadioEventName =
+  | "hosts_updated"
+  | "stations_updated"
+  | "sections_updated"
+  | "queue_dj_updated"
+  | "sessions_updated";

@@ -18,6 +18,7 @@ export const itemsListingPreferenceKey = (path: string, itemtype: string) =>
 
 export interface ItemsListingPreferences extends ReviewFilterParams {
   viewMode?: string;
+  gridSize?: number;
   sortBy?: string;
   favoriteFilter?: boolean;
   libraryFilter?: boolean;
