@@ -1229,6 +1229,9 @@ export interface PodcastEpisode extends MediaItem {
   position: number;
   podcast: Podcast | ItemMapping;
   duration: number;
+  // the publisher's own episode and season number, null when it does not number them
+  episode_number: number | null;
+  season: number | null;
   fully_played: boolean | null;
   resume_position_ms: number | null;
 }
@@ -2112,6 +2115,7 @@ export interface PartyConfig {
   qr_text: string | null;
   hide_back_button: boolean;
   show_progress_bar: boolean;
+  prevent_duplicate_tracks: boolean;
   // Shared-audio experience for guests: "venue" (opt-in) or "remote" (silent disco).
   mode?: "venue" | "remote";
 }
