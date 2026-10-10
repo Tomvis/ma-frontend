@@ -2,8 +2,8 @@ import type { CriticalReceptionFilter } from "@/plugins/api/interfaces";
 
 // Critical-reception filter shapes shared with ItemsListing.vue.
 // `dr_buckets` values match DRQuality from `@/helpers/album_tags` plus "untagged".
-// `*_ratings` are numeric bucket selectors (AMG: half stars 0.5..5, each selector one
-// exact half-star step; TPS: 1,3,5,7,9 covering bands of 2).
+// `*_ratings` are numeric bucket selectors in half points (AMG 0.5..5, TPS 0.5..10),
+// each selector one exact half-point step.
 // `*_accolades` are normalized accolade kinds matched against the merged accolades[]:
 // "aoty" | "record_of_the_month" | "honorable_mention" | "score_revised" | "tymhm" | "sitf" | "ymio" | "lit" | "rfu".
 export type DrBucket = "excellent" | "good" | "fair" | "poor" | "untagged";

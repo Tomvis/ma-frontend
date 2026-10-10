@@ -189,7 +189,7 @@
             </span>
           </h3>
 
-          <!-- rating row: AMG = 10 half-star pills; TPS = 5 bands (/10 in pairs) -->
+          <!-- rating row: AMG = 10 half-star pills; TPS = 20 half-point /10 pills -->
           <div class="rf-row">
             <span class="rf-row__label">{{ $t("review_filters.rating") }}</span>
             <div v-if="s.id === 'amg'" class="rf-stars" role="group">
@@ -219,21 +219,21 @@
             </div>
             <div v-else class="rf-bands" role="group">
               <button
-                v-for="band in TPS_BANDS"
-                :key="`tps-r-${band.lo}`"
+                v-for="r in TPS_RATINGS"
+                :key="`tps-r-${r}`"
                 type="button"
                 class="rf-band"
                 data-accent="tps"
-                :class="{
-                  'rf-band--active': isListActive('tpsRatings', band.lo),
-                }"
-                @click="$emit('toggleList', 'tpsRatings', band.lo)"
+                :class="{ 'rf-band--active': isListActive('tpsRatings', r) }"
+                :title="`${formatScore(r)} / 10`"
+                :aria-label="`${formatScore(r)} / 10`"
+                @click="$emit('toggleList', 'tpsRatings', r)"
               >
-                <span class="rf-band__nums">{{ band.lo }}–{{ band.hi }}</span>
+                <span class="rf-band__nums">{{ r }}</span>
                 <span class="rf-band__rail" aria-hidden="true">
                   <span
                     class="rf-band__fill"
-                    :style="{ width: `${(band.hi / 10) * 100}%` }"
+                    :style="{ width: `${(r / 10) * 100}%` }"
                   ></span>
                 </span>
               </button>
@@ -380,21 +380,19 @@ const DR_BUCKETS: Array<{
 // AMG publishes half stars over its whole 0.5–5.0 scale (Unlistenable .. Iconic),
 // and the server buckets each selector as one exact step ([4.5, 5) and [4, 4.5) are
 // separate), so a 4-star album and a 4½-star one are separately selectable. Highest
-// first like the DR tiles and TPS bands below; ten pills lay out as two rows of five.
+// first like the DR tiles and TPS pills below; ten pills lay out as two rows of five.
 const AMG_RATINGS: number[] = Array.from(
   { length: 10 },
   (_, i) => (10 - i) / 2,
 );
 
-// TPS ratings are stored as bucket selectors (1, 3, 5, 7, 9 — each covers
-// a band of 2 on /10). Order reversed so highest sits leftmost, matching DR.
-const TPS_BANDS: Array<{ lo: number; hi: number }> = [
-  { lo: 9, hi: 10 },
-  { lo: 7, hi: 8 },
-  { lo: 5, hi: 6 },
-  { lo: 3, hi: 4 },
-  { lo: 1, hi: 2 },
-];
+// TPS scores in half points over /10 and the server buckets each selector as one exact
+// step like AMG; an off-grid score (8.75, 9.2) lands in the step below it. Twenty pills
+// lay out as two rows of ten, highest first.
+const TPS_RATINGS: number[] = Array.from(
+  { length: 20 },
+  (_, i) => (20 - i) / 2,
+);
 
 // Accolade-row kinds (3.2.0 merge of the old award-labels + review-columns rows).
 // "review" is the default column and isn't a useful filter, so it's omitted. Each
@@ -974,11 +972,11 @@ const onClearAll = () => emit("clearAll");
   border-color: rgb(244 63 94 / 0.55);
 }
 
-/* ── TPS rating bands (5 of them, /10 grouped in pairs) ────────── */
+/* ── TPS rating pills (20 half points on /10, two rows of ten) ─── */
 .rf-bands {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 5px;
-  flex-wrap: wrap;
 }
 
 .rf-band {
@@ -986,8 +984,7 @@ const onClearAll = () => emit("clearAll");
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 42px;
-  padding: 6px 8px;
+  padding: 6px 3px;
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   background: transparent;
