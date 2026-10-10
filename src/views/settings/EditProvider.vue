@@ -125,6 +125,7 @@
             <CardDescription class="mt-2 max-w-3xl leading-relaxed">
               {{ providerManifest.description }}
             </CardDescription>
+            <!-- eslint-disable vue/no-v-html -- markdownToHtml sanitizes with DOMPurify -->
             <div
               v-if="providerManifest.codeowners.length"
               class="mt-3 text-xs text-muted-foreground [&_a]:text-primary [&_a]:hover:underline"
@@ -139,6 +140,7 @@
                 markdownToHtml(getCreditsMarkdown(providerManifest.credits))
               "
             ></div>
+            <!-- eslint-enable vue/no-v-html -->
           </div>
           <Button
             data-testid="provider-menu"
@@ -186,11 +188,6 @@
             <CircleAlert class="size-4" />
             {{ $t("settings.known_issues") }}
           </Button>
-          <AdvancedSettingsToggle
-            v-if="config.enabled && hasAdvancedEntries(allConfigEntries)"
-            v-model:show-advanced-settings="showAdvancedSettings"
-            test-id="provider-advanced-settings"
-          />
         </CardContent>
       </Card>
 
@@ -210,7 +207,6 @@
     <edit-config
       v-if="config"
       ref="editConfig"
-      v-model:show-advanced-settings="showAdvancedSettings"
       :config-entries="allConfigEntries"
       :disabled="!config.enabled"
       :provider-domain="config.domain"
@@ -300,10 +296,7 @@ import { useProviderAccess } from "@/composables/settings/providers/useProviderA
 import { useConfigAction } from "@/composables/useConfigAction";
 import { useEditedProviderName } from "@/composables/useEditedProviderName";
 import { getEventPosition } from "@/composables/useHoldToOpenMenu";
-import {
-  hasAdvancedEntries,
-  mergeConfigEntries,
-} from "@/helpers/config_entry_ui";
+import { mergeConfigEntries } from "@/helpers/config_entry_ui";
 import {
   getProviderStatusTranslationKey,
   getProviderSupportIssuesUrl,
@@ -343,7 +336,6 @@ import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { toast } from "vue-sonner";
-import AdvancedSettingsToggle from "./AdvancedSettingsToggle.vue";
 import AmbientSoundsCustomSounds from "./AmbientSoundsCustomSounds.vue";
 import EditConfig from "./EditConfig.vue";
 
@@ -353,7 +345,6 @@ const { t } = useI18n();
 const config = ref<ProviderConfig>();
 const editConfig = ref<InstanceType<typeof EditConfig>>();
 const loading = ref(false);
-const showAdvancedSettings = ref(false);
 const toggleLoading = ref(false);
 const showRenameDialog = ref(false);
 const renameLoading = ref(false);
