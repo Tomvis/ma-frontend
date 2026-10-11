@@ -820,28 +820,43 @@ export const getContextMenuItems = async function (
     });
   }
 
-  // add to Lidarr — albums sourced from a streaming provider, when a Lidarr
-  // plugin instance is loaded. The plugin handles artist creation and album
-  // monitoring server-side; the toast surfaces what changed.
+  // add to Lidarr — albums (or single tracks, MUSIC-76) sourced from a
+  // streaming provider, when a Lidarr plugin instance is loaded. The plugin
+  // handles artist creation and album/track monitoring server-side; the toast
+  // surfaces what changed.
   const lidarrLoaded = Object.values(api.providers).some(
     (p) => p.domain === "lidarr" && p.available,
   );
-  // Lidarr targets albums only — skip the providers walk + items scan entirely
-  // for selections with no album (e.g. track/artist/playlist menus).
-  if (lidarrLoaded && items.some((i) => i.media_type === MediaType.ALBUM)) {
+  // Lidarr targets albums and tracks only — skip the providers walk + items
+  // scan entirely for other selections (e.g. artist/playlist menus).
+  if (
+    lidarrLoaded &&
+    items.some(
+      (i) =>
+        i.media_type === MediaType.ALBUM || i.media_type === MediaType.TRACK,
+    )
+  ) {
     const streamingDomains = new Set(
       Object.values(api.providers)
         .filter((p) => p.is_streaming_provider)
         .map((p) => p.domain),
     );
+    const fromStreaming = (item: MediaItemTypeOrItemMapping) =>
+      itemIsAvailable(item) &&
+      "provider_mappings" in item &&
+      item.provider_mappings?.some((m) =>
+        streamingDomains.has(m.provider_domain),
+      );
     const lidarrAlbums = items.filter(
       (item): item is Album =>
-        item.media_type === MediaType.ALBUM &&
-        itemIsAvailable(item) &&
-        "provider_mappings" in item &&
-        (item as Album).provider_mappings?.some((m) =>
-          streamingDomains.has(m.provider_domain),
-        ),
+        item.media_type === MediaType.ALBUM && fromStreaming(item),
+    );
+    // a track is wanted on its album, so it needs one
+    const lidarrTracks = items.filter(
+      (item): item is Track =>
+        item.media_type === MediaType.TRACK &&
+        !!(item as Track).album &&
+        fromStreaming(item),
     );
     if (lidarrAlbums.length > 0 && lidarrAlbums.length === items.length) {
       contextMenuItems.push({
@@ -856,6 +871,33 @@ export const getContextMenuItems = async function (
                 r.already_monitored
                   ? $t("lidarr.already_monitored", [album.name])
                   : $t("lidarr.added", [album.name]),
+                { id },
+              );
+            } catch {
+              // Global handler in api/index.ts shows the error toast.
+              toast.dismiss(id);
+            }
+          }
+          eventbus.emit("clearSelection");
+        },
+        icon: "mdi-music-note-plus",
+      });
+    } else if (
+      lidarrTracks.length > 0 &&
+      lidarrTracks.length === items.length
+    ) {
+      contextMenuItems.push({
+        label: "add_to_lidarr",
+        labelArgs: [],
+        action: async () => {
+          for (const track of lidarrTracks) {
+            const id = toast.loading($t("lidarr.adding", [track.name]));
+            try {
+              const r = await api.lidarrAddTrack(track.uri);
+              toast.success(
+                r.already_wanted
+                  ? $t("lidarr.track_already_wanted", [track.name])
+                  : $t("lidarr.track_added", [track.name]),
                 { id },
               );
             } catch {

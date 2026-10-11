@@ -28,6 +28,7 @@ import {
   type EventMessage,
   type Genre,
   type LidarrAddAlbumResult,
+  type LidarrAddTrackResult,
   type MassEvent,
   type MediaItemType,
   type Player,
@@ -877,6 +878,12 @@ export class MusicAssistantApi {
     item: string | Album | ItemMapping,
   ): Promise<LidarrAddAlbumResult> {
     return this.sendCommand("lidarr/add_album", { item });
+  }
+
+  public lidarrAddTrack(
+    item: string | Track | ItemMapping,
+  ): Promise<LidarrAddTrackResult> {
+    return this.sendCommand("lidarr/add_track", { item });
   }
 
   public digarrApprove(item: string): Promise<DigarrActionResult> {

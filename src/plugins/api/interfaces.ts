@@ -1148,6 +1148,15 @@ export interface LidarrAddAlbumResult {
   lidarr_instance: string;
 }
 
+export interface LidarrAddTrackResult {
+  artist_name: string;
+  album_name: string;
+  track_name: string;
+  artist_added: boolean;
+  already_wanted: boolean;
+  lidarr_instance: string;
+}
+
 export interface DigarrActionResult {
   artist: string;
   status: string;
