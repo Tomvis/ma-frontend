@@ -273,7 +273,26 @@
         "server_internal_url": "Internal URL",
         "server_external_url": "External URL",
         "server_remote_access": "Remote access",
+        "server_url": {
+            "title": "Music Assistant URL",
+            "description": "Where devices and guests reach Music Assistant, for example through the links in party and quiz invitations.",
+            "internet": "Internet",
+            "local_network": "Local network",
+            "use_remote_access": "Use remote access",
+            "remote_access_description": "Links shared with guests open through remote access.",
+            "remote_access_hint": "Not reachable from the internet? Remote access works without a public URL.",
+            "set_up_remote_access": "Set up remote access",
+            "automatic": "Automatic",
+            "detected_after_save": "Detected automatically after saving",
+            "copy_remote": "Copy remote access link",
+            "copy_detected": "Copy local network URL",
+            "copied": "URL copied",
+            "copy_failed": "Couldn't copy URL"
+        },
         "server_as_addon": "Home Assistant app",
+        "unsupported_install_title": "Unsupported installation",
+        "unsupported_install_description": "This server is not installed through one of the {0}. Some features may not work as expected, and issues reported from it may be closed without support.",
+        "unsupported_install_link": "supported installation methods",
         "artists_in_library": "Artists in library",
         "albums_in_library": "Albums in library",
         "tracks_in_library": "Tracks in library",
@@ -1355,6 +1374,7 @@
             "crossfade_mode": {
                 "smart": "Smart",
                 "standard": "Standard",
+                "voice_over": "Voice-over, music ducked under it",
                 "disabled": "Disabled",
                 "source": "Applied by {0}"
             },
@@ -2060,6 +2080,7 @@
                 "default_playback_device": "Default Playback Device (optional)",
                 "web_search_mode": "Web Search Mode",
                 "character_limit": "Character Limit",
+                "allow_post": "Talk over the intro",
                 "prompt": "Prompt",
                 "instructions": "Host and Program Instructions",
                 "shuffle_playlist_tracks": "Shuffle Playlist Tracks",
@@ -2070,7 +2091,8 @@
             "field_descriptions": {
                 "source_playtime_cap": "Maximum total playing time of the source music, in minutes. Tracks are taken in the order the show plays them until the cap is reached. Leave at 0 for no limit.",
                 "instructions": "Describes the host's personality and how segments should be written. This is sent to the AI with every segment.",
-                "shuffle_playlist_tracks": "Play the source playlist in random order. Turn this off to follow the playlist's own order."
+                "shuffle_playlist_tracks": "Play the source playlist in random order. Turn this off to follow the playlist's own order.",
+                "allow_post": "The end of this segment plays over the start of the next song, with the music turned down under the voice, ending just before the singing starts. Only happens when Music Assistant knows where the singing starts and the intro is long enough. When several segments are spoken as one break, all of them need this on."
             },
             "web_search": {
                 "disabled": "disabled (no web tool)",

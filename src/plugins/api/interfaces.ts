@@ -553,6 +553,8 @@ export enum VolumeNormalizationMode {
 export enum CrossfadeMode {
   SMART_CROSSFADE = "smart_crossfade",
   STANDARD_CROSSFADE = "standard_crossfade",
+  // a spoken tail mixed over the next track's start, with the track ducked under it
+  VOICE_OVER = "voice_over",
   DISABLED = "disabled",
   // the source crossfades its own playback, so the server does not
   SOURCE = "source",
@@ -672,6 +674,7 @@ export interface ServerInfoMessage {
   internal_url: string | null;
   external_url: string | null;
   has_remote_access: boolean;
+  unsupported_install: boolean;
 }
 
 export type MessageType =
@@ -2192,6 +2195,8 @@ export interface AIRadioSection {
   web_search?: AIRadioWebSearchMode;
   constraints?: AIRadioSectionConstraints;
   cover_image?: string;
+  /** Whether this segment may carry over the next track's intro. */
+  allow_post?: boolean;
 }
 
 export interface AIRadioOptionalGuards {
