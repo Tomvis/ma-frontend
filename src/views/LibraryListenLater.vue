@@ -6,6 +6,7 @@
     :show-provider="false"
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
+    :sort-media-type="MediaType.ALBUM"
     :sort-keys="sortKeys"
     :title="$t('listen_later.title')"
     :allow-key-hooks="true"
@@ -28,7 +29,6 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import type { ToolBarMenuItem } from "@/components/Toolbar.vue";
-import { ALBUM_SORT_KEYS } from "@/helpers/albumSort";
 import {
   albumCountArgsFromParams,
   albumFiltersFromParams,
@@ -36,7 +36,10 @@ import {
 import api from "@/plugins/api";
 import {
   EventType,
+  MediaType,
   QueueOption,
+  SortDirection,
+  SortField,
   type Album,
   type EventMessage,
   type MediaItemTypeOrItemMapping,
@@ -54,14 +57,10 @@ const { t } = useI18n();
 const { prime, remove } = useListenLater();
 const total = ref<number | undefined>(0);
 
-// Same sort surface as LibraryAlbums (ALBUM_SORT_KEYS), plus listen-later–specific
-// keys. "listen_later_added_at_desc" is the default — newest pick first, the
-// inbox-like ordering Roon uses.
-const sortKeys = [
-  "listen_later_added_at_desc",
-  "listen_later_added_at",
-  ...ALBUM_SORT_KEYS,
-];
+// The server's album sort options, newest pick first by default: the inbox-like
+// ordering Roon uses. The key also scopes this view's remembered sort apart from
+// the Albums view's.
+const sortKeys = ["listen_later_added_at:desc"];
 
 const loadItems = async (params: LoadDataParams) => {
   trackedSetTotals(params);
@@ -69,7 +68,10 @@ const loadItems = async (params: LoadDataParams) => {
     ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
-    order_by: params.sortBy || "listen_later_added_at_desc",
+    sort_field: params.sort_field ?? SortField.LISTEN_LATER_ADDED_AT,
+    sort_direction: params.sort_field
+      ? params.sort_direction
+      : SortDirection.DESC,
     listen_later: true, // this view shows saved-for-later items only
   });
   for (const album of albums) prime(album as Album);
@@ -97,7 +99,8 @@ const fetchAllFiltered = async (): Promise<Album[]> => {
     ...albumFiltersFromParams(p ?? {}),
     limit: Math.max(total.value ?? 1, 1),
     offset: 0,
-    order_by: "listen_later_added_at_desc",
+    sort_field: SortField.LISTEN_LATER_ADDED_AT,
+    sort_direction: SortDirection.DESC,
     listen_later: true,
   });
   return albums as Album[];

@@ -205,6 +205,53 @@ export enum MediaType {
   UNKNOWN = "unknown",
 }
 
+export type LibrarySortMediaType =
+  | MediaType.ARTIST
+  | MediaType.ALBUM
+  | MediaType.TRACK
+  | MediaType.PLAYLIST
+  | MediaType.RADIO
+  | MediaType.AUDIOBOOK
+  | MediaType.PODCAST
+  | MediaType.GENRE;
+
+export enum SortField {
+  NAME = "name",
+  SORT_NAME = "sort_name",
+  TIMESTAMP_ADDED = "timestamp_added",
+  TIMESTAMP_MODIFIED = "timestamp_modified",
+  LAST_PLAYED = "last_played",
+  PLAY_COUNT = "play_count",
+  DURATION = "duration",
+  YEAR = "year",
+  POSITION = "position",
+  ARTIST_NAME = "artist_name",
+  RANDOM = "random",
+  RANDOM_PLAY_COUNT = "random_play_count",
+  TRACK_NUMBER = "track_number",
+  ALBUM_NAME = "album_name",
+  PROVIDER = "provider",
+  FAVORITE_TIMESTAMP = "favorite_timestamp",
+  ORIGINAL = "original",
+  // fork: album-only sorts on the review/analysis metadata and the listen-later shelf
+  DR = "dr",
+  AMG_RATING = "amg_rating",
+  TPS_RATING = "tps_rating",
+  LISTEN_LATER_ADDED_AT = "listen_later_added_at",
+}
+
+export enum SortDirection {
+  ASC = "asc",
+  DESC = "desc",
+}
+
+export interface SortOptionInfo {
+  field: SortField;
+  supports_direction: boolean;
+  default_direction: SortDirection | null;
+  label_key: string | null;
+}
+
 export enum LinkType {
   WEBSITE = "website",
   FACEBOOK = "facebook",
@@ -1208,6 +1255,9 @@ export enum PlaylistMatchPolicy {
 
 export interface Radio extends MediaItem {
   is_dynamic: boolean;
+  // false: the station is finite (an AI Radio show) and the queue plays it out and
+  // ends, instead of streaming or refilling forever
+  is_endless?: boolean;
 }
 
 export interface SoundEffect extends MediaItem {
@@ -2265,37 +2315,18 @@ export interface AIRadioStation {
   host_id: string;
 }
 
-export interface AIRadioSession {
-  session_id: string;
-  station_id: string;
-  queue_id: string | null;
-  status: "running" | "completed" | "failed" | "stopped";
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-  error: string | null;
-  skipped_sections?: number;
-  last_render_error: string | null;
-  progress?: {
-    phase?: string;
-    [key: string]: unknown;
-  };
-  result?: {
-    queue_entries?: number;
-    planned_sections?: number;
-    skipped_sections?: number;
-    [key: string]: unknown;
-  };
-}
-
-export interface AIRadioStatus {
-  sessions: AIRadioSession[];
-}
+/**
+ * Per-queue AI DJ state. `station_id` is "" for a manually armed DJ and the
+ * show's id when the DJ was auto-armed by playing that show (i.e. it's on air).
+ */
+export type AIRadioQueueDJStatus = Record<
+  string,
+  { host_id: string; station_id: string }
+>;
 
 /** Refetch hints the ai_radio plugin broadcasts as PROVIDER_EVENT payloads; they carry no state. */
 export type AIRadioEventName =
   | "hosts_updated"
   | "stations_updated"
   | "sections_updated"
-  | "queue_dj_updated"
-  | "sessions_updated";
+  | "queue_dj_updated";

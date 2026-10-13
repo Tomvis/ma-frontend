@@ -565,6 +565,7 @@ import ListenLaterButton from "./album/ListenLaterButton.vue";
 export interface Props {
   // browse folders are listed, never opened in a details view
   item?: Exclude<MediaItemType, BrowseFolder>;
+  // the order the item's tracks are listed in on its page, which play follows
   sortBy?: string;
 }
 const compProps = defineProps<Props>();
@@ -726,6 +727,7 @@ const playButtonClick = function (forceMenu = false) {
     rect.bottom,
     undefined,
     forceMenu,
+    undefined,
     compProps.sortBy,
   );
 };

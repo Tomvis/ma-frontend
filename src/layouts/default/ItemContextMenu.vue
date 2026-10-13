@@ -505,6 +505,7 @@ export const showPlayMenuForMediaItem = async function (
   parentItem?: MediaItemType,
   posX = 0,
   posY = 0,
+  tracksSortBy?: string,
 ) {
   // open the play menu by emitting the event
 
@@ -536,7 +537,12 @@ export const showPlayMenuForMediaItem = async function (
     );
   } else {
     playMenuItems.push(
-      ...buildEnqueueMenuItems(playableItems, defaultEnqueueOption),
+      ...buildEnqueueMenuItems(
+        playableItems,
+        defaultEnqueueOption,
+        // the order of a single album/playlist's own tracks
+        playableItems.length == 1 ? tracksSortBy : undefined,
+      ),
     );
   }
   // Starting the media shuffled is its own action rather than a state indicator:
@@ -1888,11 +1894,13 @@ const getDefaultEnqueueOption = async function (
 
 /**
  * Menu entries for every way the given items can be started or queued, with the
- * configured default, when known, marked as selected.
+ * configured default, when known, marked as selected. tracksSortBy orders the
+ * tracks of an album or playlist the way its page shows them.
  */
 const buildEnqueueMenuItems = function (
   items: MediaItemTypeOrItemMapping[],
   defaultEnqueueOption: QueueOption | undefined,
+  tracksSortBy?: string,
 ): ContextMenuItem[] {
   return [
     QueueOption.PLAY,
@@ -1903,10 +1911,12 @@ const buildEnqueueMenuItems = function (
   ].map((option) => ({
     label: $t(`queue_option.${option}`),
     action: () => {
-      api.playMedia(
-        items.map((x) => x.uri),
-        option,
-      );
+      const uris = items.map((x) => x.uri);
+      if (tracksSortBy) {
+        api.playMedia(uris, option, { sort_by: tracksSortBy });
+      } else {
+        api.playMedia(uris, option);
+      }
     },
     icon: queueOptionIconMap[option],
     labelArgs: [],

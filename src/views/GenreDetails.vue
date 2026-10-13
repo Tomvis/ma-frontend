@@ -388,7 +388,8 @@ const loadGenreArtists = async (params: LoadDataParams) => {
     params.search,
     undefined,
     undefined,
-    params.sortBy,
+    params.sort_field,
+    params.sort_direction,
     undefined,
     params.provider?.length ? params.provider : undefined,
     genreId(),
@@ -400,7 +401,8 @@ const loadGenreAlbums = async (params: LoadDataParams) => {
   return await api.getLibraryAlbums({
     favorite: params.favoritesOnly || undefined,
     search: params.search,
-    order_by: params.sortBy,
+    sort_field: params.sort_field,
+    sort_direction: params.sort_direction,
     provider: params.provider?.length ? params.provider : undefined,
     genre: genreId(),
   });
@@ -413,7 +415,8 @@ const loadGenreTracks = async (params: LoadDataParams) => {
     params.search,
     undefined,
     undefined,
-    params.sortBy,
+    params.sort_field,
+    params.sort_direction,
     params.provider?.length ? params.provider : undefined,
     genreId(),
   );
@@ -426,7 +429,8 @@ const loadGenrePlaylists = async (params: LoadDataParams) => {
     params.search,
     undefined,
     undefined,
-    params.sortBy,
+    params.sort_field,
+    params.sort_direction,
     params.provider?.length ? params.provider : undefined,
     genreId(),
   );
@@ -439,7 +443,8 @@ const loadGenrePodcasts = async (params: LoadDataParams) => {
     params.search,
     undefined,
     undefined,
-    params.sortBy,
+    params.sort_field,
+    params.sort_direction,
     params.provider?.length ? params.provider : undefined,
     genreId(),
   );
@@ -452,7 +457,8 @@ const loadGenreAudiobooks = async (params: LoadDataParams) => {
     params.search,
     undefined,
     undefined,
-    params.sortBy,
+    params.sort_field,
+    params.sort_direction,
     params.provider?.length ? params.provider : undefined,
     genreId(),
   );

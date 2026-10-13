@@ -5,7 +5,7 @@
     :show-provider="false"
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
-    :sort-keys="sortKeys"
+    :sort-media-type="MediaType.ALBUM"
     :update-available="updateAvailable"
     :title="$t('albums')"
     :allow-key-hooks="true"
@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import { onLibrarySyncCompleted } from "@/composables/useLibrarySync";
-import { ALBUM_SORT_KEYS } from "@/helpers/albumSort";
 import {
   albumCountArgsFromParams,
   albumFiltersFromParams,
@@ -43,8 +42,6 @@ defineOptions({
 
 const updateAvailable = ref<boolean>(false);
 const total = ref(store.libraryAlbumsCount);
-
-const sortKeys = [...ALBUM_SORT_KEYS];
 
 onMounted(() => {
   // The per-view MEDIA_ITEM_ADDED listener is intentionally gone: ItemsListing
@@ -68,7 +65,8 @@ const loadItems = async function (params: LoadDataParams) {
     ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
-    order_by: params.sortBy,
+    sort_field: params.sort_field,
+    sort_direction: params.sort_direction,
   });
 };
 
