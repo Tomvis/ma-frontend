@@ -1,64 +1,51 @@
-# CLAUDE.md
+# Music Assistant frontend
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Vue 3 + TypeScript PWA for Music Assistant, built with Vite and pnpm. The
+"Development Guidelines" in `README.md` are the source of truth; this file
+summarizes them. Read the README section before writing code.
 
 ## Commands
 
-```bash
-yarn dev            # Dev server at http://localhost:3000
-yarn build          # Type-check (vue-tsc --noEmit) then Vite build
-yarn lint           # ESLint with auto-fix
-yarn test           # Vitest watch mode
-yarn test:run       # Single test run
-yarn test:coverage  # Coverage report
-```
+- `pnpm dev`: dev server on http://localhost:3000, which asks for a Music Assistant server address
+- `pnpm exec vue-tsc --noEmit`: type check
+- `pnpm lint:check`: oxlint, eslint and prettier, the same as CI (`pnpm lint` fixes)
+- `pnpm test:run`: vitest
+- `pnpm build`: type check and production build
 
-Output compiles to `./music_assistant_frontend/`.
+Run the type check, lint and tests before you consider a change done.
 
-## Architecture
+## UI
 
-**Stack**: Vue 3 + TypeScript + Vite. PWA with service worker.
+- New UI uses shadcn-vue components from `src/components/ui/`. Never add new Vuetify components.
+- Use Tailwind utility classes first, including arbitrary values (`text-[44px]`) and variants (`max-md:`, `[&>.v-divider]:hidden`). Add a scoped `<style>` block only for what Tailwind cannot express, such as keyframes or `:deep()` into a child component. Avoid `style=""` except for dynamic values.
+- Every Tailwind utility is `!important` (`src/styles/style.css`), so scoped CSS cannot override one. Override a utility with another utility; `cn()` (`src/lib/utils.ts`) drops the one it replaces.
+- Use lucide icons (`@lucide/vue`) for new UI, not mdi.
+- Match the spacing, icons and interaction patterns of equivalent existing views.
+- Media detail pages share `src/components/details/` (`DetailHero`, row registry, `RowsEditor`). Compose from those instead of building page-specific copies.
 
-**UI framework migration in progress**: The codebase is moving from Vuetify 3 to shadcn-vue (reka-ui + Tailwind CSS 4). New components should use shadcn-vue; existing Vuetify components are being migrated incrementally.
+## Code
 
-### State Management
+- Keep components under 300 to 400 lines. Split them into focused sub-components when they grow.
+- Type all props and emits, with no `any`. Use `interface` for object shapes and `type` for unions.
+- Put stateful logic shared by components in `src/composables/`, and keep `<script setup>` lean.
+- Put pure functions in `src/helpers/`, one file per concern, each with a colocated test (`src/helpers/foo.test.ts`).
+- Show feedback on every user-triggered API call, with `toast.success(...)` on success and `toast.error(...)` on failure. Never swallow errors, and never use `console.error` in place of a toast.
+- No magic numbers or strings. Move complex template expressions to computed properties. Clean up listeners, intervals and manual watchers.
+- Use semantic HTML and `aria-*` labels on icon-only controls.
 
-No Vuex/Pinia. State lives in two reactive objects:
+## Translations
 
-- `src/plugins/store.ts` — UI state (`activePlayerId`, `showFullscreenPlayer`, `libraryArtistsCount`, etc.). Import as `import { store } from "@/plugins/store"`.
-- `src/plugins/api/index.ts` — Server state: `api.players`, `api.queues`, `api.providers`, `api.queueElapsedTime` are all `reactive()` maps keyed by ID. Import as `import { api } from "@/plugins/api"`.
+- Add user-facing strings to `src/translations/en.json` only. Other locales are synced from Lokalise, never edited by hand.
 
-Shared logic goes into composables under `src/composables/`. Pure utility functions go in `src/helpers/` with colocated `.test.ts` files.
+## Server boundary
 
-### API / Connection Layer
+- The frontend ships in lockstep with `music-assistant/server`. Never gate on `schema_version` or add an older-server fallback. Raise `MIN_SERVER_SCHEMA_VERSION` in `src/plugins/api/index.ts` when the previous stable server would break.
+- Logic every API client needs, such as volume, queue handling and filtering, belongs in the server, not in a frontend workaround.
 
-The app communicates with the Music Assistant server over a transport abstraction (`src/plugins/remote/`). Three transports exist: `WebSocketTransport` (direct), `WebRTCTransport` (P2P encrypted remote), and `HttpProxyBridge` (service-worker proxy). All implement `ITransport`.
+## Pull requests
 
-Connection state machine: `DISCONNECTED → CONNECTING → CONNECTED → AUTHENTICATED → INITIALIZED`
-
-Commands are JSON-RPC style: `{ command, args, msg_id }`. Server events are subscribed via `api.subscribe(EventType, callback)`. `App.vue` drives initialization: on `AUTHENTICATED`, it calls `completeInitialization()` which fetches library counts, enables plugins, and sets up event subscriptions.
-
-### Router
-
-Hash-based history (`createWebHashHistory`). Three top-level routes:
-- `/` — Main app (Default layout with player controls + nav)
-- `/guest` — Party guest view (no web player)
-- `/party` — Party dashboard (requires party plugin)
-
-All routes use dynamic imports for code splitting. Route guards enforce admin-only access for settings and party-plugin availability for `/party`.
-
-### Web Player
-
-`src/plugins/web_player.ts` manages in-browser audio playback via Sendspin. Uses `BroadcastChannel` to coordinate across tabs (only one tab plays at a time). Player mode is one of: `DISABLED`, `CONTROLS_ONLY`, `SENDSPIN_ONLY`, `SENDSPIN_WITH_CONTROLS`.
-
-### Path Aliases
-
-`@` → `src/`, `@plugins` → `src/plugins/`, `@components` → `src/components/`, `@views` → `src/views/`, `@layout` → `src/layout/`
-
-## Development Notes
-
-- Components should stay under 300–400 lines with single responsibility.
-- TypeScript strict mode is enabled — always type props/emits, no implicit `any`.
-- Tests are colocated next to source files (e.g., `src/helpers/string.test.ts`). New helper functions require tests.
-- API calls should show feedback via `toast.success()` / `toast.error()` from `vue-sonner`.
-- Translations use Vue-i18n; all user-facing strings must use `t("key")`. Translations are managed via Lokalise.
+- Keep each PR small and single-purpose. Don't bump dependencies in a feature PR.
+- Fill in `.github/pull_request_template.md` and tick exactly one "Types of changes" box, since it drives the label and the release notes.
+- PRs that change UI need screenshots or a short video.
+- More review precedents are in `.github/instructions/music-assistant-frontend-standards.instructions.md`.
+- Always include before and after screenshots in a PR to the frontend repository
