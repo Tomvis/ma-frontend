@@ -1,11 +1,12 @@
 <template>
   <ItemsListing
+    fill-height
     itemtype="albums"
     path="libraryalbums"
     :show-provider="false"
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
-    :sort-media-type="MediaType.ALBUM"
+    :sort-listing="ListingType.LIBRARY_ALBUMS"
     :update-available="updateAvailable"
     :title="$t('albums')"
     :allow-key-hooks="true"
@@ -31,7 +32,7 @@ import {
   buildCriticalReceptionFilter,
 } from "@/helpers/criticalReception";
 import api from "@/plugins/api";
-import { MediaType } from "@/plugins/api/interfaces";
+import { ListingType, MediaType } from "@/plugins/api/interfaces";
 import { store } from "@/plugins/store";
 import { Disc3 } from "@lucide/vue";
 import { onBeforeUnmount, onMounted, ref } from "vue";
@@ -65,8 +66,8 @@ const loadItems = async function (params: LoadDataParams) {
     ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
-    sort_field: params.sort_field,
-    sort_direction: params.sort_direction,
+    sort_field: params.sortField,
+    sort_direction: params.sortDirection,
   });
 };
 

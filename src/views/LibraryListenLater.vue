@@ -6,7 +6,7 @@
     :show-provider="false"
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
-    :sort-media-type="MediaType.ALBUM"
+    :sort-listing="ListingType.LIBRARY_ALBUMS"
     :sort-keys="sortKeys"
     :title="$t('listen_later.title')"
     :allow-key-hooks="true"
@@ -36,7 +36,7 @@ import {
 import api from "@/plugins/api";
 import {
   EventType,
-  MediaType,
+  ListingType,
   QueueOption,
   SortDirection,
   SortField,
@@ -68,9 +68,9 @@ const loadItems = async (params: LoadDataParams) => {
     ...albumFiltersFromParams(params),
     limit: params.limit,
     offset: params.offset,
-    sort_field: params.sort_field ?? SortField.LISTEN_LATER_ADDED_AT,
-    sort_direction: params.sort_field
-      ? params.sort_direction
+    sort_field: params.sortField ?? SortField.LISTEN_LATER_ADDED_AT,
+    sort_direction: params.sortField
+      ? params.sortDirection
       : SortDirection.DESC,
     listen_later: true, // this view shows saved-for-later items only
   });

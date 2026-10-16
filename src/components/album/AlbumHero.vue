@@ -5,6 +5,7 @@
     :item="item"
     :backdrop="backdrop"
     :blur-backdrop="blurBackdrop"
+    soften-backdrop
     :height="400"
     :phone-height="360"
     @edit-rows="emit('edit-rows')"
@@ -15,7 +16,7 @@
 
     <template v-if="item" #main>
       <div class="album-hero__main">
-        <div class="album-hero__cover">
+        <div class="album-hero__cover detail-hero-cover">
           <MediaItemThumb :item="item" :size="coverSize" :rounded="false" />
         </div>
 
@@ -58,12 +59,7 @@
           </div>
 
           <div class="album-hero__actions">
-            <DetailHeroPlayButton
-              class="album-hero__play"
-              shrink-label
-              :item="item"
-              :tracks-sort-by="tracksSortBy"
-            />
+            <DetailHeroPlayButton :item="item" :tracks-sort-by="tracksSortBy" />
             <DetailHeroButton
               :icon="Shuffle"
               :label="$t('shuffle')"
@@ -135,9 +131,15 @@ const emit = defineEmits<{
 
 const router = useRouter();
 
+// px, matching .album-hero__cover
+const COVER_SIZE = 280;
+const PHONE_COVER_SIZE = 180;
+
 const isPhone = computed(() => isPhoneSizedScreen());
 
-const coverSize = computed(() => (isPhone.value ? 132 : 200));
+const coverSize = computed(() =>
+  isPhone.value ? PHONE_COVER_SIZE : COVER_SIZE,
+);
 
 // "Album · 2011 · 12 tracks · 48 min", without whatever the album does not have
 const facts = computed(() => {
@@ -174,8 +176,8 @@ const gotoArtist = function (artist: Artist | ItemMapping) {
   min-width: 0;
 }
 .album-hero__cover {
-  width: 200px;
-  height: 200px;
+  width: 280px;
+  height: 280px;
   flex: none;
   border-radius: 8px;
   overflow: hidden;
@@ -275,10 +277,6 @@ const gotoArtist = function (artist: Artist | ItemMapping) {
   gap: 8px;
   min-width: 0;
 }
-/* the play button gives way so Shuffle and Endless keep their place on the row */
-.album-hero__play {
-  min-width: 0;
-}
 
 @media (max-width: 768px) {
   .album-hero__main {
@@ -287,8 +285,8 @@ const gotoArtist = function (artist: Artist | ItemMapping) {
     gap: 12px;
   }
   .album-hero__cover {
-    width: 132px;
-    height: 132px;
+    width: 180px;
+    height: 180px;
   }
   .album-hero__name {
     font-size: 30px;
@@ -299,9 +297,6 @@ const gotoArtist = function (artist: Artist | ItemMapping) {
   }
   .album-hero__actions {
     gap: 10px;
-  }
-  .album-hero__actions .album-hero__play {
-    flex: 1;
   }
 }
 </style>

@@ -42,7 +42,7 @@
         class="flex w-full min-w-0 items-end gap-6 max-md:flex-col max-md:items-stretch max-md:gap-3"
       >
         <div
-          class="size-[200px] flex-none overflow-hidden rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.5)] max-md:size-[132px]"
+          class="detail-hero-cover size-[200px] flex-none overflow-hidden rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.5)] max-md:size-[132px]"
         >
           <MediaItemThumb :item="item" :size="coverSize" :rounded="false" />
         </div>
@@ -77,11 +77,7 @@
           <div
             class="flex min-w-0 flex-nowrap items-center gap-2 max-md:flex-wrap max-md:gap-2.5"
           >
-            <DetailHeroPlayButton
-              class="min-w-0 max-md:flex-1"
-              shrink-label
-              :item="item"
-            />
+            <DetailHeroPlayButton :item="item" />
             <DetailHeroButton
               :icon="Shuffle"
               :label="$t('shuffle')"
@@ -103,7 +99,8 @@
               @click="emit('show-rules')"
             />
             <span
-              class="inline-flex size-9 flex-none items-center justify-center rounded-lg border border-white/25 bg-black/40 max-md:size-11 max-md:rounded-[10px]"
+              v-if="!isPhone"
+              class="inline-flex size-9 flex-none items-center justify-center rounded-lg border border-white/25 bg-black/40"
               :title="providerBadgeTitle"
             >
               <ProviderIcon :domain="providerDomain" :size="20" />

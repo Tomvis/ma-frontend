@@ -1,4 +1,11 @@
 /**
+ * The sort keys ItemsListing falls back to when a view declares none. Kept as one
+ * shared array so the listing can tell a view's own declared default (e.g.
+ * Listen Later's newest-first) from this fallback by identity.
+ */
+export const DEFAULT_LISTING_SORT_KEYS: string[] = ["name", "sort_name"];
+
+/**
  * The preferences key a listing stores its "last used" sort under.
  *
  * Scoped to the item type *and* the listing's declared default (`sortKeys[0]`).
