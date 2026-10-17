@@ -399,27 +399,25 @@ const TPS_RATINGS: number[] = Array.from(
 // value is matched against the source's merged accolades[] array server-side and
 // localized via critical_reception.*.
 //
-// The five review columns (tymhm/sitf/ymio/lit/rfu) only ever appear on AMG entries,
-// so they're offered in the AMG row alone — surfacing them under TPS makes a dead
+// Each row offers only the kinds its source actually publishes (music-rater post
+// types): AMG has the monthly pick, score revisions and the TYMHM/SITF/YMIO columns;
+// TPS has the Lost in Time and RFU series. A kind under the wrong source is a dead
 // control that always filters to zero (see server test_accolade_filter_is_source_scoped).
-const AWARD_ACCOLADE_KINDS: AccoladeKind[] = [
+const AMG_ACCOLADE_KINDS: AccoladeKind[] = [
   "aoty",
   "record_of_the_month",
   "honorable_mention",
   "score_revised",
-];
-const AMG_COLUMN_ACCOLADE_KINDS: AccoladeKind[] = [
   "tymhm",
   "sitf",
   "ymio",
+];
+const TPS_ACCOLADE_KINDS: AccoladeKind[] = [
+  "aoty",
+  "honorable_mention",
   "lit",
   "rfu",
 ];
-const AMG_ACCOLADE_KINDS: AccoladeKind[] = [
-  ...AWARD_ACCOLADE_KINDS,
-  ...AMG_COLUMN_ACCOLADE_KINDS,
-];
-const TPS_ACCOLADE_KINDS: AccoladeKind[] = AWARD_ACCOLADE_KINDS;
 
 // Generic active-state check for a list-valued filter key (ratings/accolades).
 type ListKey = "amgRatings" | "amgAccolades" | "tpsRatings" | "tpsAccolades";
