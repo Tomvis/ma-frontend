@@ -183,6 +183,9 @@ export class MusicAssistantApi {
   // and when the full state is (re)fetched, so a change made from another client is
   // picked up on the next (re)connect.
   private _coreConfigValues = new Map<string, Promise<ConfigValueType>>();
+  // Item uris each digarr Discover row last returned, keyed by row, so song
+  // actions are offered only on songs digarr actually recommended.
+  private _digarrRowUris = new Map<string, Set<string>>();
   public hasStreamingProviders = computed(() => {
     return Object.values(this.providers).some((p) => p.is_streaming_provider);
   });
@@ -1810,7 +1813,7 @@ export class MusicAssistantApi {
     // global error toast.
     // providers: source provider instance ids to include (only rows with
     // supports_provider_filter accept this); omit for the unfiltered row.
-    return this.sendCommand(
+    const items = await this.sendCommand<MediaItemTypeOrItemMapping[]>(
       "music/recommendations/items",
       {
         provider,
@@ -1819,6 +1822,21 @@ export class MusicAssistantApi {
       },
       { suppressGlobalError: true },
     );
+    if (provider.startsWith("digarr--") && Array.isArray(items)) {
+      this._digarrRowUris.set(
+        `${provider}/${item_id}`,
+        new Set(items.map((item) => item.uri)),
+      );
+    }
+    return items;
+  }
+
+  public isDigarrRecommendation(uri: string): boolean {
+    // True when a digarr Discover row fetched in this session holds the item.
+    for (const uris of this._digarrRowUris.values()) {
+      if (uris.has(uri)) return true;
+    }
+    return false;
   }
 
   public async getSoundEffects(): Promise<SoundEffect[]> {

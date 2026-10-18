@@ -1019,6 +1019,67 @@ export const getContextMenuItems = async function (
     });
   }
 
+  // digarr song actions — only on a song a digarr Discover row returned, since
+  // tracks are everywhere and the server refuses an untracked one anyway. No
+  // Block: rejecting one song must never block its whole artist. Undo only flips
+  // digarr back to pending; songpick's Lidarr want stays, and the toast says so.
+  if (
+    digarrLoaded &&
+    items.length === 1 &&
+    items[0].media_type === MediaType.TRACK &&
+    api.isDigarrRecommendation(items[0].uri)
+  ) {
+    const song = items[0];
+    contextMenuItems.push({
+      label: "digarr.approve",
+      labelArgs: [],
+      action: async () => {
+        const id = toast.loading($t("digarr.song_approving", [song.name]));
+        try {
+          const result = await api.digarrApprove(song.uri);
+          if (result.status === "duplicate") {
+            toast.success($t("digarr.song_owned", [song.name]), { id });
+          } else {
+            toast.success($t("digarr.song_approved", [song.name]), {
+              id,
+              duration: 8000,
+              action: {
+                label: $t("digarr.undo"),
+                onClick: async () => {
+                  try {
+                    await api.digarrUndo(song.uri);
+                    toast.success($t("digarr.song_undone", [song.name]));
+                  } catch {
+                    // Global handler in api/index.ts shows the error toast.
+                  }
+                },
+              },
+            });
+          }
+        } catch {
+          // Global handler in api/index.ts shows the error toast.
+          toast.dismiss(id);
+        }
+        eventbus.emit("clearSelection");
+      },
+      icon: "mdi-check",
+    });
+    contextMenuItems.push({
+      label: "digarr.reject",
+      labelArgs: [],
+      action: async () => {
+        try {
+          await api.digarrReject(song.uri);
+          toast.success($t("digarr.rejected", [song.name]));
+        } catch {
+          // Global handler in api/index.ts shows the error toast.
+        }
+        eventbus.emit("clearSelection");
+      },
+      icon: "mdi-close",
+    });
+  }
+
   // remove from library (a personal playlist only by whoever manages it)
   const managesSelectedPlaylists = items.every(
     (item) =>

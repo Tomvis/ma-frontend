@@ -103,7 +103,11 @@
         "undone_kept": "\"{0}\" reverted, but was left in Lidarr",
         "undone_kept_not_added_by_digarr": "\"{0}\" reverted; it was left in Lidarr because digarr didn't add it there",
         "undone_kept_has_files": "\"{0}\" reverted, but was left in Lidarr because it already has files",
-        "undone_kept_removal_failed": "\"{0}\" reverted, but removing it from Lidarr failed"
+        "undone_kept_removal_failed": "\"{0}\" reverted, but removing it from Lidarr failed",
+        "song_approving": "Sending \"{0}\" to Lidarr via digarr… this can take a few minutes",
+        "song_approved": "\"{0}\" approved and wanted in Lidarr",
+        "song_owned": "\"{0}\" is already in your library",
+        "song_undone": "\"{0}\" is pending in digarr again; Lidarr still wants it"
     },
     "lidarr": {
         "adding": "Sending \"{0}\" to Lidarr…",
