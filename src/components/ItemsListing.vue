@@ -12,7 +12,7 @@
       :icon-action="iconAction"
       :title="title"
       :subtitle="subtitle"
-      :count="params.search ? pagedItems.length : total || allItems.length"
+      :count="params.search ? pagedItems.length : (total ?? pagedItems.length)"
       color="transparent"
       :menu-items="menuItems"
       :enforce-overflow-menu="!showToolbarIcons"
@@ -53,10 +53,7 @@
       </template>
     </Toolbar>
 
-    <div
-      v-if="props.sortListing && !store.mobileLayout"
-      class="listing-sort-chips-row h-12"
-    >
+    <div v-if="showSortChipsRow" class="listing-sort-chips-row h-12">
       <LibrarySortControls
         v-if="sortOptionsLoaded && sortOptions.length"
         mode="chips"
@@ -233,7 +230,9 @@
               :is-playing="isPlaying(item, itemtype)"
               :disable-play-button="isPlayActionInProgress"
               :parent-item="parentItem"
-              :sort-by="params.sortBy"
+              :sort-by="props.sortListing ? undefined : params.sortBy"
+              :sort-field="displayedSort.sortField"
+              :sort-direction="displayedSort.sortDirection"
               @select="onSelect"
             />
           </v-col>
@@ -255,7 +254,9 @@
               :is-playing="isPlaying(item, itemtype)"
               :disable-play-button="isPlayActionInProgress"
               :parent-item="parentItem"
-              :sort-by="params.sortBy"
+              :sort-by="props.sortListing ? undefined : params.sortBy"
+              :sort-field="displayedSort.sortField"
+              :sort-direction="displayedSort.sortDirection"
               @select="onSelect"
             />
           </v-col>
@@ -284,7 +285,9 @@
               :is-playing="isPlaying(item, itemtype)"
               :disable-play-button="isPlayActionInProgress"
               :parent-item="parentItem"
-              :sort-by="params.sortBy"
+              :sort-by="props.sortListing ? undefined : params.sortBy"
+              :sort-field="displayedSort.sortField"
+              :sort-direction="displayedSort.sortDirection"
               @select="onSelect"
             />
             <ListviewItem
@@ -305,7 +308,9 @@
               :show-details="itemtype.includes('versions')"
               :disable-play-button="isPlayActionInProgress"
               :parent-item="parentItem"
-              :sort-by="params.sortBy"
+              :sort-by="props.sortListing ? undefined : params.sortBy"
+              :sort-field="displayedSort.sortField"
+              :sort-direction="displayedSort.sortDirection"
               @select="onSelect"
             />
           </template>
@@ -359,7 +364,9 @@
               anchor.y,
               parentItem,
               true,
-              params.sortBy,
+              undefined,
+              displayedSort.sortField,
+              displayedSort.sortDirection,
             )
         "
       >
@@ -481,6 +488,7 @@ import {
   PodcastEpisode,
   ProviderFeature,
   ProviderType,
+  SortDirection,
   Radio,
   SortField,
   type Album,
@@ -494,7 +502,6 @@ import {
 import { eventbus } from "@/plugins/eventbus";
 import { store } from "@/plugins/store";
 import {
-  ArrowUpDown,
   CheckCheck,
   ChevronDown,
   ChevronUp,
@@ -574,7 +581,7 @@ export interface Props {
   // music providers).
   providerFilterOptions?: string[];
   // when set, the explicit provider list above also offers the library, as its
-  // first option: loadItems is handed "library" while it is the selected one
+  // first option
   libraryFilterOption?: boolean;
   // the option a required selection starts on, when nothing valid is stored
   // (default: the first one offered)
@@ -600,8 +607,6 @@ export interface Props {
   extraMenuItems?: ToolBarMenuItem[];
   // loadPagedData callback is provided for serverside paging/sorting
   loadPagedData?: LoadPagedDataFn;
-  // loadItems callback is provided for flat non-paged listings
-  loadItems?: (params: LoadDataParams) => Promise<MediaItemType[]>;
   limit?: number;
   total?: number;
   infiniteScroll?: boolean;
@@ -676,7 +681,6 @@ const props = withDefaults(defineProps<Props>(), {
   showHideFullyPlayedFilter: false,
   extraMenuItems: undefined,
   loadPagedData: undefined,
-  loadItems: undefined,
   path: undefined,
   icon: undefined,
   iconAction: undefined,
@@ -711,7 +715,7 @@ const itemtypeAddedPrefix = (itemtype: string): string | undefined =>
 
 // Apply a MEDIA_ITEM_{UPDATED,DELETED,PLAYED} event in-place to the given
 // item arrays. Used both by the live in-component listener (against
-// pagedItems / allItems refs) and by the "detached" listener that keeps
+// pagedItems ref) and by the "detached" listener that keeps
 // the cached restore-state snapshot fresh while no listing is mounted.
 const applyMediaEventToItems = (
   evt: EventMessage,
@@ -788,9 +792,8 @@ const getActiveTab = () => {
 };
 
 const {
-  allItems,
   allItemsReceived,
-  initialDataReceived,
+  displayedSort,
   isDisposed,
   librarySorting,
   loadAllItems,
@@ -811,6 +814,14 @@ const {
 // load a page of its own
 const loadPending = computed(
   () => loading.value || (!!props.sortListing && !sortOptionsLoaded.value),
+);
+// the desktop row of quick sorts keeps its height while the sort options load,
+// so the items do not shift; a listing without quick sorts has no row
+const showSortChipsRow = computed(
+  () =>
+    !!props.sortListing &&
+    !store.mobileLayout &&
+    (!sortOptionsLoaded.value || librarySorting.quickOptions.value.length > 0),
 );
 
 watch(
@@ -919,8 +930,11 @@ const discNumber = (i: MediaItemType) =>
 const listDisplayItems = computed<(MediaItemType | DiscHeader)[]>(() => {
   const multiDisc =
     props.itemtype === "albumtracks" &&
-    allItems.value.some((i) => (discNumber(i) ?? 0) > 1);
-  if (!multiDisc || params.value.sortBy !== "track_number") {
+    pagedItems.value.some((i) => (discNumber(i) ?? 0) > 1);
+  const isTrackNumberAscending =
+    displayedSort.value.sortField === SortField.TRACK_NUMBER &&
+    displayedSort.value.sortDirection === SortDirection.ASC;
+  if (!multiDisc || !isTrackNumberAscending) {
     return pagedItems.value;
   }
   const result: (MediaItemType | DiscHeader)[] = [];
@@ -1543,12 +1557,18 @@ const hasActiveFilters = computed(() => {
   );
 });
 
-// total number of items this listing represents. For flat (loadItems)
-// listings every item is loaded up front, so allItems holds the true total.
-// Server-paged listings only know their total when the parent passes it.
+// Server-paged listings only know their total when the parent passes it. An
+// unfiltered listing that is loaded to its end, or holds less than a page,
+// counts what it holds: a small listing then keeps search hidden while it
+// (re)loads.
 const totalItemCount = computed(() => {
   if (props.total !== undefined) return props.total;
-  if (props.loadItems != null) return allItems.value.length;
+  if (
+    !hasActiveFilters.value &&
+    (allItemsReceived.value || pagedItems.value.length < props.limit)
+  ) {
+    return pagedItems.value.length;
+  }
   // server-paged without a known total: assume large enough to warrant search
   return Number.POSITIVE_INFINITY;
 });
@@ -1615,7 +1635,7 @@ const musicProviders = computed(() => {
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
     if (!props.libraryFilterOption) return providers;
-    // the library is not a provider instance: loadItems is handed "library"
+    // the library is not a provider instance: the listing callback is handed "library"
     return [{ label: t("source_library"), value: "library" }, ...providers];
   }
 
@@ -1914,25 +1934,6 @@ const menuItems = computed(() => {
     });
   }
 
-  // sort options
-  if (!props.sortListing && props.sortKeys?.length) {
-    items.push({
-      label: "tooltip.sort_options",
-      icon: ArrowUpDown,
-      disabled: props.sortKeys.length <= 1 || loading.value,
-      overflowAllowed: true,
-      subItems: props.sortKeys.map((sortKey) => {
-        return {
-          label: `sort.${sortKey}`,
-          selected: params.value.sortBy == sortKey,
-          action: () => {
-            changeSort(sortKey);
-          },
-        };
-      }),
-    });
-  }
-
   // toggle search (auto-hidden for small listings)
   if (searchAvailable.value) {
     items.push({
@@ -2030,9 +2031,8 @@ const menuItems = computed(() => {
   return items;
 });
 
-// Re-derive from the current props.path: browse reuses one ItemsListing
-// instance across folders, so a ref bound to the mount-time path would read
-// and reset the wrong folder's saved sort/view settings.
+// Re-derive from the current props.path: a listing that stays mounted while
+// its path changes must not read and reset the settings saved for the old path.
 const savedPrefs = computed(
   () =>
     getItemsListingPreferences(props.path || props.itemtype, props.itemtype)
@@ -2301,6 +2301,10 @@ const subscribeAdded = (onAdded: () => void): (() => void) | undefined => {
 if (props.restoreState) {
   // handle restore state
   onBeforeUnmount(() => {
+    if (loading.value || loadError.value) {
+      store.prevState = undefined;
+      return;
+    }
     const key = props.path || props.itemtype;
     const el = document.querySelector(".content-section");
 
@@ -2315,10 +2319,9 @@ if (props.restoreState) {
       carried: offeredCarriedProvider() !== undefined,
       scrollPos: el?.scrollTop || 0,
       pagedItems: pagedItems.value,
-      allItems: allItems.value,
       allItemsReceived: allItemsReceived.value,
-      initialDataReceived: initialDataReceived.value,
       params: params.value,
+      displayedSort: displayedSort.value,
     };
     store.prevState = snapshot;
 
@@ -2333,18 +2336,14 @@ if (props.restoreState) {
         EventType.MEDIA_ITEM_PLAYED,
       ],
       (evt: EventMessage) => {
-        applyMediaEventToItems(evt, snapshot.pagedItems, snapshot.allItems);
+        applyMediaEventToItems(evt, snapshot.pagedItems);
       },
     );
     const unsubAdded = subscribeAdded(() => {
       snapshot.newContentAvailable = true;
     });
     const unsubFavorites = subscribeOwnFavorites((update) => {
-      applyFavoriteUpdateToItems(
-        update,
-        snapshot.pagedItems,
-        snapshot.allItems,
-      );
+      applyFavoriteUpdateToItems(update, snapshot.pagedItems);
     });
     setDetachedPrevStateUnsub(() => {
       unsubUpdated();
@@ -2380,7 +2379,6 @@ watch(
     if (loading.value == true) return;
     // completely reset if the path changes
     pagedItems.value = [];
-    allItems.value = [];
     loadData(true);
   },
 );
@@ -2391,7 +2389,6 @@ watch(
     if (props.refreshOnParentUpdate) {
       loadData(true);
     } else {
-      allItems.value = [];
       newContentAvailable.value = true;
     }
   },
@@ -2522,7 +2519,7 @@ onMounted(async () => {
   // branch below it lands in:
   // - snapshot is ours (path == key): we reclaim ownership of it — the live
   //   in-component listener (registered later in this onMounted) keeps
-  //   pagedItems/allItems fresh from here on, so the bridge is redundant.
+  //   pagedItems fresh from here on, so the bridge is redundant.
   // - snapshot belongs to another listing: our own unmount will overwrite
   //   prevState, so that bridge can never be reclaimed. Tear it down now
   //   instead of leaking it (it would otherwise keep running
@@ -2535,14 +2532,17 @@ onMounted(async () => {
     props.restoreState &&
     store.prevState?.path == key &&
     store.prevState.parentUri == props.parentItem?.uri &&
+    store.prevState.params.sortField ===
+      store.prevState.displayedSort.sortField &&
+    store.prevState.params.sortDirection ===
+      store.prevState.displayedSort.sortDirection &&
     cachedVisitApplies()
   ) {
     restoredFromPrevState = true;
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
-    allItems.value = store.prevState.allItems;
+    displayedSort.value = store.prevState.displayedSort;
     allItemsReceived.value = store.prevState.allItemsReceived;
-    initialDataReceived.value = store.prevState.initialDataReceived;
     // If items were added to this library while we were unmounted, surface
     // the banner so the user can refresh — and clear the flag on the
     // snapshot so a subsequent reclaim without new adds starts clean.
@@ -2601,7 +2601,7 @@ onMounted(async () => {
         EventType.MEDIA_ITEM_PLAYED,
       ],
       (evt: EventMessage) => {
-        applyMediaEventToItems(evt, pagedItems.value, allItems.value);
+        applyMediaEventToItems(evt, pagedItems.value);
       },
     ),
     subscribeAdded(() => {
@@ -2616,7 +2616,7 @@ onMounted(async () => {
   // the same item on more than one row (a playlist listing a track twice), and
   // every one of them shows the state.
   _unsubscribeFavorites = subscribeOwnFavorites((update) => {
-    applyFavoriteUpdateToItems(update, pagedItems.value, allItems.value);
+    applyFavoriteUpdateToItems(update, pagedItems.value);
   });
 });
 
@@ -2631,9 +2631,12 @@ watch(
 );
 
 const selectAll = async function () {
-  // We use the total length even when searching, since we can't know
-  // how many items will be loaded after filtering
-  const itemCount = props.total || allItems.value.length;
+  // Unknown server totals are treated conservatively to avoid instant selection.
+  const itemCount =
+    props.total ??
+    (allItemsReceived.value
+      ? pagedItems.value.length
+      : Number.POSITIVE_INFINITY);
   if (itemCount <= 250) {
     await selectEveryItem();
     return;
@@ -2650,7 +2653,8 @@ const selectAll = async function () {
 };
 
 defineExpose({
-  sortBy: computed(() => params.value.sortBy),
+  sortField: computed(() => displayedSort.value.sortField),
+  sortDirection: computed(() => displayedSort.value.sortDirection),
   reload: () => loadData(true, true),
   // Force a full reload from the server. Used by host views (LibraryListenLater)
   // that need to drop rows whose server-side state changes mean they no longer
