@@ -49,6 +49,7 @@ import { registerPlugins } from "@/plugins";
 import { installSendspinInterceptor } from "@/plugins/sendspin-connection";
 // Home theme (HW-48, fork): after every other style import
 import "@/plugins/home-theme";
+import "@/plugins/home-language";
 installSendspinInterceptor();
 
 // Embedded (e.g. the Home Assistant panel): the host sizes our viewport and

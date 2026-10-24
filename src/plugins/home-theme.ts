@@ -94,10 +94,11 @@ watch(
 );
 api.subscribe(
   EventType.PROVIDER_EVENT,
-  (event: { data?: { user_id?: string } }) => {
+  (event: { data?: { user_id?: string; setting?: string } }) => {
     if (
       event.data?.user_id &&
-      event.data.user_id === store.currentUser?.user_id
+      event.data.user_id === store.currentUser?.user_id &&
+      event.data.setting !== "home_language"
     )
       void refreshHomeTheme();
   },

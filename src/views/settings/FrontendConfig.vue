@@ -59,6 +59,10 @@ import { companionMode } from "@/plugins/companion";
 import { eventbus } from "@/plugins/eventbus";
 import { getKioskModePreference } from "@/plugins/homeassistant";
 import {
+  homeLanguageEntry,
+  saveHomeLanguageEntry,
+} from "@/plugins/home-language";
+import {
   homeThemeEntry,
   saveHomeThemeEntry,
 } from "@/plugins/home-theme-settings";
@@ -121,7 +125,7 @@ onMounted(() => {
       category: "preferences",
       value: (store.currentUser?.preferences?.theme as string) || storedTheme,
     }),
-    {
+    homeLanguageEntry({
       key: "language",
       type: ConfigEntryType.STRING,
       label: "language",
@@ -138,7 +142,7 @@ onMounted(() => {
       value:
         (store.currentUser?.preferences?.language as string) ||
         localStorage.getItem("frontend.settings.language"),
-    },
+    }),
     {
       // Menu items are managed in the sidebar's edit mode; this button is the
       // muscle-memory path for users who look for the old setting here.
@@ -357,6 +361,7 @@ const saveValues = async function (values: Record<string, ConfigValueType>) {
       // Action-only entries carry no persistable value
       if (entry.type === ConfigEntryType.ACTION) continue;
       if (await saveHomeThemeEntry(key, values[key])) continue;
+      if (await saveHomeLanguageEntry(key, values[key])) continue;
 
       if (DEVICE_SETTING_KEYS.has(key)) {
         // Save to localStorage (per-device settings)
