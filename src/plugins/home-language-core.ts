@@ -10,6 +10,7 @@
  * The choice wins while its basis matches the claim's override; otherwise the
  * claim does. No claim → upstream's own language preference.
  */
+import { ref } from "vue";
 import { getLocaleDisplayName, resolveLocale } from "./i18n";
 import { FOLLOW } from "./home-theme-core";
 
@@ -31,6 +32,9 @@ export interface EffectiveLanguage {
   locale: string;
   source: "app" | "home";
 }
+
+/** The signed-in user's state from the server; null = upstream behaviour. */
+export const homeLanguageState = ref<HomeLanguageState | null>(null);
 
 // right-to-left scripts among MA's translations (and Vuetify's own list)
 const RTL_LANGUAGES = new Set(["ar", "fa", "he", "ur", "yi", "ckb"]);

@@ -61,7 +61,7 @@ import { getKioskModePreference } from "@/plugins/homeassistant";
 import {
   homeLanguageEntry,
   saveHomeLanguageEntry,
-} from "@/plugins/home-language";
+} from "@/plugins/home-language-settings";
 import {
   homeThemeEntry,
   saveHomeThemeEntry,

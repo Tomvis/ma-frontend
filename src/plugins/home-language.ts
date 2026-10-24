@@ -4,33 +4,22 @@
  *
  * Upstream's App.vue still applies the language preference; this re-applies
  * the home language over it, so App.vue stays byte-identical to upstream.
- * State and rules: home-language-core.ts. Settings › Interface "Language"
- * becomes "Follow home language" plus every locale, saved per user on the
- * server (home_language/choose) instead of in the preferences.
+ * State and rules: home-language-core.ts; the Settings entry:
+ * home-language-settings.ts.
  */
 import { api, ConnectionState } from "@/plugins/api";
-import type { ConfigEntry, ConfigValueType } from "@/plugins/api/interfaces";
 import { EventType } from "@/plugins/api/interfaces";
 import { authManager } from "@/plugins/auth";
 import { i18n } from "@/plugins/i18n";
 import { store } from "@/plugins/store";
-import { computed, ref, watch } from "vue";
+import { watch } from "vue";
 import {
+  homeLanguageState,
   isRtlLocale,
-  languageOptions,
-  resolveHomeLanguage,
   type HomeLanguageState,
 } from "./home-language-core";
-import { FOLLOW } from "./home-theme-core";
+import { homeLanguageEffective } from "./home-language-settings";
 import vuetify from "./vuetify";
-
-const ENTRY_KEY = "language";
-
-export const homeLanguageState = ref<HomeLanguageState | null>(null);
-const available = () => Array.from(i18n.global.availableLocales);
-export const homeLanguageEffective = computed(() =>
-  resolveHomeLanguage(homeLanguageState.value, available()),
-);
 
 function applyLanguage(): void {
   const effective = homeLanguageEffective.value;
@@ -67,45 +56,6 @@ export async function refreshHomeLanguage(): Promise<void> {
     // a server without home_language: upstream behaviour
     homeLanguageState.value = null;
   }
-}
-
-/** Upstream's language entry, or the home language one when the server has it. */
-export function homeLanguageEntry(entry: ConfigEntry): ConfigEntry {
-  const state = homeLanguageState.value;
-  if (!state) return entry;
-  const effective = homeLanguageEffective.value;
-  return {
-    ...entry,
-    default_value: FOLLOW,
-    options: languageOptions(
-      available(),
-      state.claim,
-      i18n.global.locale.value,
-    ),
-    value: effective?.source === "app" ? effective.locale : FOLLOW,
-  };
-}
-
-/**
- * Handle the language entry on save. Says whether it did (the caller then
- * skips it), which is only when the home language is in use.
- */
-export async function saveHomeLanguageEntry(
-  key: string,
-  value: ConfigValueType,
-): Promise<boolean> {
-  if (key !== ENTRY_KEY || !homeLanguageState.value) return false;
-  const effective = homeLanguageEffective.value;
-  const current = effective?.source === "app" ? effective.locale : FOLLOW;
-  if (value !== current) {
-    const language =
-      typeof value === "string" && value !== FOLLOW ? value : null;
-    homeLanguageState.value = await api.sendCommand<HomeLanguageState>(
-      "home_language/choose",
-      language ? { language } : {},
-    );
-  }
-  return true;
 }
 
 watch(homeLanguageEffective, applyLanguage);
