@@ -944,7 +944,9 @@ describe("Home Assistant sign in", () => {
   beforeEach(() => {
     mocks.sendCommand.mockImplementation((command: string) =>
       Promise.resolve(
-        command === "auth/providers" ? [{ provider_id: "homeassistant" }] : [],
+        command === "auth/providers"
+          ? [{ provider_id: "builtin" }, { provider_id: "homeassistant" }]
+          : [],
       ),
     );
   });
@@ -999,6 +1001,7 @@ describe("OIDC sign in visibility", () => {
       Promise.resolve(
         command === "auth/providers"
           ? [
+              { provider_id: "builtin" },
               { provider_id: "homeassistant" },
               {
                 provider_id: "oidc",
@@ -1018,6 +1021,38 @@ describe("OIDC sign in visibility", () => {
 
     expect(wrapper.text()).toContain("Sign in with Authentik");
     expect(wrapper.text()).toContain("Sign in with Home Assistant");
+    expect(wrapper.text()).toContain("Username");
+  });
+
+  it("hides the password form on an OIDC-only server (HW-250)", async () => {
+    mocks.sendCommand.mockImplementation((command: string) =>
+      Promise.resolve(
+        command === "auth/providers"
+          ? [
+              {
+                provider_id: "oidc",
+                name: "Authentik",
+                requires_redirect: true,
+              },
+            ]
+          : [],
+      ),
+    );
+    mockHostedFrontend();
+    const wrapper = mountLogin();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Sign in with Authentik");
+    expect(wrapper.text()).not.toContain("Username");
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+  });
+
+  it("keeps the password form when the provider list is unavailable", async () => {
+    mocks.sendCommand.mockImplementation(() => Promise.resolve([]));
+    mockHostedFrontend();
+    const wrapper = mountLogin();
+    await flushPromises();
+
     expect(wrapper.text()).toContain("Username");
   });
 
@@ -1134,6 +1169,7 @@ describe("Home Assistant sign in over Remote Access", () => {
       Promise.resolve(
         command === "auth/providers"
           ? [
+              { provider_id: "builtin" },
               {
                 provider_id: "homeassistant",
                 supports_remote_app: supportsRemoteApp,

@@ -164,68 +164,70 @@
                 </div>
 
                 <!-- Username Field -->
-                <div class="mb-4">
-                  <label class="text-body-2 font-weight-medium mb-2 d-block">
-                    {{ $t("login.username", "Username") }}
-                  </label>
-                  <v-text-field
-                    v-model="username"
-                    :placeholder="
-                      $t('login.username_placeholder', 'Enter your username')
-                    "
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    :disabled="isAuthenticating"
-                    autofocus
-                    autocomplete="username"
-                    autocapitalize="none"
-                    autocorrect="off"
-                    spellcheck="false"
-                  />
-                </div>
+                <template v-if="hasPasswordAuth">
+                  <div class="mb-4">
+                    <label class="text-body-2 font-weight-medium mb-2 d-block">
+                      {{ $t("login.username", "Username") }}
+                    </label>
+                    <v-text-field
+                      v-model="username"
+                      :placeholder="
+                        $t('login.username_placeholder', 'Enter your username')
+                      "
+                      variant="outlined"
+                      density="comfortable"
+                      hide-details="auto"
+                      :disabled="isAuthenticating"
+                      autofocus
+                      autocomplete="username"
+                      autocapitalize="none"
+                      autocorrect="off"
+                      spellcheck="false"
+                    />
+                  </div>
 
-                <!-- Password Field -->
-                <div class="mb-6">
-                  <label class="text-body-2 font-weight-medium mb-2 d-block">
-                    {{ $t("login.password", "Password") }}
-                  </label>
-                  <v-text-field
-                    v-model="password"
-                    :placeholder="
-                      $t('login.password_placeholder', 'Enter your password')
-                    "
-                    :type="showPassword ? 'text' : 'password'"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    :append-inner-icon="
-                      showPassword ? 'mdi-eye-off' : 'mdi-eye'
-                    "
-                    :error-messages="loginError"
-                    :disabled="isAuthenticating"
-                    autocomplete="current-password"
-                    autocapitalize="none"
-                    autocorrect="off"
-                    spellcheck="false"
-                    @click:append-inner="showPassword = !showPassword"
-                    @keyup.enter="login"
-                  />
-                </div>
+                  <!-- Password Field -->
+                  <div class="mb-6">
+                    <label class="text-body-2 font-weight-medium mb-2 d-block">
+                      {{ $t("login.password", "Password") }}
+                    </label>
+                    <v-text-field
+                      v-model="password"
+                      :placeholder="
+                        $t('login.password_placeholder', 'Enter your password')
+                      "
+                      :type="showPassword ? 'text' : 'password'"
+                      variant="outlined"
+                      density="comfortable"
+                      hide-details="auto"
+                      :append-inner-icon="
+                        showPassword ? 'mdi-eye-off' : 'mdi-eye'
+                      "
+                      :error-messages="loginError"
+                      :disabled="isAuthenticating"
+                      autocomplete="current-password"
+                      autocapitalize="none"
+                      autocorrect="off"
+                      spellcheck="false"
+                      @click:append-inner="showPassword = !showPassword"
+                      @keyup.enter="login"
+                    />
+                  </div>
 
-                <!-- Sign In Button -->
-                <v-btn
-                  color="primary"
-                  size="x-large"
-                  block
-                  rounded="lg"
-                  class="mb-6 text-none"
-                  :loading="isAuthenticating"
-                  :disabled="!username.trim() || !password.trim()"
-                  @click="login"
-                >
-                  {{ $t("login.sign_in", "Sign In") }}
-                </v-btn>
+                  <!-- Sign In Button -->
+                  <v-btn
+                    color="primary"
+                    size="x-large"
+                    block
+                    rounded="lg"
+                    class="mb-6 text-none"
+                    :loading="isAuthenticating"
+                    :disabled="!username.trim() || !password.trim()"
+                    @click="login"
+                  >
+                    {{ $t("login.sign_in", "Sign In") }}
+                  </v-btn>
+                </template>
 
                 <!-- Home Assistant OAuth Button -->
                 <v-btn
@@ -249,6 +251,16 @@
                     $t("login.sign_in_with_ha", "Sign in with Home Assistant")
                   }}
                 </v-btn>
+
+                <v-alert
+                  v-if="!hasPasswordAuth && loginError"
+                  type="error"
+                  variant="tonal"
+                  density="compact"
+                  class="mb-4"
+                >
+                  {{ loginError }}
+                </v-alert>
 
                 <OidcLoginButton
                   v-if="hasOidcAuth && oidcProvider"
@@ -642,6 +654,12 @@ const hasHomeAssistantAuth = computed(
     (!isRemoteConnection.value ||
       canReturnToRemoteApp.value ||
       !!api.serverInfo.value?.external_url),
+);
+// Fork (HW-250): an OIDC-only server leaves builtin out; an unknown list keeps the form.
+const hasPasswordAuth = computed(
+  () =>
+    authProviders.value.length === 0 ||
+    authProviders.value.some((provider) => provider.provider_id === "builtin"),
 );
 const oidcProvider = computed(() =>
   authProviders.value.find((provider) => provider.provider_id === "oidc"),
