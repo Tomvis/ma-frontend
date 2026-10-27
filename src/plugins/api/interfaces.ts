@@ -1124,6 +1124,8 @@ export interface ReviewSourceEntry {
   authors?: string[];
   // the review's full text, plain with blank-line paragraph breaks (3.6.0+)
   review?: string;
+  // the post type `review` came from: "review", "tymhm", "rfu", "ymio" or "lit" (3.8.0+)
+  review_type?: string;
   // DEPRECATED (<= 3.1.1): the separate review-kind / award-label lists, superseded by
   // `accolades`. Still accepted from pre-3.2.0 servers during the transition.
   types?: string[];

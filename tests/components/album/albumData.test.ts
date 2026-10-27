@@ -265,6 +265,38 @@ describe("albumData", () => {
     });
   });
 
+  describe("albumReview ranking (MUSIC-182)", () => {
+    const text = (source: "AMG" | "TPS", review_type?: string) => ({
+      source,
+      review: `${source} ${review_type ?? "untyped"}.`,
+      review_type,
+    });
+    const pick = (...sources: ReturnType<typeof text>[]) =>
+      albumReview(album({ metadata: { critical_reception: { sources } } }));
+
+    it("lets a TPS review beat an AMG TYMHM", () => {
+      expect(pick(text("AMG", "tymhm"), text("TPS", "review"))).toMatch(
+        /^TPS review\./,
+      );
+    });
+
+    it("falls back TYMHM, then RFU, then YMIO, then LIT", () => {
+      expect(pick(text("TPS", "rfu"), text("AMG", "tymhm"))).toMatch(
+        /^AMG tymhm/,
+      );
+      expect(pick(text("AMG", "ymio"), text("TPS", "rfu"))).toMatch(/^TPS rfu/);
+      expect(pick(text("TPS", "lit"), text("AMG", "ymio"))).toMatch(
+        /^AMG ymio/,
+      );
+      expect(pick(text("TPS", "lit"))).toMatch(/^TPS lit/);
+    });
+
+    it("ranks untyped text as a review, AMG first among equals", () => {
+      expect(pick(text("TPS"), text("AMG"))).toMatch(/^AMG untyped/);
+      expect(pick(text("AMG", "tymhm"), text("TPS"))).toMatch(/^TPS untyped/);
+    });
+  });
+
   describe("albumDuration", () => {
     it("adds up what the tracks last", () => {
       expect(

@@ -88,15 +88,32 @@ function signedReview(source: ReviewSourceEntry): string {
 }
 
 /**
- * The album's review: AMG's text, then TPS's (both from our own file tags),
- * then the review or description its metadata providers found.
+ * Post types whose text a review source carries, best first (MUSIC-182): a review,
+ * then AMG's TYMHM, TPS's RFU, AMG's YMIO, TPS's LIT. Text without a type predates
+ * the type tag and is a review or a TYMHM/LIT write-up; it ranks as a review.
+ */
+const REVIEW_TYPE_RANK = ["review", "tymhm", "rfu", "ymio", "lit"];
+
+function reviewRank(source: ReviewSourceEntry): number {
+  const rank = REVIEW_TYPE_RANK.indexOf(source.review_type ?? "review");
+  return rank < 0 ? REVIEW_TYPE_RANK.length : rank;
+}
+
+/**
+ * The album's review: the best-ranked AMG/TPS text (from our own file tags), AMG's
+ * first among equals, then the review or description its metadata providers found.
  */
 export function albumReview(album: Album): string | undefined {
   const sources = album.metadata?.critical_reception?.sources ?? [];
-  for (const name of Object.keys(REVIEW_TEXT_SOURCES) as ReviewSource[]) {
-    const source = sources.find((s) => s.source === name && s.review);
-    if (source) return signedReview(source);
-  }
+  const names = Object.keys(REVIEW_TEXT_SOURCES) as ReviewSource[];
+  const best = sources
+    .filter((s) => names.includes(s.source) && s.review)
+    .sort(
+      (a, b) =>
+        reviewRank(a) - reviewRank(b) ||
+        names.indexOf(a.source) - names.indexOf(b.source),
+    )[0];
+  if (best) return signedReview(best);
   return album.metadata?.review || album.metadata?.description || undefined;
 }
 
