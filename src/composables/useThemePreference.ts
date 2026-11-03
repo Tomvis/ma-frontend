@@ -3,7 +3,7 @@ import { homeThemeEffective, homeThemeMode } from "@/plugins/home-theme-core";
 import { store } from "@/plugins/store";
 import { setStatusBarThemeColor } from "./useStatusBarColor";
 import { useColorMode } from "@vueuse/core";
-import { readonly, ref, watch } from "vue";
+import { computed, readonly, ref, watch } from "vue";
 import { useTheme } from "vuetify";
 
 const THEME_STORAGE_KEY = "frontend.settings.theme";
@@ -15,6 +15,10 @@ const GUEST_THEME_STORAGE_KEY = "frontend.settings.guest_theme";
 // so keep a single module-level listener that re-applies the Vuetify theme.
 let systemSchemeQuery: MediaQueryList | undefined;
 let systemSchemeListener: (() => void) | undefined;
+
+// starts dark like Vuetify's default theme, until a preference is applied
+const currentTheme = ref<"light" | "dark">("dark");
+export const isDark = computed(() => currentTheme.value === "dark");
 
 export const THEME_PREFERENCES = ["auto", "light", "dark"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
@@ -59,10 +63,15 @@ export function useThemePreference() {
         : "light";
 
     themePreference.value = preference;
-    theme.change(resolvedTheme);
+    applyResolvedTheme(resolvedTheme);
     colorMode.value = preference === "auto" ? "auto" : resolvedTheme;
-    setStatusBarThemeColor(theme.themes.value[resolvedTheme].colors.background);
     syncVuetifyToSystemScheme(preference);
+  }
+
+  function applyResolvedTheme(value: "light" | "dark"): void {
+    currentTheme.value = value;
+    theme.change(value);
+    setStatusBarThemeColor(theme.themes.value[value].colors.background);
   }
 
   function syncVuetifyToSystemScheme(preference: ThemePreference): void {
@@ -70,11 +79,7 @@ export function useThemePreference() {
       if (!systemSchemeListener && typeof window.matchMedia === "function") {
         systemSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
         systemSchemeListener = () => {
-          const resolvedTheme = systemSchemeQuery!.matches ? "dark" : "light";
-          theme.change(resolvedTheme);
-          setStatusBarThemeColor(
-            theme.themes.value[resolvedTheme].colors.background,
-          );
+          applyResolvedTheme(systemSchemeQuery!.matches ? "dark" : "light");
         };
         systemSchemeQuery.addEventListener("change", systemSchemeListener);
       }

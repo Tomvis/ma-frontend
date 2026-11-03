@@ -7,6 +7,7 @@ import { store } from "@/plugins/store";
 // ReviewFilterParams) lives with the feature in @/helpers/criticalReception;
 // this module only needs its param slice as a type, which is erased at build.
 import type { ReviewFilterParams } from "@/helpers/criticalReception";
+import { defaultShowActions } from "@/helpers/grid_size";
 
 /**
  * The preferences key an ItemsListing stores its per-listing settings under.
@@ -19,6 +20,7 @@ export const itemsListingPreferenceKey = (path: string, itemtype: string) =>
 export interface ItemsListingPreferences extends ReviewFilterParams {
   viewMode?: string;
   gridSize?: number;
+  showActions?: boolean;
   sortBy?: string;
   favoriteFilter?: boolean;
   libraryFilter?: boolean;
@@ -214,9 +216,7 @@ export function useUserPreferences() {
     key: keyof ItemsListingPreferences,
     value: ItemsListingPreferences[keyof ItemsListingPreferences],
   ): Promise<void> {
-    await setUserPreferences(
-      itemsListingPreferenceEntry(path, itemtype, key, value),
-    );
+    await setItemsListingPreferences(path, itemtype, { [key]: value });
   }
 
   /**
@@ -235,6 +235,47 @@ export function useUserPreferences() {
     return { [prefKey]: { ...currentPrefs.value, [key]: value } };
   }
 
+  /**
+   * Set several ItemsListing preferences for a specific path/itemtype at once.
+   *
+   * The values are copied as they are now, since the listing goes on changing
+   * its own arrays, and merged onto the listing's settings as they stand when
+   * the write's turn comes, so saves made in quick succession all keep their
+   * change.
+   */
+  async function setItemsListingPreferences(
+    path: string,
+    itemtype: string,
+    values: Partial<ItemsListingPreferences>,
+  ): Promise<void> {
+    const prefKey = itemsListingPreferenceKey(path, itemtype);
+    // a value set to undefined is kept here, so the merge below clears it
+    const snapshot = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [
+        key,
+        value === undefined ? undefined : JSON.parse(JSON.stringify(value)),
+      ]),
+    );
+    await updateUserPreferences((current) => {
+      const listing = current[prefKey] as ItemsListingPreferences | undefined;
+      return {
+        ...current,
+        // and dropped from what is stored
+        [prefKey]: JSON.parse(
+          JSON.stringify({
+            // a compact view's hidden actions outlive its view mode
+            ...("viewMode" in values &&
+            !defaultShowActions(listing?.viewMode, itemtype)
+              ? { showActions: false }
+              : {}),
+            ...listing,
+            ...snapshot,
+          }),
+        ),
+      };
+    });
+  }
+
   return {
     currentUser,
     getPreference,
@@ -243,6 +284,7 @@ export function useUserPreferences() {
     getItemsListingPreferences,
     setItemsListingPreference,
     itemsListingPreferenceEntry,
+    setItemsListingPreferences,
   };
 }
 

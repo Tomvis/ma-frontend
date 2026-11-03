@@ -5,7 +5,6 @@ import type { AlbumListingFilterParams } from "@/helpers/criticalReception";
 import {
   ListingType,
   MediaItemType,
-  MediaType,
   ProviderInstance,
   SortDirection,
   SortField,
@@ -58,6 +57,9 @@ export interface StoredState {
   scrollPos: number;
   pagedItems: MediaItemType[];
   allItemsReceived: boolean;
+  // the count the title showed: the page's own total covers the whole library
+  // until it loads again, not the filters the visit was left on
+  count?: number;
   params: LoadDataParams;
   // Toggled true by the detached listener when a matching MEDIA_ITEM_ADDED
   // arrives while the listing is unmounted (e.g. a sync ran or the user

@@ -7,6 +7,7 @@
     :show-favorites-only-filter="true"
     :load-paged-data="loadItems"
     :sort-listing="ListingType.LIBRARY_ALBUMS"
+    library-toolbar
     :update-available="updateAvailable"
     :title="$t('albums')"
     :allow-key-hooks="true"
@@ -26,6 +27,7 @@
 <script setup lang="ts">
 import ItemsListing, { LoadDataParams } from "@/components/ItemsListing.vue";
 import { onLibrarySyncCompleted } from "@/composables/useLibrarySync";
+import { useListingTotal } from "@/composables/useListingTotal";
 import {
   albumCountArgsFromParams,
   albumFiltersFromParams,
@@ -42,7 +44,9 @@ defineOptions({
 });
 
 const updateAvailable = ref<boolean>(false);
-const total = ref(store.libraryAlbumsCount);
+const { total, setTotal, loadTotal } = useListingTotal(
+  store.libraryAlbumsCount,
+);
 
 onMounted(() => {
   // The per-view MEDIA_ITEM_ADDED listener is intentionally gone: ItemsListing
@@ -84,17 +88,15 @@ const setTotals = async function (params: LoadDataParams) {
     !params.genreIds &&
     !crFilter
   ) {
-    total.value = store.libraryAlbumsCount;
+    setTotal(store.libraryAlbumsCount);
     return;
   }
   // When provider filter is active, we can't get accurate count from the count endpoint
   // The total will be determined by the actual results returned
   if (params.provider && params.provider.length > 0) {
-    total.value = undefined;
+    setTotal(undefined);
     return;
   }
-  total.value = await api.getLibraryAlbumsCount(
-    albumCountArgsFromParams(params),
-  );
+  await loadTotal(api.getLibraryAlbumsCount(albumCountArgsFromParams(params)));
 };
 </script>
