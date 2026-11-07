@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   buildCriticalReceptionFilter,
+  REVIEW_SOURCES,
+  reviewFilterCount,
   type AlbumListingFilterParams,
 } from "./criticalReception";
 
@@ -53,5 +55,28 @@ describe("buildCriticalReceptionFilter", () => {
         params({ amgUntagged: true, criticalReceptionMatch: "all" }),
       ),
     ).toEqual({ amg_untagged: true });
+  });
+});
+
+describe("reviewFilterCount", () => {
+  it("counts each pick and switched-on toggle under its own source", () => {
+    const p = params({
+      drBuckets: ["excellent", "good"],
+      amgRatings: [4, 4.5],
+      amgAccolades: ["aoty"],
+      amgFavorite: true,
+      tpsUntagged: true,
+      criticalReceptionMatch: "any",
+    });
+    expect(reviewFilterCount(p, "dr")).toBe(2);
+    expect(reviewFilterCount(p, "amg")).toBe(4);
+    expect(reviewFilterCount(p, "tps")).toBe(1);
+  });
+
+  it("counts nothing for the match mode alone", () => {
+    const p = params({ criticalReceptionMatch: "any" });
+    for (const source of REVIEW_SOURCES) {
+      expect(reviewFilterCount(p, source)).toBe(0);
+    }
   });
 });

@@ -40,6 +40,11 @@
         v-if="filter.kind === 'multi'"
         :filter="filter"
       />
+      <ListingDialogFilterField
+        v-else-if="filter.kind === 'dialog'"
+        :filter="filter"
+        @open="emit('close')"
+      />
       <div v-else class="flex flex-col gap-2">
         <span :id="controlId(filter.id)" :class="SECTION_LABEL_CLASS">
           {{ filter.label }}
@@ -72,11 +77,13 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import type {
   ListingChoiceFilter,
+  ListingDialogFilter,
   ListingFilter,
   ListingMultiFilter,
   ListingToggleFilter,
 } from "@/helpers/listing_filters";
 import { computed, useId } from "vue";
+import ListingDialogFilterField from "./ListingDialogFilterField.vue";
 import ListingMultiFilterField from "./ListingMultiFilterField.vue";
 import { SECTION_LABEL_CLASS } from "./constants";
 
@@ -87,6 +94,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   clear: [];
+  // fork: a field moved on to its own dialog
+  close: [];
 }>();
 
 const titleId = useId();
@@ -100,7 +109,10 @@ const toggles = computed(() =>
 );
 const fields = computed(() =>
   props.filters.filter(
-    (filter): filter is ListingMultiFilter | ListingChoiceFilter =>
+    (
+      filter,
+    ): filter is
+      ListingMultiFilter | ListingChoiceFilter | ListingDialogFilter =>
       filter.kind !== "toggle",
   ),
 );

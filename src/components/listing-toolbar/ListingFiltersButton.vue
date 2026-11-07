@@ -1,5 +1,5 @@
 <template>
-  <Popover>
+  <Popover v-model:open="open">
     <!-- one button for both layouts: the popover anchors to the element the
          trigger first rendered, so swapping it out would leave it unplaced -->
     <PopoverTrigger as-child>
@@ -34,6 +34,7 @@
         :filters="filters"
         :has-active-filters="activeCount > 0"
         @clear="emit('clear')"
+        @close="open = false"
       />
     </PopoverContent>
   </Popover>
@@ -50,7 +51,7 @@ import {
 import { preventOnScreenKeyboardOnOpen } from "@/helpers/dialog_focus";
 import type { ListingFilter } from "@/helpers/listing_filters";
 import { ListFilter } from "@lucide/vue";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import ListingFiltersPanel from "./ListingFiltersPanel.vue";
 
@@ -65,6 +66,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// fork: held here so a field that opens its own dialog can close the panel
+const open = ref(false);
 
 const buttonLabel = computed(() =>
   props.activeCount

@@ -67,6 +67,23 @@ describe("activeFilterCount", () => {
   });
 });
 
+// fork: the review filters count from inside their dialog
+it("counts the narrowings a dialog filter holds", () => {
+  expect(
+    activeFilterCount([
+      toggleFilter(true),
+      {
+        kind: "dialog",
+        id: "reviews",
+        label: "Reviews",
+        summary: "AMG",
+        activeCount: 3,
+        open: vi.fn(),
+      },
+    ]),
+  ).toBe(4);
+});
+
 describe("listingItemCount", () => {
   it("trusts the page's count while it knows every filter", () => {
     expect(

@@ -510,6 +510,10 @@ import {
   ALBUM_TYPE_FILTER_KEYS,
   useListingFilters,
 } from "@/composables/useListingFilters";
+import {
+  REVIEW_LISTING_FILTER_ID,
+  useReviewListingFilter,
+} from "@/composables/useReviewListingFilter";
 import { useListingCount } from "@/composables/useListingCount";
 import { useListingSaves } from "@/composables/useListingSaves";
 import { canSavePlaylistMoves } from "@/composables/usePlaylistTrackReorder";
@@ -557,7 +561,11 @@ import {
   normalizeGridSize,
   PANEL_ACTIONS_MIN_WIDTH,
 } from "@/helpers/grid_size";
-import { activeFilterCount, clearedFilters } from "@/helpers/listing_filters";
+import {
+  activeFilterCount,
+  clearedFilters,
+  type ListingFilter,
+} from "@/helpers/listing_filters";
 import { returnedByHistory } from "@/helpers/navigation";
 import { panelViewItemResponsive, scrollElement } from "@/helpers/utils";
 import { api } from "@/plugins/api";
@@ -2013,7 +2021,7 @@ const sourceFilterOptions = computed(() => {
   }));
 });
 
-const listingFilters = useListingFilters(
+const upstreamListingFilters = useListingFilters(
   props,
   { params, genreOptions, providerOptions: sourceFilterOptions },
   {
@@ -2031,6 +2039,15 @@ const listingFilters = useListingFilters(
   },
 );
 
+// fork: the review filters ride in the same panel, as one field
+const reviewListingFilter = useReviewListingFilter(props, params, () => {
+  reviewFiltersOpen.value = true;
+});
+const listingFilters = computed<ListingFilter[]>(() => [
+  ...upstreamListingFilters.value,
+  ...reviewListingFilter.value,
+]);
+
 const activeFilters = computed(() => activeFilterCount(listingFilters.value));
 
 // turns every filter the panel offers back off, with a single save and reload
@@ -2038,6 +2055,13 @@ const clearFilters = function () {
   const offered = new Set(listingFilters.value.map((filter) => filter.id));
   const p = params.value;
   const cleared = clearedFilters(offered);
+  // fork: and the review filters, match mode included, in the same save
+  if (offered.has(REVIEW_LISTING_FILTER_ID)) {
+    for (const key of REVIEW_ALL_KEYS) {
+      (cleared.params as Record<string, unknown>)[key] = undefined;
+      (cleared.prefs as Record<string, unknown>)[key] = undefined;
+    }
+  }
   Object.assign(p, cleared.params);
   if (offered.has("provider")) carriedProvider = undefined;
   setItemsListingPreferences(

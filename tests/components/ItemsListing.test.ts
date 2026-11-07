@@ -4,6 +4,7 @@ import LibrarySortControls from "@/components/LibrarySortControls.vue";
 import ListingSortMenu from "@/components/listing-toolbar/ListingSortMenu.vue";
 import ListingToolbarControls from "@/components/listing-toolbar/ListingToolbarControls.vue";
 import type {
+  ListingDialogFilter,
   ListingFilter,
   ListingMultiFilter,
   ListingToggleFilter,
@@ -3070,6 +3071,108 @@ describe("ItemsListing library toolbar", () => {
       }[]
     ).map((item) => item.label);
   }
+
+  // fork: upstream #3065 dropped the toolbar menu on library pages, and with it
+  // the only way into the review filters (DR / AMG / TPS); they come back as
+  // one field of the Filters panel that opens their dialog
+  describe("review filters", () => {
+    async function mountAlbumsPage(saved: Record<string, unknown> = {}) {
+      store.currentUser = user({
+        preferences: { "itemsListing.libraryalbums.albums": saved },
+      });
+      return mountLibraryPage(
+        {
+          itemtype: "albums",
+          path: "libraryalbums",
+          sortListing: ListingType.LIBRARY_ALBUMS,
+          showFavoritesOnlyFilter: true,
+          showAlbumArtistsOnlyFilter: false,
+          showDrFilter: true,
+          showAmgFilter: true,
+          showTpsFilter: true,
+        },
+        { ReviewFiltersPanel: true },
+      );
+    }
+
+    function filters(listing: ReturnType<typeof mountListingRaw>) {
+      return listing
+        .findComponent(ListingToolbarControls)
+        .props("filters") as ListingFilter[];
+    }
+
+    function reviewField(listing: ReturnType<typeof mountListingRaw>) {
+      return filters(listing).find((filter) => filter.id === "reviews") as
+        ListingDialogFilter | undefined;
+    }
+
+    const dialogOpen = (listing: ReturnType<typeof mountListingRaw>) =>
+      listing.findComponent({ name: "ReviewFiltersPanel" }).props("modelValue");
+
+    it("puts them last in the Filters panel, opening their dialog", async () => {
+      const listing = await mountAlbumsPage();
+
+      expect(filters(listing).at(-1)?.id).toBe("reviews");
+      expect(reviewField(listing)?.summary).toBe("review_filters.any_review");
+      expect(dialogOpen(listing)).toBe(false);
+
+      reviewField(listing)?.open();
+      await nextTick();
+
+      expect(dialogOpen(listing)).toBe(true);
+    });
+
+    it("names the sources that narrow and counts on the Filters button", async () => {
+      const listing = await mountAlbumsPage({
+        favoriteFilter: true,
+        amgRatings: [4, 4.5],
+        drBuckets: ["good"],
+      });
+
+      expect(reviewField(listing)?.summary).toBe(
+        "review_filters.source_short.dr, review_filters.source_short.amg",
+      );
+      expect(
+        listing
+          .findComponent(ListingToolbarControls)
+          .props("activeFilterCount"),
+      ).toBe(4);
+    });
+
+    it("clears with the other filters, in the same save", async () => {
+      const listing = await mountAlbumsPage({
+        favoriteFilter: true,
+        amgRatings: [4],
+        criticalReceptionMatch: "any",
+      });
+      mockSetItemsListingPreferences.mockClear();
+
+      listing.findComponent(ListingToolbarControls).vm.$emit("clear-filters");
+      await flushPromises();
+
+      expect(mockSetItemsListingPreferences).toHaveBeenCalledOnce();
+      expect(mockSetItemsListingPreferences).toHaveBeenCalledWith(
+        "libraryalbums",
+        "albums",
+        expect.objectContaining({
+          favoriteFilter: false,
+          amgRatings: undefined,
+          criticalReceptionMatch: undefined,
+        }),
+      );
+      expect(
+        listing
+          .findComponent(ListingToolbarControls)
+          .props("activeFilterCount"),
+      ).toBe(0);
+    });
+
+    it("offers no review field where the listing has no review source", async () => {
+      const listing = await mountLibraryPage();
+
+      expect(reviewField(listing)).toBeUndefined();
+    });
+  });
 
   it("sorts from the title bar instead of a row of chips", async () => {
     const listing = await mountLibraryPage();

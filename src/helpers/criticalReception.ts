@@ -186,3 +186,26 @@ export function albumCountArgsFromParams(
     genre: params.genreIds,
   };
 }
+
+/** The review sources, in the order the review filters offer them. */
+export const REVIEW_SOURCES = ["dr", "amg", "tps"] as const;
+export type ReviewSource = (typeof REVIEW_SOURCES)[number];
+
+/**
+ * How many narrowings the review filters put on a listing from one source:
+ * one per picked bucket, rating or accolade and per switched-on toggle. The
+ * match mode only combines them, so it never counts.
+ */
+export function reviewFilterCount(
+  params: ReviewFilterParams,
+  source: ReviewSource,
+): number {
+  let count = 0;
+  for (const key of REVIEW_LIST_KEYS) {
+    if (REVIEW_KEY_SOURCE[key] === source) count += params[key]?.length ?? 0;
+  }
+  for (const key of REVIEW_BOOL_KEYS) {
+    if (REVIEW_KEY_SOURCE[key] === source && params[key]) count += 1;
+  }
+  return count;
+}

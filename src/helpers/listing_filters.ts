@@ -48,8 +48,23 @@ export interface ListingChoiceFilter {
   select: (value: string) => void;
 }
 
+/** Fork: a group of filters with its own dialog, such as the review filters,
+ * shown in the panel as one field that opens it. */
+export interface ListingDialogFilter {
+  kind: "dialog";
+  id: string;
+  label: string;
+  // names what the group narrows by, or stands in while nothing does
+  summary: string;
+  activeCount: number;
+  open: () => void;
+}
+
 export type ListingFilter =
-  ListingToggleFilter | ListingMultiFilter | ListingChoiceFilter;
+  | ListingToggleFilter
+  | ListingMultiFilter
+  | ListingChoiceFilter
+  | ListingDialogFilter;
 
 /** How many narrowings the filters put on the listing: one per active
  * toggle, picked value or narrowing choice. */
@@ -62,6 +77,8 @@ export function activeFilterCount(filters: ListingFilter[]): number {
         return count + filter.selected.length;
       case "choice":
         return count + Number(filter.selected !== filter.unfiltered);
+      case "dialog":
+        return count + filter.activeCount;
     }
   }, 0);
 }

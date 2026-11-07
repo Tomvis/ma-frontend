@@ -234,6 +234,13 @@
     "review": "Review",
     "review_filters": {
         "title": "Review filters",
+        "field_label": "Reviews",
+        "any_review": "Any review",
+        "source_short": {
+            "dr": "DR",
+            "amg": "AMG",
+            "tps": "TPS"
+        },
         "eyebrow": "Filters",
         "clear_all": "Clear all",
         "n_active": "{0} active",
