@@ -49,6 +49,7 @@ export interface LoadDataParams extends AlbumListingFilterParams {
   hideEmptyFilter?: boolean | null;
   hideFullyPlayed?: boolean;
   refresh?: boolean;
+  randomSeed?: number;
   collapseCollections?: boolean;
 }
 
@@ -111,14 +112,7 @@ export function useItemsListing(
   const sortOptionsLoaded = ref(false);
   const sortOptions = computed(() =>
     serverSortOptions.value.filter(
-      (option) =>
-        !(props.sortOptionExcludeFields ?? []).includes(option.field) &&
-        !(
-          props.sortListing &&
-          props.loadPagedData &&
-          (option.field === SortField.RANDOM ||
-            option.field === SortField.RANDOM_PLAY_COUNT)
-        ),
+      (option) => !(props.sortOptionExcludeFields ?? []).includes(option.field),
     ),
   );
   const librarySorting = useLibrarySorting(
@@ -214,6 +208,18 @@ export function useItemsListing(
       const currentSort = librarySorting.current.value;
       const selectedSortOption = librarySorting.selectedOption.value;
       params.value.sortField = currentSort.field as SortField;
+      if (
+        clear ||
+        refresh ||
+        filterParamsChanged ||
+        params.value.randomSeed === undefined
+      ) {
+        params.value.randomSeed =
+          currentSort.field === SortField.RANDOM ||
+          currentSort.field === SortField.RANDOM_PLAY_COUNT
+            ? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+            : undefined;
+      }
       params.value.sortDirection =
         selectedSortOption?.supports_direction === false
           ? undefined

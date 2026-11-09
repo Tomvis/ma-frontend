@@ -72,6 +72,7 @@ const loadItems = async function (params: LoadDataParams) {
     offset: params.offset,
     sort_field: params.sortField,
     sort_direction: params.sortDirection,
+    random_seed: params.randomSeed,
   });
 };
 
