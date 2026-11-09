@@ -62,6 +62,7 @@ describe("error result toast", () => {
         message_id: messageId,
         error_code: 6,
         details: "Provider unavailable",
+        data: null,
       });
 
       await rejection;
