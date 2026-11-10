@@ -100,6 +100,7 @@ import {
   Scope,
   NetworkShareSettings,
   SearchResults,
+  SleepTimerMode,
   ShareType,
   SortDirection,
   SortField,
@@ -121,7 +122,7 @@ const DEBUG = process.env.NODE_ENV === "development";
 // The oldest server API schema this frontend works with. Only the public web app
 // (app.music-assistant.io) can meet an older server, the bundled frontend always
 // matches its own. Raise it when a change would break the previous stable server.
-export const MIN_SERVER_SCHEMA_VERSION = 103;
+export const MIN_SERVER_SCHEMA_VERSION = 105;
 
 // Server error codes of a missing or rejected sign-in; the login UI reports these itself
 const AUTHENTICATION_REQUIRED_ERROR_CODE = 20;
@@ -931,7 +932,8 @@ export class MusicAssistantApi {
    * Only library artists are supported; the list is empty when MusicBrainz doesn't know
    * the artist. The releases that are not in the library come back as MusicBrainz items
    * (provider "musicbrainz", without provider mappings), which the server resolves to a
-   * real album when one is opened or added.
+   * real album when one is opened or added. `album_types` limits the list to
+   * releases of those types.
    */
   public getArtistDiscography(
     item_id: string,
@@ -940,6 +942,7 @@ export class MusicAssistantApi {
     offset?: number,
     sort_field?: SortField,
     sort_direction?: SortDirection,
+    album_types?: AlbumType[],
   ): Promise<Album[]> {
     return this.sendCommand("music/artists/discography", {
       item_id,
@@ -949,6 +952,7 @@ export class MusicAssistantApi {
       offset,
       sort_field,
       sort_direction,
+      album_types,
     });
   }
 
@@ -1537,14 +1541,19 @@ export class MusicAssistantApi {
     limit?: number,
     offset?: number,
     favorite?: boolean,
+    options?: CommandOptions,
   ): Promise<MediaCollection<Audiobook>> {
-    return this.sendCommand("music/audiobooks/get_collection", {
-      item_id,
-      search,
-      limit,
-      offset,
-      favorite,
-    });
+    return this.sendCommand(
+      "music/audiobooks/get_collection",
+      {
+        item_id,
+        search,
+        limit,
+        offset,
+        favorite,
+      },
+      options,
+    );
   }
 
   public getAudiobookVersions(
@@ -2737,14 +2746,20 @@ export class MusicAssistantApi {
     });
   }
 
-  public setSleepTimer(playerId: string, seconds: number): Promise<number> {
+  public setSleepTimer(
+    playerId: string,
+    seconds?: number,
+    mode?: SleepTimerMode,
+  ): Promise<number | null> {
     /*
-      Set a sleep timer that stops playback after the given number of seconds.
-      Returns the expiry (unix utc timestamp).
+      Set a sleep timer that stops playback after the given number of seconds, or
+      at the end of the current queue item or chapter (mode).
+      Returns the (estimated) expiry (unix utc timestamp), null while paused.
     */
     return this.sendCommand("players/sleep_timer/set", {
       player_id: playerId,
       seconds,
+      mode,
     });
   }
 
