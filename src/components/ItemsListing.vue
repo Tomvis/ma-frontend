@@ -231,6 +231,7 @@
       :class="{
         'bg-background dark:bg-transparent': viewMode != 'list',
         'flex flex-1 flex-col': fillsHeight,
+        'pr-9 pointer-coarse:pr-10': showLetterBar,
       }"
     >
       <TrackTableHeader
@@ -271,6 +272,15 @@
         </EmptyContent>
       </Empty>
 
+      <!-- the rows above a jump's target load as this nears the visible area -->
+      <div
+        v-if="baseOffset > 0 && pagedItems.length"
+        ref="topSentinel"
+        class="flex justify-center py-4"
+      >
+        <Spinner class="size-8" />
+      </div>
+
       <v-infinite-scroll
         v-if="
           !tempHide &&
@@ -305,9 +315,18 @@
         </template>
         <!-- panel view -->
         <v-row v-if="viewMode == 'panel'" ref="panelRow">
+          <!-- keeps each card in the column of its listing row, so rows loaded
+               above add whole grid rows and the cards on screen stay put -->
+          <div
+            v-for="n in baseOffset % gridColumnCount"
+            :key="'spacer-' + n"
+            :class="`col-${gridColumnCount}`"
+            aria-hidden="true"
+          ></div>
           <v-col
-            v-for="item in pagedItems"
+            v-for="(item, index) in pagedItems"
             :key="item.uri"
+            :data-listing-index="index"
             cols="12"
             :class="`col-${gridColumnCount}`"
           >
@@ -336,10 +355,13 @@
           class="relative h-full"
           :aria-busy="reorderSaving || undefined"
         >
+          <!-- rows loaded above a letter jump would shift every row's position,
+               so those listings tie each row to its item instead -->
           <v-virtual-scroll
             :item-height="showTrackTable ? TRACK_ROW_HEIGHT : 70"
             height="100%"
             :items="listDisplayItems"
+            :item-key="letterIndexLoader ? 'uri' : undefined"
             style="height: 100%; overflow: hidden"
           >
             <template #default="{ item, index }">
@@ -350,6 +372,7 @@
                 v-else-if="showTrackTable"
                 :item="item"
                 :index="index"
+                :data-listing-index="index"
                 :columns="trackRowColumns"
                 :class="[
                   trackRowDragClass(item, index),
@@ -373,6 +396,7 @@
               <ListviewItem
                 v-else
                 :item="item"
+                :data-listing-index="index"
                 :album-track-view="itemtype === 'albumtracks'"
                 :show-track-number="showTrackNumber"
                 :show-disc-number="showTrackNumber"
@@ -441,6 +465,14 @@
         </EmptyContent>
       </Empty>
 
+      <AlphabetIndexBar
+        v-if="showLetterBar"
+        ref="letterBar"
+        :letters="indexLetters"
+        :current="currentLetter"
+        :jump="jumpToLetter"
+      />
+
       <ListingSelectionBar
         :open="selectedItems.length > 1"
         :count="selectedItems.length"
@@ -495,6 +527,7 @@ export type {
 <script setup lang="ts">
 import type { Component } from "vue";
 
+import AlphabetIndexBar from "@/components/AlphabetIndexBar.vue";
 import GenreIcon from "@/components/icons/GenreIcon.vue";
 import ListViewSkeleton from "@/components/skeletons/ListViewSkeleton.vue";
 import PanelViewSkeleton from "@/components/skeletons/PanelViewSkeleton.vue";
@@ -527,6 +560,10 @@ import GridSizeSlider from "@/components/GridSizeSlider.vue";
 import { useCommandCenter } from "@/composables/useCommandCenter";
 import { useItemsListing } from "@/composables/useItemsListing";
 import {
+  useLetterIndex,
+  type LoadLetterIndexFn,
+} from "@/composables/useLetterIndex";
+import {
   ALBUM_TYPE_FILTER_KEYS,
   useListingFilters,
 } from "@/composables/useListingFilters";
@@ -536,6 +573,9 @@ import {
 } from "@/composables/useReviewListingFilter";
 import { useListingCount } from "@/composables/useListingCount";
 import { useListingSaves } from "@/composables/useListingSaves";
+import { useListingWindow } from "@/composables/useListingWindow";
+import { useTopListingRow } from "@/composables/useTopListingRow";
+import { useCurrentLetter } from "@/composables/useCurrentLetter";
 import { canSavePlaylistMoves } from "@/composables/usePlaylistTrackReorder";
 import { useTrackReorderRows } from "@/composables/useTrackReorderRows";
 import type {
@@ -734,6 +774,8 @@ export interface Props {
   extraMenuItems?: ToolBarMenuItem[];
   // loadPagedData callback is provided for serverside paging/sorting
   loadPagedData?: LoadPagedDataFn;
+  // loadLetterIndex callback gives a listing sorted by name its jump-to-letter bar
+  loadLetterIndex?: LoadLetterIndexFn;
   limit?: number;
   total?: number;
   infiniteScroll?: boolean;
@@ -820,6 +862,7 @@ const props = withDefaults(defineProps<Props>(), {
   showHideFullyPlayedFilter: false,
   extraMenuItems: undefined,
   loadPagedData: undefined,
+  loadLetterIndex: undefined,
   path: undefined,
   icon: undefined,
   iconAction: undefined,
@@ -938,6 +981,7 @@ const getActiveTab = () => {
 
 const {
   allItemsReceived,
+  baseOffset,
   displayedSort,
   isDisposed,
   librarySorting,
@@ -945,6 +989,8 @@ const {
   loadData,
   loadError,
   loadNextPage,
+  loadPreviousPage,
+  loadRow,
   loading,
   newContentAvailable,
   pagedItems,
@@ -1195,6 +1241,78 @@ const gridColumnCount = computed(() =>
 );
 
 const INFINITE_SCROLL_MARGIN = 600;
+
+// the letter index is opt-in: without the preference it is never requested
+const showLetterIndex = getPreference("show_letter_index", false);
+const letterIndexLoader = computed(() =>
+  showLetterIndex.value ? props.loadLetterIndex : undefined,
+);
+const {
+  entries: letterEntries,
+  letters: indexLetters,
+  load: reloadLetterIndex,
+  rowFor,
+  letterAt,
+} = useLetterIndex(() => letterIndexLoader.value, params);
+// the mobile search row sits where the bar starts, so the bar waits for it
+const showLetterBar = computed(
+  () =>
+    letterEntries.value.length > 1 &&
+    pagedItems.value.length > 0 &&
+    !(showSearchInput.value && store.mobileLayout),
+);
+const scroller = () => document.querySelector<HTMLElement>(".content-section");
+// the rendered element of the loaded item at this index
+const rowElement = function (index: number) {
+  // the list view's rows include its disc headers
+  const position =
+    viewMode.value === "list"
+      ? listDisplayItems.value.indexOf(pagedItems.value[index])
+      : index;
+  return (
+    listContainer.value?.querySelector<HTMLElement>(
+      `[data-listing-index="${position}"]`,
+    ) ?? null
+  );
+};
+
+const { topIndex } = useTopListingRow(scroller, listContainer, showLetterBar);
+const letterBar =
+  useTemplateRef<InstanceType<typeof AlphabetIndexBar>>("letterBar");
+const { currentLetter, markJump } = useCurrentLetter({
+  scroller,
+  bar: () => letterBar.value?.$el as HTMLElement | undefined,
+  rowElement,
+  baseOffset,
+  topIndex,
+  letterAt,
+  entries: letterEntries,
+});
+// changes to the library move the letters' rows
+watch(newContentAvailable, (available) => {
+  if (available) reloadLetterIndex();
+});
+
+const topSentinel = useTemplateRef<HTMLElement>("topSentinel");
+const { jumpToRow, loadAllAbove } = useListingWindow({
+  scroller,
+  topSentinel,
+  rowElement,
+  margin: INFINITE_SCROLL_MARGIN,
+  listing: { baseOffset, loading, isDisposed, loadRow, loadPreviousPage },
+});
+
+const jumpToLetter = async function (label: string) {
+  const row = rowFor(label);
+  if (row === undefined) return;
+  markJump(row);
+  const failed = loadError.value;
+  await jumpToRow(row);
+  // rows loaded after a failed page let the scroller page on again
+  if (failed && !loadError.value && !tempHide.value) {
+    infiniteScrollEl.value?.reset();
+  }
+};
 
 const commitGridSize = function (size: number) {
   gridSize.value = size;
@@ -1497,6 +1615,7 @@ const runPrimaryBulkAction = async function () {
 
 const onRefreshClicked = function () {
   loadData(true, true);
+  reloadLetterIndex();
 };
 
 watch(sortOptions, () => {
@@ -1883,7 +2002,7 @@ const totalItemCount = computed(() => {
     !hasActiveFilters.value &&
     (allItemsReceived.value || pagedItems.value.length < props.limit)
   ) {
-    return pagedItems.value.length;
+    return baseOffset.value + pagedItems.value.length;
   }
   // server-paged without a known total: assume large enough to warrant search
   return Number.POSITIVE_INFINITY;
@@ -2140,6 +2259,7 @@ const clearFilters = function () {
 
 const { listingCount, restoreCount } = useListingCount(props, {
   params,
+  baseOffset,
   pagedItems,
   allItemsReceived,
   loading,
@@ -2757,6 +2877,7 @@ if (props.restoreState) {
       carried: carriesFilters(),
       scrollPos: el?.scrollTop || 0,
       pagedItems: pagedItems.value,
+      baseOffset: baseOffset.value,
       allItemsReceived: allItemsReceived.value,
       count: listingCount.value,
       params: params.value,
@@ -2960,6 +3081,7 @@ const clearSelection = () => {
 // every item is loaded and selected, so select all has nothing left to add
 const allSelected = computed(
   () =>
+    baseOffset.value === 0 &&
     allItemsReceived.value &&
     selectedItems.value.length >=
       pagedItems.value.filter((x) => !isParentDirItem(x)).length,
@@ -3014,6 +3136,7 @@ onMounted(async () => {
     restoredFromPrevState = true;
     params.value = store.prevState.params;
     pagedItems.value = store.prevState.pagedItems;
+    baseOffset.value = store.prevState.baseOffset;
     displayedSort.value = store.prevState.displayedSort;
     allItemsReceived.value = store.prevState.allItemsReceived;
     // If items were added to this library while we were unmounted, surface
@@ -3044,7 +3167,11 @@ onMounted(async () => {
       nextTick(() => {
         const el = document.querySelector(".content-section") as HTMLElement;
 
-        if (el) {
+        // a window further down goes straight there: on its way, the top of
+        // its rows would show and load the rows above them
+        if (el && baseOffset.value > 0) {
+          el.scrollTop = store.prevState!.scrollPos;
+        } else if (el) {
           scrollElement(el, store.prevState!.scrollPos, 50);
         }
       });
@@ -3114,7 +3241,7 @@ const selectAll = async function () {
   const itemCount =
     props.total ??
     (allItemsReceived.value
-      ? pagedItems.value.length
+      ? baseOffset.value + pagedItems.value.length
       : Number.POSITIVE_INFINITY);
   if (itemCount <= 250) {
     await selectEveryItem();
@@ -3134,16 +3261,23 @@ const selectAll = async function () {
 defineExpose({
   sortField: computed(() => displayedSort.value.sortField),
   sortDirection: computed(() => displayedSort.value.sortDirection),
-  reload: () => loadData(true, true),
+  reload: () => {
+    loadData(true, true);
+    reloadLetterIndex();
+  },
   // Force a full reload from the server. Used by host views (LibraryListenLater)
   // that need to drop rows whose server-side state changes mean they no longer
   // belong in this listing — applyMediaEventToItems only replaces in place, so
   // a row toggled out of e.g. listen_later=true otherwise lingers visible until
   // the user navigates away.
-  refresh: () => loadData(true, undefined, true),
+  refresh: () => {
+    loadData(true, undefined, true);
+    reloadLetterIndex();
+  },
   // whether the item is absent while every item of the unfiltered listing is
   // loaded; a filter leaves items out on purpose
   isMissing: (uri: string) =>
+    baseOffset.value === 0 &&
     allItemsReceived.value &&
     !hasActiveFilters.value &&
     !pagedItems.value.some((i) => i.uri === uri),
@@ -3151,6 +3285,7 @@ defineExpose({
 
 /** Loads the remaining pages and puts every item in the selection. */
 async function selectEveryItem() {
+  await loadAllAbove();
   await loadAllItems();
   selectedItems.value = pagedItems.value.filter((x) => !isParentDirItem(x));
   showCheckboxes.value = true;

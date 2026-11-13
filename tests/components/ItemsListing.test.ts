@@ -128,15 +128,12 @@ vi.mock("@/composables/userPreferences", async () => {
               `itemsListing.${path}.${itemtype}`
             ] ?? {},
         ),
+      getPreference: (key: string, defaultValue?: unknown) =>
+        computed(() => store.currentUser?.preferences?.[key] ?? defaultValue),
       setItemsListingPreference: mockSetItemsListingPreference,
       itemsListingPreferenceEntry: () => ({}),
       setPreference: vi.fn(),
       setPreferences: vi.fn(),
-      // mirrors the real signature: a ComputedRef, not a bare value — callers
-      // read it as `.value`. With no stored user the caller's fallback is what
-      // a listing must see.
-      getPreference: <T>(_key: string, fallback?: T) =>
-        computed(() => fallback),
       setItemsListingPreferences: mockSetItemsListingPreferences,
     }),
   };
@@ -4084,5 +4081,15 @@ describe("ItemsListing library toolbar", () => {
     await flushPromises();
 
     expect(listing.find(".toolbar-stub").text()).not.toContain("128");
+  });
+
+  it("asks for the letter index only for a user who turned it on", async () => {
+    const loadLetterIndex = vi.fn().mockResolvedValue([]);
+    await mountLibraryPage({ loadLetterIndex });
+    expect(loadLetterIndex).not.toHaveBeenCalled();
+
+    store.currentUser = user({ preferences: { show_letter_index: true } });
+    await mountLibraryPage({ loadLetterIndex });
+    expect(loadLetterIndex).toHaveBeenCalled();
   });
 });
