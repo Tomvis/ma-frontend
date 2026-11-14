@@ -5,7 +5,7 @@
     ref="sectionEl"
     :class="{
       'flex min-h-full flex-1 flex-col': fillsHeight,
-      'ps-[11px] pe-[18px]': detailRow,
+      'ps-[11px] pe-[18px] max-[769px]:ps-0 max-[769px]:pe-[6px]': detailRow,
     }"
   >
     <!-- eslint-disable vue/no-template-shadow -->
@@ -403,7 +403,7 @@
                 :show-duration="showDuration"
                 :show-favorite="showFavorite ?? showFavoritesOnlyFilter"
                 :show-menu="item.is_playable || isMusicBrainzItem(item)"
-                :show-provider="showProvider"
+                :show-provider="showProviderIcon"
                 :show-album="showAlbum"
                 :show-checkboxes="showCheckboxes && !isParentDirItem(item)"
                 :is-selected="isSelected(item)"
@@ -822,7 +822,7 @@ const props = withDefaults(defineProps<Props>(), {
   sortListing: undefined,
   sortOptionExcludeFields: () => [],
   showTrackNumber: true,
-  showProvider: Object.keys(api.providers).length > 1,
+  showProvider: undefined,
   showAlbum: true,
   showFavoritesOnlyFilter: true,
   showFavorite: undefined,
@@ -1054,6 +1054,9 @@ const onTabChange = function (tabId: string) {
 
 const viewMode = ref("list");
 const listContainer = ref<HTMLElement>();
+const showProviderIcon = computed(
+  () => props.showProvider ?? Object.keys(api.providers).length > 1,
+);
 const showTrackTable = computed(
   () => props.trackTable && viewMode.value == "list",
 );
