@@ -500,7 +500,10 @@ import {
   getAuthorsNarratorsArray,
   getImageThumbForItem,
 } from "@/helpers/utils";
-import { getContextMenuItems } from "@/layouts/default/ItemContextMenu.vue";
+import {
+  getContextMenuItems,
+  getDeclaredContextMenuItems,
+} from "@/layouts/default/ItemContextMenu.vue";
 import { api } from "@/plugins/api";
 import { getCollectionMediaTypeFromItemId } from "@/plugins/api/helpers";
 import type {
@@ -526,7 +529,7 @@ import { store } from "@/plugins/store";
 import { ArrowLeft } from "@lucide/vue";
 import { useEscapeBack } from "@/composables/useEscapeBack";
 import { usePlayActionInProgress } from "@/composables/usePlayActionInProgress";
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useDisplay } from "vuetify";
 import MarqueeText from "./MarqueeText.vue";
@@ -546,7 +549,20 @@ const compProps = defineProps<Props>();
 const showFullInfo = ref(false);
 const fanartImage = ref();
 useDisplay();
-const menuItems = ref<ContextMenuItem[]>([]);
+// the item's own menu entries, with the item they were built for
+const builtMenu = shallowRef<{
+  item: MediaItemType;
+  items: ContextMenuItem[];
+}>();
+// the entries providers add follow the providers while the page is open
+const menuItems = computed<ContextMenuItem[]>(() =>
+  builtMenu.value
+    ? [
+        ...builtMenu.value.items,
+        ...getDeclaredContextMenuItems([builtMenu.value.item]),
+      ]
+    : [],
+);
 const mappedGenres = ref<Genre[]>([]);
 
 const imgGradient = new URL("../assets/info_gradient.jpg", import.meta.url)
@@ -574,7 +590,10 @@ watch(
         getImageThumbForItem(val, ImageType.LANDSCAPE) ||
         getImageThumbForItem(val, ImageType.THUMB) ||
         imgGradient;
-      menuItems.value = await getContextMenuItems([val], val);
+      builtMenu.value = {
+        item: val,
+        items: await getContextMenuItems([val], val),
+      };
       // Load mapped genres for non-genre media items
       if (val.media_type !== MediaType.GENRE) {
         api
@@ -590,7 +609,7 @@ watch(
       }
     } else {
       fanartImage.value = imgGradient;
-      menuItems.value = [];
+      builtMenu.value = undefined;
       mappedGenres.value = [];
     }
   },
@@ -600,11 +619,9 @@ watch(
 // Watch shortcuts preference to update overflow menu when shortcuts change
 const shortcutsPreference = getPreference<string[]>("sidebar.shortcuts", []);
 watch(shortcutsPreference, async () => {
-  if (compProps.item) {
-    menuItems.value = await getContextMenuItems(
-      [compProps.item],
-      compProps.item,
-    );
+  const item = compProps.item;
+  if (item) {
+    builtMenu.value = { item, items: await getContextMenuItems([item], item) };
   }
 });
 
