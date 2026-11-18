@@ -402,7 +402,7 @@
                 :show-disc-number="showTrackNumber"
                 :show-duration="showDuration"
                 :show-favorite="showFavorite ?? showFavoritesOnlyFilter"
-                :show-menu="item.is_playable || isMusicBrainzItem(item)"
+                :show-menu="item.is_playable || isExternalItem(item)"
                 :show-provider="showProviderIcon"
                 :show-album="showAlbum"
                 :show-checkboxes="showCheckboxes && !isParentDirItem(item)"
@@ -630,12 +630,13 @@ import { returnedByHistory } from "@/helpers/navigation";
 import { panelViewItemResponsive, scrollElement } from "@/helpers/utils";
 import { api } from "@/plugins/api";
 import {
-  isMusicBrainzItem,
+  isExternalItem,
   itemIsAvailable,
   itemSupportsPlayLog,
   providerServiceName,
 } from "@/plugins/api/helpers";
 import {
+  ArtistType,
   EventMessage,
   FavoriteUpdate,
   EventType,
@@ -2150,6 +2151,13 @@ const musicProviders = computed(() => {
         return provider.available;
       }
       if (provider.type !== ProviderType.MUSIC) return false;
+      // audiobook providers offer artists as authors/narrators only
+      if (
+        props.itemtype === "artists" &&
+        !provider.supported_artist_types.includes(ArtistType.SINGER)
+      ) {
+        return false;
+      }
       // If we have required feature(s) for this itemtype, filter by them
       if (requiredFeatures) {
         return requiredFeatures.some((feature) =>
