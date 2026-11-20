@@ -87,10 +87,8 @@ describe("ReleaseShelf subtitles", () => {
       viewAllName: "Albums, Live",
     });
 
-    expect(wrapper.get(".release-shelf__more").text()).toBe(
-      "(42) all releases",
-    );
-    expect(wrapper.get(".release-shelf__more").attributes("aria-label")).toBe(
+    expect(wrapper.get(".view-all-link").text()).toBe("(42) all releases");
+    expect(wrapper.get(".view-all-link").attributes("aria-label")).toBe(
       "(42) all Albums, Live",
     );
   });
@@ -98,15 +96,16 @@ describe("ReleaseShelf subtitles", () => {
   it("hides the view-all action when the count is zero", () => {
     const wrapper = mountShelf([], { itemCount: 0 });
 
-    expect(wrapper.find(".release-shelf__more").exists()).toBe(false);
+    expect(wrapper.find(".view-all-link").exists()).toBe(false);
   });
 
   it("says a release is not in the library instead of naming its type", () => {
     const wrapper = mountShelf([
       album({
-        item_id: "rg-1",
-        provider: "musicbrainz",
+        item_id: "musicbrainz_releasegroupid:rg-1",
+        provider: "external",
         provider_mappings: [],
+        is_playable: false,
         album_type: AlbumType.SINGLE,
       }),
     ]);

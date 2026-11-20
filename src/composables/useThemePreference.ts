@@ -27,6 +27,21 @@ export function isThemePreference(value: unknown): value is ThemePreference {
   return THEME_PREFERENCES.includes(value as ThemePreference);
 }
 
+/**
+ * The theme the user has chosen, the one the app shows: the account's
+ * preference, or this browser's choice in a guest session.
+ */
+export function getThemePreference(): ThemePreference {
+  // Home theme (HW-64, fork): its mode wins over the account's preference
+  if (!authManager.isGuestAccessSession() && homeThemeMode.value)
+    return homeThemeMode.value;
+  const preference = authManager.isGuestAccessSession()
+    ? localStorage.getItem(GUEST_THEME_STORAGE_KEY)
+    : store.currentUser?.preferences?.theme ||
+      localStorage.getItem(THEME_STORAGE_KEY);
+  return isThemePreference(preference) ? preference : "auto";
+}
+
 export function useThemePreference() {
   const theme = useTheme();
   const initialThemePreference = getThemePreference();
@@ -89,14 +104,4 @@ export function useThemePreference() {
       systemSchemeListener = undefined;
     }
   }
-}
-
-function getThemePreference(): ThemePreference {
-  if (!authManager.isGuestAccessSession() && homeThemeMode.value)
-    return homeThemeMode.value;
-  const preference = authManager.isGuestAccessSession()
-    ? localStorage.getItem(GUEST_THEME_STORAGE_KEY)
-    : store.currentUser?.preferences?.theme ||
-      localStorage.getItem(THEME_STORAGE_KEY);
-  return isThemePreference(preference) ? preference : "auto";
 }

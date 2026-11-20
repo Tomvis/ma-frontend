@@ -24,14 +24,16 @@ export const homeLanguageEffective = computed(() =>
   resolveHomeLanguage(homeLanguageState.value, available()),
 );
 
-/** Upstream's language entry, or the home language one when the server has it. */
-export function homeLanguageEntry(entry: ConfigEntry): ConfigEntry {
+/**
+ * The home language choices and the current one, for the Profile page's
+ * language select (upstream 2.17.376 moved the setting there); null without
+ * the home language.
+ */
+export const homeLanguageSelect = computed(() => {
   const state = homeLanguageState.value;
-  if (!state) return entry;
+  if (!state) return null;
   const effective = homeLanguageEffective.value;
   return {
-    ...entry,
-    default_value: FOLLOW,
     options: languageOptions(
       available(),
       state.claim,
@@ -39,6 +41,13 @@ export function homeLanguageEntry(entry: ConfigEntry): ConfigEntry {
     ),
     value: effective?.source === "app" ? effective.locale : FOLLOW,
   };
+});
+
+/** Upstream's language entry, or the home language one when the server has it. */
+export function homeLanguageEntry(entry: ConfigEntry): ConfigEntry {
+  const select = homeLanguageSelect.value;
+  if (!select) return entry;
+  return { ...entry, default_value: FOLLOW, ...select };
 }
 
 /**

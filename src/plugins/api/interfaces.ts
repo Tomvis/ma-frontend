@@ -444,13 +444,55 @@ export enum SleepTimerMode {
 
 export enum PlayerType {
   PLAYER = "player", // A regular player.
-  STEREO_PAIR = "stereo_pair",
+  MULTI_CHANNEL = "multi_channel", // One player made of several speakers that play as one.
+  STEREO_PAIR = "stereo_pair", // A stereo pair as an older server reports it.
   GROUP = "group", // A (dedicated) group player or playergroup.
   PROTOCOL = "protocol",
   DISPLAY = "display",
   VISUALIZER = "visualizer",
   LIGHT = "light",
   SOURCE = "source", // A capture-only device that provides audio input.
+  CONTROLLER = "controller", // A device that only controls playback, such as a remote.
+  UNKNOWN = "unknown",
+}
+
+export enum ChannelLayout {
+  // How the speakers of a multi-channel player are laid out: the number of
+  // full-range speakers and of subwoofers; a set of two speakers is stereo.
+  STEREO = "stereo",
+  LAYOUT_1_1 = "1.1",
+  LAYOUT_2_1 = "2.1",
+  LAYOUT_3_0 = "3.0",
+  LAYOUT_3_1 = "3.1",
+  LAYOUT_4_0 = "4.0",
+  LAYOUT_4_1 = "4.1",
+  LAYOUT_5_0 = "5.0",
+  LAYOUT_5_1 = "5.1",
+  LAYOUT_7_1 = "7.1",
+  UNKNOWN = "unknown",
+}
+
+export enum SpeakerChannel {
+  // The channel a speaker of a multi-channel player plays: a speaker position
+  // of the FLAC channel mask, as the Sendspin specification names them.
+  FRONT_LEFT = "front_left",
+  FRONT_RIGHT = "front_right",
+  FRONT_CENTER = "front_center",
+  LFE = "lfe",
+  BACK_LEFT = "back_left",
+  BACK_RIGHT = "back_right",
+  FRONT_LEFT_OF_CENTER = "front_left_of_center",
+  FRONT_RIGHT_OF_CENTER = "front_right_of_center",
+  BACK_CENTER = "back_center",
+  SIDE_LEFT = "side_left",
+  SIDE_RIGHT = "side_right",
+  TOP_CENTER = "top_center",
+  TOP_FRONT_LEFT = "top_front_left",
+  TOP_FRONT_CENTER = "top_front_center",
+  TOP_FRONT_RIGHT = "top_front_right",
+  TOP_REAR_LEFT = "top_rear_left",
+  TOP_REAR_CENTER = "top_rear_center",
+  TOP_REAR_RIGHT = "top_rear_right",
   UNKNOWN = "unknown",
 }
 
@@ -511,6 +553,8 @@ export enum EventType {
   // a user's bookmarks of one copy changed; object_id is the copy's uri, data the user id
   BOOKMARKS_UPDATED = "bookmarks_updated",
   PROVIDERS_UPDATED = "providers_updated",
+  // the community catalog or the provider manifests changed
+  COMMUNITY_CATALOG_UPDATED = "community_catalog_updated",
   TASKS_UPDATED = "tasks_updated",
   MUSIC_SYNC_COMPLETED = "music_sync_completed",
   PLAYER_CONFIG_UPDATED = "player_config_updated",
@@ -587,10 +631,16 @@ export enum ProviderFeature {
   REMOVE_PLAYER = "remove_player",
   REMOVE_GROUP_PLAYER = "remove_group_player",
   CREATE_GROUP_PLAYER = "create_group_player",
+  CREATE_MULTI_CHANNEL_PLAYER = "create_multi_channel_player",
   // metadata provider specific features
   ARTIST_METADATA = "artist_metadata",
   ALBUM_METADATA = "album_metadata",
   TRACK_METADATA = "track_metadata",
+  // provider delivers live audio sources, such as a receiver or a line-in
+  AUDIO_SOURCE = "audio_source",
+  // plugin specific features
+  AI_QUERY = "ai_query",
+  TTS = "tts",
 }
 
 export enum ProviderType {
@@ -1458,6 +1508,7 @@ export interface RecommendationFolder extends BrowseFolder {
   enabled_by_default: boolean;
   type: RecommendationFolderType;
   supports_provider_filter: boolean;
+  supports_hide_played: boolean;
 }
 
 // computed over all items of a collection, also when it holds a filtered subset
@@ -1621,6 +1672,7 @@ export interface QueueItem {
   extra_attributes?: {
     party_guest?: boolean; // true if added by party guest
     party_boosted?: boolean; // true if added as "boost" (play next)
+    party_skip_votes?: number; // guests that voted to skip this (currently playing) item
     playback_speed?: number; // current playback speed multiplier (audiobook/podcast)
   };
 }
@@ -1708,6 +1760,27 @@ export interface OutputProtocol {
   // derived_from: for a derived transport that rides on another protocol (e.g. a Sendspin
   // bridge over an AirPlay player), the output_protocol_id of the base output; null for direct outputs
   derived_from: string | null;
+}
+
+export enum ProtocolRole {
+  // The role a protocol has within a player.
+  NATIVE = "native", // the vendor-specific protocol of the device, with full control
+  CONTROL = "control", // controls the device (e.g. power, volume) but does not play audio
+  AUDIO = "audio", // a generic protocol that plays audio on the device (e.g. AirPlay)
+  VIRTUAL = "virtual", // a protocol without a physical device behind it (e.g. a group player)
+  UNKNOWN = "unknown",
+}
+
+export interface PlayerProtocolInfo {
+  // A protocol a player is made up of (e.g. the device's own protocol plus AirPlay and Chromecast).
+  protocol_id: string; // Unique ID of the protocol (its own id, not the player id)
+  domain: string; // Domain of the protocol's provider, e.g. "airplay", "sonos"
+  provider: string; // instance_id of the protocol's provider
+  role: ProtocolRole;
+  available: boolean; // Whether this protocol is currently available
+  // active: the player's current playback path: the protocol of an app Music Assistant
+  // did not start that the player shows, else the one of its active output
+  active: boolean;
 }
 
 export interface DeviceInfo {
@@ -1844,8 +1917,19 @@ export interface Player {
   volume_control: string;
   mute_control: string;
   needs_setup: boolean;
+  // setup_reason: why the player needs setup or has no way to play at all, such as
+  // "pairing_required" or "provider_not_installed"; null when it gave no reason
+  setup_reason: string | null;
   // this player (or a wrapped protocol child) offers a setup flow that can be re-run on demand
   has_setup_flow: boolean;
+  // legacy_ids: ids the player was known under before (such as a player merged into it),
+  // which it keeps answering to
+  legacy_ids: string[];
+  // protocols: the protocols the player is made up of, also those that are away
+  protocols: PlayerProtocolInfo[];
+  // channel_layout: how the speakers of a multi-channel player are laid out;
+  // null for a player that is no set of speakers or whose layout is not known
+  channel_layout?: ChannelLayout | null;
 
   // output_protocols: all available output methods for this player
   // Includes native output (if PLAY_MEDIA supported) + protocol outputs
@@ -1912,6 +1996,67 @@ export interface ProviderManifest {
   icon_images: ProviderIconVariant[];
   // depends on: domain of another provider that is required for this provider
   depends_on: string | null;
+  // menu_actions: entries this provider adds to the menu of a media item;
+  // absent from an older server
+  menu_actions?: ProviderMenuAction[];
+  // provides: what the provider offers whatever its config, for discovery only:
+  // the media types of a music provider, audio_source for one that plays audio
+  // into Music Assistant, or the main features of a plugin; absent from an
+  // older server
+  provides?: ProviderOffering[];
+  // page: a page this provider serves, listed in the app's menu; an older
+  // server declares none
+  page?: ProviderPage | null;
+}
+
+export interface ProviderPage {
+  // A page a provider serves, opened through providers/open_page.
+  // label: the text of the menu entry, already in the user's language
+  label: string;
+  // scope: what a user needs to see and open the page
+  scope: Scope;
+  // icon: name of a material design icon, such as mdi-chart-line
+  icon: string | null;
+}
+
+export interface ProviderMenuAction {
+  // An entry a provider adds to the menu of a media item.
+  // id: names the action within its provider
+  id: string;
+  // label: the text of the entry, already in the user's language
+  label: string;
+  // media_types: the kinds of media item the entry is offered for
+  media_types: MediaType[];
+  // scope: what a user needs to see and use the entry
+  scope: Scope;
+  // icon: name of a material design icon, such as mdi-image-frame
+  icon: string | null;
+  // requires_player: whether the action acts on a player, which the app then passes
+  requires_player: boolean;
+}
+
+export enum ProviderOffering {
+  // what a music provider offers
+  ARTIST = "artist",
+  ALBUM = "album",
+  TRACK = "track",
+  PLAYLIST = "playlist",
+  RADIO = "radio",
+  PODCAST = "podcast",
+  AUDIOBOOK = "audiobook",
+  SOUND_EFFECT = "sound_effect",
+  // live audio played into Music Assistant
+  AUDIO_SOURCE = "audio_source",
+  // what a plugin delivers
+  AI = "ai",
+  TTS = "tts",
+  SCROBBLE = "scrobble",
+  ASSISTANT = "assistant",
+  VISUALIZER = "visualizer",
+  RECOMMENDATIONS = "recommendations",
+  FUN = "fun",
+  // the fallback for a value that is not known
+  UNKNOWN = "unknown",
 }
 
 export enum ProviderStage {
@@ -1935,6 +2080,8 @@ export enum ProviderStatus {
   AUTH_REQUIRED = "auth_required",
   INCOMPATIBLE = "incompatible",
   ERROR = "error",
+  // the code of the provider is not on this server; the reason is in last_error
+  UNAVAILABLE = "unavailable",
 }
 
 export interface ProviderError {
@@ -1943,6 +2090,62 @@ export interface ProviderError {
   // client renders it directly.
   error_code: number;
   message: string;
+}
+
+export enum CommunityProviderState {
+  AVAILABLE = "available",
+  INSTALLED = "installed",
+  UPDATE_AVAILABLE = "update_available",
+  RESTART_REQUIRED = "restart_required",
+  BLOCKED = "blocked",
+  UNAVAILABLE = "unavailable",
+  WITHDRAWN = "withdrawn",
+}
+
+export interface CommunityProvider {
+  // A provider of the community catalog: one that can be installed, or one that is.
+  domain: string;
+  // owner/name of the repository on GitHub
+  repository: string;
+  maintainers: string[];
+  // a data URI to show in an image element
+  icon: string | null;
+  // the manifest of the installed version, else the one of the latest version
+  manifest: ProviderManifest;
+  state: CommunityProviderState;
+  installed_version: string | null;
+  latest_version: string | null;
+  // the version that becomes active at the next start of the server
+  pending_version: string | null;
+  // a version that failed to load here; installed again only when asked for by domain
+  failed_version: string | null;
+  // ISO dates: when it entered the catalog, and when latest_version was released
+  added: string | null;
+  released: string | null;
+  // what the catalog says about a provider it blocked or withdrew, and where it explains it
+  reason: string | null;
+  reason_url: string | null;
+  // why an installed provider does not run
+  error: ProviderError | null;
+  // what the app tells the admin until it is dismissed: "moved"
+  notice: string | null;
+}
+
+export enum CatalogRecommendationReason {
+  // Why the Marketplace suggests a provider, in the order the suggestions come in.
+  DISCOVERED = "discovered",
+  COMPLEMENTS = "complements",
+  POPULAR = "popular",
+  NEW = "new",
+  UPDATED = "updated",
+}
+
+export interface CatalogRecommendation {
+  // A provider the Marketplace suggests the user adds, and why.
+  domain: string;
+  reason: CatalogRecommendationReason;
+  // for complements: the domain of the provider it goes well with, which is set up
+  detail: string | null;
 }
 
 export interface ProviderInstance {
@@ -1954,6 +2157,7 @@ export interface ProviderInstance {
   supported_features: ProviderFeature[];
   available: boolean;
   is_streaming_provider: boolean | null;
+  supported_artist_types: ArtistType[];
 }
 
 export interface DashboardDevice {
@@ -2200,6 +2404,42 @@ export interface SetupRequest {
   device_name?: string;
 }
 
+// AI interfaces
+
+export enum AIEngineKind {
+  TEXT = "text",
+  SPEECH = "speech",
+  IMAGE = "image",
+}
+
+/** An AI engine a plugin provides. */
+export interface AIEngine {
+  uid: string;
+  // the engine name, prefixed with the name of the plugin it comes from
+  name: string;
+  kind: AIEngineKind;
+  // the instance id of the plugin providing the engine
+  provider: string;
+}
+
+/** An engine setting of a core module or provider, with the engine it selects. */
+export interface AIEngineUsage {
+  owner_type: "core" | "provider";
+  // the core module domain or provider instance id
+  owner: string;
+  domain: string;
+  // the provider instance name or the core module name
+  name: string;
+  key: string;
+  kind: AIEngineKind;
+  // the setting is changed through the setup flow of the provider
+  in_setup_data: boolean;
+  // the setting follows the default engine of its kind
+  follows_default: boolean;
+  // the uid of the selected engine, null when it selects no available engine
+  engine: string | null;
+}
+
 // Remote Access interfaces
 
 export interface RemoteAccessInfo {
@@ -2209,11 +2449,6 @@ export interface RemoteAccessInfo {
   remote_id: string;
   using_ha_cloud: boolean;
   signaling_url: string;
-}
-
-/** The address the stream server hands to players, as it is in use right now. */
-export interface StreamServerInfo {
-  base_url: string;
 }
 
 // Storage interfaces
@@ -2334,6 +2569,8 @@ export interface PartyConfig {
   enable_skip_song: boolean;
   skip_song_limit: number;
   skip_song_refill_minutes: number;
+  // Number of distinct guests that must vote before the current song is skipped
+  skip_votes_required: number;
   karaoke_mode: boolean;
   highlight_ahead: boolean;
   request_badge_color?: string;

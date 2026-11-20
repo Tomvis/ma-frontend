@@ -25,6 +25,8 @@ const { apiMock, emittedMenus, hasScope, storeMock, toastMock } = vi.hoisted(
       signalEvent: vi.fn(),
       playMedia: vi.fn(),
       providers: {} as Record<string, unknown>,
+      // upstream 2.17.376 reads the providers' declared menu actions from these
+      providerManifests: {} as Record<string, unknown>,
       players: {},
     },
     hasScope: vi.fn(),

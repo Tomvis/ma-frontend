@@ -21,6 +21,7 @@
         class="detail-text__body"
         :class="{ 'detail-text__body--clamped': isClamped }"
         :text="text"
+        allow-images
         @click="onTextClick"
       />
       <p
@@ -48,6 +49,7 @@
           <MarkdownText
             v-if="markdown"
             :text="text"
+            allow-images
             class="detail-text__full max-w-none text-sm leading-relaxed"
           />
           <p v-else class="detail-text__full detail-text__body--verbatim">

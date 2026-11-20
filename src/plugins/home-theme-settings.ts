@@ -7,6 +7,7 @@
  */
 import { api } from "@/plugins/api";
 import type { ConfigEntry, ConfigValueType } from "@/plugins/api/interfaces";
+import { computed } from "vue";
 import {
   choiceValue,
   FOLLOW,
@@ -20,17 +21,25 @@ import {
 
 const ENTRY_KEY = "theme";
 
-/** Upstream's theme entry, or the home theme one when the server has it. */
-export function homeThemeEntry(entry: ConfigEntry): ConfigEntry {
+/**
+ * The home theme choices and the current one, for the Profile page's theme
+ * select (upstream 2.17.376 moved the setting there); null without the home theme.
+ */
+export const homeThemeSelect = computed(() => {
   const state = homeThemeState.value;
-  if (!state) return entry;
+  if (!state) return null;
   const effective = homeThemeEffective.value;
   return {
-    ...entry,
-    default_value: FOLLOW,
     options: themeOptions(homeThemeCatalog.value, state.claim),
     value: effective?.source === "app" ? choiceValue(effective) : FOLLOW,
   };
+});
+
+/** Upstream's theme entry, or the home theme one when the server has it. */
+export function homeThemeEntry(entry: ConfigEntry): ConfigEntry {
+  const select = homeThemeSelect.value;
+  if (!select) return entry;
+  return { ...entry, default_value: FOLLOW, ...select };
 }
 
 /** Save the in-app choice; null to clear it ("Follow home theme"). */
