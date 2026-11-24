@@ -110,7 +110,7 @@
           >
             <SearchInput
               ref="searchInputRef"
-              v-model="params.search"
+              v-model="searchText"
               :clearable="!libraryToolbar"
               class="listing-search listing-search--inline"
               :placeholder="searchLabel"
@@ -204,7 +204,7 @@
     >
       <SearchInput
         ref="searchInputRef"
-        v-model="params.search"
+        v-model="searchText"
         clearable
         class="listing-search listing-search--row min-w-0 flex-1"
         :placeholder="searchLabel"
@@ -573,6 +573,7 @@ import {
 } from "@/composables/useReviewListingFilter";
 import { useListingCount } from "@/composables/useListingCount";
 import { useListingSaves } from "@/composables/useListingSaves";
+import { useListingSearch } from "@/composables/useListingSearch";
 import { useListingWindow } from "@/composables/useListingWindow";
 import { useTopListingRow } from "@/composables/useTopListingRow";
 import { useCurrentLetter } from "@/composables/useCurrentLetter";
@@ -1002,6 +1003,7 @@ const {
   sortOptionsLoaded,
   tempHide,
 } = useItemsListing(props, getActiveTab);
+const { searchText, discardTyped } = useListingSearch(params);
 // the first load waits for the sort options; until then the scroller must not
 // load a page of its own
 const loadPending = computed(
@@ -1181,7 +1183,7 @@ const applyQueryGenreFilter = function () {
   return changed;
 };
 const closeSearch = function () {
-  params.value.search = "";
+  searchText.value = "";
   showSearch.value = false;
 };
 const focusSearch = function () {
@@ -1889,7 +1891,7 @@ const providerFilterSubItems = () =>
 const redirectSearch = function () {
   const mediaType = listingMediaType.value;
   openCommandCenter({
-    query: params.value.search,
+    query: searchText.value,
     mediaTypes:
       mediaType && SEARCHABLE_MEDIA_TYPES.includes(mediaType)
         ? [mediaType]
@@ -2945,6 +2947,8 @@ watch(
     selectedItems.value = [];
     selectionAnchor = undefined;
     showCheckboxes.value = false;
+    // and what was being typed was meant for it
+    discardTyped();
     if (loading.value == true) return;
     // completely reset if the path changes
     pagedItems.value = [];
