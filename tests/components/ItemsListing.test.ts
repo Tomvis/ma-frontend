@@ -10,7 +10,9 @@ import type {
   ListingMultiFilter,
   ListingToggleFilter,
 } from "@/helpers/listing_filters";
+import { useCommandCenter } from "@/composables/useCommandCenter";
 import { useEscapeBack } from "@/composables/useEscapeBack";
+import { SEARCH_DELAY_MS } from "@/composables/useListingSearch";
 import {
   defineComponent,
   h,
@@ -290,7 +292,32 @@ function mountListingRaw(
   });
 }
 
+/** Types in the search field, letter by letter, without waiting afterwards. */
+async function typeSearch(
+  listing: ReturnType<typeof mountListingRaw>,
+  text: string,
+) {
+  for (let length = 1; length <= text.length; length++) {
+    await listing.get(".search-field input").setValue(text.slice(0, length));
+    await flushPromises();
+  }
+}
+
+/** Holds back the searches for what is typed until `waitForSearch`. */
+function holdSearches() {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+}
+
+/** Waits until the listing searches for what was typed. */
+async function waitForSearch() {
+  vi.advanceTimersByTime(SEARCH_DELAY_MS);
+  await flushPromises();
+}
+
 enableAutoUnmount(afterEach);
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("ItemsListing unmount cleanup", () => {
   beforeEach(() => {
@@ -730,6 +757,127 @@ describe("ItemsListing per-page search", () => {
     expect(
       (listing.get(".search-field input").element as HTMLInputElement).value,
     ).toBe("");
+  });
+
+  it.each([
+    { layout: "desktop", mobileLayout: false },
+    { layout: "phone", mobileLayout: true },
+  ])(
+    "loads once for a word that is typed on a $layout, with the word in full",
+    async ({ mobileLayout }) => {
+      holdSearches();
+      store.mobileLayout = mobileLayout;
+      const loadPagedData = vi.fn().mockResolvedValue([]);
+      const listing = mountListingRaw({
+        showSearchButton: true,
+        restoreState: true,
+        loadPagedData,
+      });
+      await flushPromises();
+      await toggleSearch(listing);
+      loadPagedData.mockClear();
+      mockSetItemsListingPreference.mockClear();
+
+      await typeSearch(listing, "hello");
+      expect(loadPagedData).not.toHaveBeenCalled();
+      await waitForSearch();
+
+      expect(loadPagedData).toHaveBeenCalledOnce();
+      expect(loadPagedData).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "hello" }),
+      );
+      expect(mockSetItemsListingPreference).toHaveBeenCalledOnce();
+      expect(mockSetItemsListingPreference).toHaveBeenCalledWith(
+        "librarytracks",
+        "tracks",
+        "search",
+        "hello",
+      );
+    },
+  );
+
+  it.each(["emptied", "closed"])(
+    "loads the whole listing right away once the field is %s",
+    async (how) => {
+      holdSearches();
+      const loadPagedData = vi.fn().mockResolvedValue([]);
+      const listing = mountListingRaw({
+        showSearchButton: true,
+        loadPagedData,
+      });
+      await flushPromises();
+      await toggleSearch(listing);
+      await typeSearch(listing, "hello");
+      await waitForSearch();
+      loadPagedData.mockClear();
+
+      if (how === "closed") await toggleSearch(listing);
+      else await listing.get(".search-field input").setValue("");
+      await flushPromises();
+
+      expect(loadPagedData).toHaveBeenCalledOnce();
+      expect(loadPagedData).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "" }),
+      );
+    },
+  );
+
+  it("takes the term that is still being typed along to the global search", async () => {
+    holdSearches();
+    const listing = mountListingRaw(
+      { showSearchButton: true },
+      { Empty: false, EmptyContent: false },
+    );
+    await flushPromises();
+    await toggleSearch(listing);
+    await typeSearch(listing, "hello");
+    await waitForSearch();
+
+    await listing.get(".search-field input").setValue("hello world");
+    const globalSearch = listing
+      .findAll("button")
+      .find((button) => button.text() === "try_global_search");
+    await globalSearch!.trigger("click");
+
+    const { initialQuery, close } = useCommandCenter();
+    expect(initialQuery.value).toBe("hello world");
+    close();
+  });
+
+  it("does not search for a term in the listing it moved on to", async () => {
+    holdSearches();
+    const loadPagedData = vi.fn().mockResolvedValue([]);
+    const listing = mountListingRaw({
+      path: "playlist.1",
+      showSearchButton: true,
+      loadPagedData,
+    });
+    await flushPromises();
+    await toggleSearch(listing);
+    await typeSearch(listing, "hello");
+
+    await listing.setProps({ path: "playlist.2" });
+    await waitForSearch();
+
+    expect(loadPagedData).not.toHaveBeenCalledWith(
+      expect.objectContaining({ search: "hello" }),
+    );
+  });
+
+  it("comes back to the rows it was left on, before the typed search ran", async () => {
+    holdSearches();
+    const listing = mountListingRaw({
+      showSearchButton: true,
+      restoreState: true,
+    });
+    await flushPromises();
+    await toggleSearch(listing);
+    await typeSearch(listing, "hello");
+
+    listing.unmount();
+    await waitForSearch();
+
+    expect(store.prevState?.params.search).toBe("");
   });
 });
 
@@ -3909,6 +4057,7 @@ describe("ItemsListing library toolbar", () => {
   });
 
   it("reloads once when a failed save brings back another search", async () => {
+    holdSearches();
     signInWithSavedFilters({ search: "adele" });
     const loadPagedData = vi.fn().mockResolvedValue([]);
     const listing = await mountLibraryPage({
@@ -3920,7 +4069,7 @@ describe("ItemsListing library toolbar", () => {
       () => new Promise<void>((resolve) => (finishSave = resolve)),
     );
     await listing.find("input").setValue("beatles");
-    await flushPromises();
+    await waitForSearch();
     // the server would not take it, so the saved search is put back
     store.currentUser = user({
       preferences: {
@@ -3939,6 +4088,7 @@ describe("ItemsListing library toolbar", () => {
   });
 
   it("clears a search that failed to save when none was saved before", async () => {
+    holdSearches();
     const loadPagedData = vi.fn().mockResolvedValue([]);
     const listing = await mountLibraryPage({
       loadPagedData,
@@ -3950,7 +4100,7 @@ describe("ItemsListing library toolbar", () => {
     );
     await listing.find('button[aria-label="search"]').trigger("click");
     await listing.find("input").setValue("beatles");
-    await flushPromises();
+    await waitForSearch();
     // the server would not take it, so the account holds no search again
     store.currentUser = user({
       preferences: { "itemsListing.libraryartists.artists": {} },
@@ -4146,6 +4296,7 @@ describe("ItemsListing library toolbar", () => {
   });
 
   it("counts the items only while the page's total covers the filters", async () => {
+    holdSearches();
     // a full page, so the listing does not know it holds everything
     const listing = await mountLibraryPage({
       total: 128,
@@ -4158,7 +4309,7 @@ describe("ItemsListing library toolbar", () => {
     // the page's count request is not told about a search
     await listing.find('button[aria-label="search"]').trigger("click");
     await listing.find("input").setValue("be");
-    await flushPromises();
+    await waitForSearch();
 
     expect(listing.find(".toolbar-stub").text()).not.toContain("128");
   });
