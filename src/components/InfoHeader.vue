@@ -35,7 +35,7 @@
         :icon-action="backButtonClick"
       >
         <template v-if="$slots['toolbar-append']" #append>
-          <slot name="toolbar-append"></slot>
+          <slot name="toolbar-append" />
         </template>
       </Toolbar>
       <v-layout
@@ -389,7 +389,7 @@
                 :audio-metadata="(item as Track).audio_metadata"
               />
               <!-- slot for extra action buttons (e.g. smart playlist edit) -->
-              <slot name="append-actions"></slot>
+              <slot name="append-actions" />
             </div>
           </div>
           <div
@@ -397,7 +397,7 @@
             class="info-header-after-play"
             style="margin-left: 14px; padding-bottom: 10px"
           >
-            <slot name="after-play"></slot>
+            <slot name="after-play" />
           </div>
           <!-- Description/metadata -->
           <v-card-subtitle
@@ -461,7 +461,7 @@
       :open="showFullInfo"
       :on-open-change="(v: boolean) => (showFullInfo = v)"
       :close="() => (showFullInfo = false)"
-    ></slot>
+    />
   </div>
 </template>
 
