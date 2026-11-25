@@ -34,7 +34,7 @@
             {{ $t("select_all") }}
           </Button>
           <!-- fork: a host page's primary bulk action (ItemsListing primaryBulkAction) -->
-          <slot name="actions"></slot>
+          <slot name="actions" />
           <Button size="sm" class="rounded-full" @click="onActionsClick">
             {{ $t("actions") }}
           </Button>

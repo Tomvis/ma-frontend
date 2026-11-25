@@ -13,7 +13,7 @@
     <h2 v-if="title" class="detail-text__title">{{ title }}</h2>
     <!-- enhanced: content between the heading and the text (the album's
          critic block); with it, a missing text means none, not loading -->
-    <slot></slot>
+    <slot />
 
     <template v-if="text !== undefined">
       <MarkdownText
