@@ -1,11 +1,7 @@
 <template>
-  <v-form
-    v-if="entries"
-    ref="form"
-    v-model="valid"
-    :disabled="disabled"
-    :class="{ 'floating-save-clearance': showSaveAction && !inlineSave }"
-  >
+  <!-- saving goes through the Save button, so Enter in a field does not submit -->
+  <form v-if="entries" novalidate @submit.prevent>
+    <slot />
     <component
       :is="flat ? 'div' : Card"
       v-if="hasOptions"
@@ -112,60 +108,56 @@
       </component>
     </component>
 
-    <div
+    <SettingsSaveBar
       v-if="showSaveAction"
-      :class="
-        inlineSave
-          ? 'mt-4 flex justify-end'
-          : [
-              'floating-save',
-              {
-                'floating-save--mobile': store.mobileLayout,
-                'floating-save--frameless': store.frameless,
-              },
-            ]
-      "
+      :inline="inlineSave"
+      :unsaved-changes="hasUnsavedChanges"
     >
       <Button
         data-testid="config-save"
         type="button"
         size="lg"
-        :class="{ 'shadow-lg': !inlineSave }"
         :disabled="!requiredValuesPresent || !hasUnsavedChanges"
         @click="submit"
       >
         <Save class="size-4" />
         {{ $t("settings.save") }}
       </Button>
-    </div>
-  </v-form>
+    </SettingsSaveBar>
+  </form>
   <!-- Unsaved changes confirmation dialog -->
   <!-- any way out of this dialog has to answer the navigation it is holding -->
-  <v-dialog
-    :model-value="showUnsavedDialog"
-    max-width="400"
-    persistent
-    @update:model-value="cancelDiscard"
-  >
-    <v-card>
-      <v-card-title>{{ $t("settings.unsaved_changes") }}</v-card-title>
-      <v-card-text>{{ $t("settings.unsaved_changes_message") }}</v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn data-testid="config-stay" variant="text" @click="cancelDiscard">
+  <AlertDialog :open="showUnsavedDialog" @update:open="onUnsavedDialogOpen">
+    <AlertDialogContent class="sm:max-w-[400px]">
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{
+          $t("settings.unsaved_changes")
+        }}</AlertDialogTitle>
+        <AlertDialogDescription>
+          {{ $t("settings.unsaved_changes_message") }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <!-- plain buttons: each answer closes the dialog itself -->
+        <Button
+          data-testid="config-stay"
+          type="button"
+          variant="ghost"
+          @click="cancelDiscard"
+        >
           {{ $t("settings.stay") }}
-        </v-btn>
-        <v-btn
+        </Button>
+        <Button
           data-testid="config-discard"
-          color="warning"
-          variant="flat"
+          type="button"
+          variant="warning"
           @click="confirmDiscard"
         >
           {{ $t("settings.discard") }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
@@ -178,9 +170,20 @@ import {
   NON_INTERACTIVE_ENTRY_TYPES,
   VALUELESS_ENTRY_TYPES,
 } from "@/helpers/config_entry_ui";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { provideConfigFormValidation } from "@/composables/useConfigFormValidation";
+import { expertModeSetting } from "@/helpers/expert_mode";
 import { isSpeakerChannelEntry } from "@/helpers/multi_channel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import SettingsSaveBar from "@/components/settings/SettingsSaveBar.vue";
 import type { ContextMenuItem } from "@/helpers/context_menu_item";
 import {
   ConfigEntryType,
@@ -189,11 +192,7 @@ import {
   SECURE_STRING_SUBSTITUTE,
 } from "@/plugins/api/interfaces";
 import { $t } from "@/plugins/i18n";
-import { store } from "@/plugins/store";
-import {
-  setUserPreference,
-  useUserPreferences,
-} from "@/composables/userPreferences";
+import { setUserPreference } from "@/composables/userPreferences";
 import { Save } from "@lucide/vue";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
@@ -224,8 +223,8 @@ export interface Props {
   // Domain of the provider being configured; lets a field recognise the entries of the
   // provider it belongs to. Omitted for player/core configs.
   providerDomain?: string;
-  // Keep the Save button in the flow of the form instead of floating over the page:
-  // inside a dialog, a fixed position is measured from the dialog rather than the screen.
+  // Keep the Save button in the flow of the form instead of a bar pinned to the bottom of
+  // the page, for a form in a dialog or in a frame of its own.
   inlineSave?: boolean;
   // Leave out the Options header and its advanced toggle, for a host that names the form and
   // decides which of its entries show.
@@ -236,6 +235,11 @@ export interface Props {
   // the user made with the advanced toggle applies.
   showAdvancedSettings?: boolean;
 }
+
+defineSlots<{
+  // controls of the host whose values the form saves, above its own fields
+  default?(): unknown;
+}>();
 
 const emit = defineEmits<{
   (e: "submit", values: Record<string, ConfigValueType>): void;
@@ -250,8 +254,7 @@ const emit = defineEmits<{
 
 // global refs
 const entries = ref<ConfigEntryUI[]>();
-const valid = ref(false);
-const form = ref<InstanceType<typeof import("vuetify/components").VForm>>();
+const { validate } = provideConfigFormValidation();
 const showPasswordValues = ref(false);
 const oldValues = ref<Record<string, ConfigValueType>>({});
 const oldValuesInitialized = ref(false);
@@ -267,10 +270,10 @@ const props = withDefaults(defineProps<Props>(), {
   showAdvancedSettings: undefined,
 });
 
-// one choice for every settings form, kept on the user's profile
-const advancedSettingsPreference = useUserPreferences().getPreference(
-  ADVANCED_SETTINGS_PREFERENCE,
-  false,
+// one choice for every settings form, kept on the user's profile; until it is
+// made, the advanced entries show in expert mode
+const advancedSettingsPreference = computed(() =>
+  expertModeSetting(ADVANCED_SETTINGS_PREFERENCE),
 );
 // what was chosen here, which holds for this form even when the profile could not
 // be updated
@@ -359,8 +362,14 @@ const hasOptions = computed(
   () => showAdvancedToggle.value || hasVisibleSections.value,
 );
 
+// the same fields the form checks on save: hidden advanced entries leave it alone
 const requiredValuesPresent = computed(() =>
-  entries.value ? allRequiredValuesPresent(entries.value) : false,
+  entries.value
+    ? allRequiredValuesPresent(
+        entries.value,
+        (entry) => !entry.advanced || showAdvancedSettings.value,
+      )
+    : false,
 );
 
 const hasUnsavedChanges = computed(() => {
@@ -438,13 +447,9 @@ watch(
 );
 
 // methods
-const validate = async function () {
-  const { valid } = await form.value!.validate();
-  return valid;
-};
 const submit = async function () {
   // submit button is pressed
-  if (await validate()) {
+  if (validate()) {
     allowNavigation.value = true;
     emit("submit", getSaveValues());
   }
@@ -552,6 +557,11 @@ const confirmDiscard = function () {
   releaseNavigation(true);
 };
 
+// Escape is the only way the dialog closes by itself, and it means stay
+const onUnsavedDialogOpen = function (open: boolean) {
+  if (!open && showUnsavedDialog.value) cancelDiscard();
+};
+
 const cancelDiscard = function () {
   showUnsavedDialog.value = false;
   releaseNavigation(false);
@@ -595,8 +605,7 @@ const isDisabled = function (entry: ConfigEntryUI) {
   return isEntryDisabled(entry, entries.value || []);
 };
 
-// the form-wide disabled state has to be handed to every field: v-form only reaches
-// Vuetify's own inputs, so the number field beside a slider would stay editable
+// the form-wide disabled state is handed to every field
 const isRowDisabled = function (entry: ConfigEntryUI) {
   return props.disabled || isDisabled(entry);
 };
@@ -697,36 +706,3 @@ const unsetsOnReset = function (entry: ConfigEntryUI) {
   return key !== "enabled" && key !== "name" && !key.endsWith("||enabled");
 };
 </script>
-
-<style scoped>
-/* Lets the last row scroll clear of the floating Save button. */
-.floating-save-clearance {
-  padding-bottom: 56px;
-}
-
-.floating-save {
-  position: fixed;
-  /* A landscape phone is wide enough to count as the desktop layout, so this
-     rule is what keeps the button clear of a side cutout. */
-  /* 100cqw is the width of the settings page, its query container: on a page
-     wider than the settings column, the button moves in to the column's edge. */
-  right: calc(
-    24px + var(--device-inset-right) +
-      max(0px, (100cqw - var(--settings-column-width)) / 2)
-  );
-  bottom: calc(var(--v-layout-bottom, var(--player-bar-height)) + 16px);
-  z-index: 20;
-}
-
-.floating-save--mobile {
-  /* Takes the floating player card's inset, so the two right edges line up. */
-  right: calc(var(--mobile-player-inset-x) + var(--device-inset-right));
-  bottom: calc(var(--bottom-bars-height) + 16px);
-  /* Above the player scrim, below the mobile bars. */
-  z-index: 1000;
-}
-
-.floating-save--frameless {
-  bottom: 16px;
-}
-</style>

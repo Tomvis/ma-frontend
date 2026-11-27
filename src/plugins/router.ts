@@ -700,6 +700,16 @@ export const routes: RouteRecordRaw[] = [
             meta: { requiresScope: Scope.CONFIG_CORE_WRITE },
           },
           {
+            path: "players/tap-and-play",
+            name: "tapandplaysettings",
+            component: () =>
+              import(
+                /* webpackChunkName: "settingspageform" */ "@/views/settings/SettingsPageFormView.vue"
+              ),
+            props: { page: "tap_and_play" satisfies SettingsPageId },
+            meta: { requiresScope: Scope.CONFIG_CORE_WRITE },
+          },
+          {
             path: "players/support",
             name: "playerproviders",
             component: () =>
@@ -861,6 +871,26 @@ export const routes: RouteRecordRaw[] = [
             meta: { requiresScope: Scope.CONFIG_PLAYERS_WRITE },
           },
           {
+            path: "editplayer/:playerId/outputs",
+            name: "editplayeroutputs",
+            component: () =>
+              import(
+                /* webpackChunkName: "editplayer" */ "@/views/settings/EditPlayerOutputs.vue"
+              ),
+            props: true,
+            meta: { requiresScope: Scope.CONFIG_PLAYERS_WRITE },
+          },
+          {
+            path: "editplayer/:playerId/controls",
+            name: "editplayercontrols",
+            component: () =>
+              import(
+                /* webpackChunkName: "editplayer" */ "@/views/settings/EditPlayerControls.vue"
+              ),
+            props: true,
+            meta: { requiresScope: Scope.CONFIG_PLAYERS_WRITE },
+          },
+          {
             path: "editqueue/:queueId",
             name: "editqueue",
             component: () =>
@@ -879,16 +909,6 @@ export const routes: RouteRecordRaw[] = [
               ),
             props: true,
             meta: { requiresScope: Scope.CONFIG_CORE_WRITE },
-          },
-          {
-            path: "addgroup/:provider",
-            name: "addgroup",
-            component: () =>
-              import(
-                /* webpackChunkName: "addgroup" */ "@/views/settings/AddPlayerGroup.vue"
-              ),
-            props: true,
-            meta: { requiresScope: Scope.CONFIG_PLAYERS_WRITE },
           },
           // the provider lists shared an earlier address, by the type in its
           // query, which their own pages leave out

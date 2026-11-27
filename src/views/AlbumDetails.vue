@@ -111,8 +111,8 @@
 </template>
 
 <script setup lang="ts">
+import { heroBackdrop } from "@/helpers/hero_backdrop";
 import {
-  albumBackdrop,
   albumDuration,
   albumReview,
   loadAlbumTracks,
@@ -221,7 +221,7 @@ const {
 // the cover at first; the artist's fanart takes over once that lookup is done
 const backdrop = computed(() =>
   itemDetails.value
-    ? albumBackdrop(itemDetails.value, fullArtist.value ?? undefined)
+    ? heroBackdrop(itemDetails.value, fullArtist.value ?? undefined)
     : { blurred: false },
 );
 
@@ -328,7 +328,7 @@ const needsFullArtist = computed(
     !!itemDetails.value &&
     (rowsEditorOpen.value ||
       visibleRows.value.includes("more_from_artist") ||
-      albumBackdrop(itemDetails.value).blurred),
+      heroBackdrop(itemDetails.value).blurred),
 );
 
 // a new album starts at the top of the page and drops the previous artist;
