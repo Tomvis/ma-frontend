@@ -299,6 +299,14 @@
         "metadataproviders": "Metadata sources",
         "player_disabled": "This player is disabled",
         "player_name": "Custom player name",
+        "player_details": {
+            "id": "Player ID",
+            "ip_address": "IP address",
+            "mac_address": "MAC address",
+            "copy": "Copy {0}",
+            "copied": "{0} copied",
+            "copy_failed": "Couldn't copy {0}"
+        },
         "player_not_available": "This player is not (yet) available",
         "player_option_error": "Error while setting player option: {key} {value}",
         "server_logs_load_failed": "Failed to load server logs",
@@ -429,8 +437,9 @@
             }
         },
         "dsp": {
-            "configure_on": "Configuring DSP on: {name}",
-            "disabled_message": "DSP is currently disabled. Enable it using the switch above",
+            "enable": "Enable DSP",
+            "disabled_message": "DSP is off, so these filters are not applied. Turn on \"Enable DSP\" above to edit and use them.",
+            "reset_confirm": "This removes all filters and turns DSP off for this player.",
             "input": "Input",
             "output": "Output",
             "filter": {
@@ -501,9 +510,9 @@
                 "FR": "R"
             },
             "presets": {
-                "load": "Load DSP Preset",
+                "load": "Load DSP preset",
                 "empty_warning": "No DSP presets available",
-                "save": "Save DSP Preset",
+                "save": "Save DSP preset",
                 "name": "Preset Name",
                 "name_placeholder": "My new preset",
                 "remove_confirm": "Are you sure you want to remove this DSP preset?",
@@ -846,6 +855,7 @@
             }
         },
         "settings_saved": "Settings saved successfully",
+        "settings_save_failed_for": "Couldn't save the settings of {0}",
         "settings_load_failed": "Couldn't load these settings",
         "protocol_no_settings": "This output protocol does not have any additional configuration",
         "protocol_no_settings_with_advanced": "No settings visible. Enable advanced settings to see more configuration options.",
@@ -1796,6 +1806,12 @@
                 "hi_res": "Hi-res",
                 "unknown": "Quality unknown"
             },
+            "playback_quality": {
+                "lossless_uncompressed": "Lossless, uncompressed",
+                "lossless_compressed": "Lossless, compressed",
+                "compressed": "High quality, compressed",
+                "compressed_source": "Compressed"
+            },
             "normalization_mode": {
                 "disabled": "Disabled",
                 "dynamic": "Dynamic",
@@ -2154,6 +2170,7 @@
     "link": "Link",
     "link_alias": "Link alias",
     "link_alias_failed": "Failed to link alias",
+    "link_alias_search_hint": "Type to search for an alias",
     "alias_linked_successfully": "Alias linked successfully",
     "mapped_aliases": "Mapped Aliases",
     "no_aliases": "No aliases linked yet.",

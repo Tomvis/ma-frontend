@@ -35,6 +35,9 @@ export interface SettingsPage {
   // lists of providers leave it out
   provider?: string;
   sources: readonly SettingsSource[];
+  // the page also sets the log level of every core module, in a section of
+  // its own above the settings of its sources
+  logLevels?: boolean;
 }
 
 export type SettingsPageId =
@@ -99,6 +102,7 @@ export const SETTINGS_PAGES: Readonly<Record<SettingsPageId, SettingsPage>> = {
     sources: [{ owner: coreOwner(TASKS_DOMAIN) }],
   },
   diagnostics: {
+    logLevels: true,
     sources: [
       {
         owner: coreOwner(CACHE_DOMAIN),
@@ -315,6 +319,17 @@ export function settingsPageProviderDomain(
   const { sources } = SETTINGS_PAGES[pageId];
   const owner = sources.length === 1 ? sources[0].owner : undefined;
   return owner?.kind === "provider" ? owner.id : undefined;
+}
+
+/**
+ * Whether a page heads the entries of its sources with their titles, which
+ * name the sections of its form.
+ *
+ * @param pageId - The settings page.
+ */
+export function settingsPageTitlesSections(pageId: SettingsPageId): boolean {
+  const { sources } = SETTINGS_PAGES[pageId];
+  return sources.length > 1 && sources.some((source) => source.title);
 }
 
 /**

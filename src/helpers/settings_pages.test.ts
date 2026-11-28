@@ -27,6 +27,7 @@ import {
   providerSettingsPageId,
   SETTINGS_PAGES,
   settingsPageProviderDomain,
+  settingsPageTitlesSections,
   sourceIncludesEntry,
   STREAMS_DOMAIN,
   TASKS_DOMAIN,
@@ -287,6 +288,14 @@ describe("the page of each setting", () => {
       ).toEqual([]);
     }
   });
+
+  it("sets the log levels of the core modules on the diagnostics page only", () => {
+    expect(
+      (Object.keys(SETTINGS_PAGES) as SettingsPageId[]).filter(
+        (id) => SETTINGS_PAGES[id].logLevels,
+      ),
+    ).toEqual(["diagnostics"]);
+  });
 });
 
 describe("isKnownOwner", () => {
@@ -389,6 +398,22 @@ describe("settingsPageProviderDomain", () => {
     "names none for the %s page of core settings",
     (pageId) => {
       expect(settingsPageProviderDomain(pageId)).toBeUndefined();
+    },
+  );
+});
+
+describe("settingsPageTitlesSections", () => {
+  it.each<SettingsPageId>(["diagnostics", "library", "network"])(
+    "heads the sources of the %s page with their titles",
+    (pageId) => {
+      expect(settingsPageTitlesSections(pageId)).toBe(true);
+    },
+  );
+
+  it.each<SettingsPageId>(["metadata", "playback"])(
+    "leaves the %s page to the categories of its entries",
+    (pageId) => {
+      expect(settingsPageTitlesSections(pageId)).toBe(false);
     },
   );
 });
